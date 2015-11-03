@@ -51,6 +51,7 @@ int num_points; // number of vectors
 int num_dimensions;         // Dimension of each vector
 int num_clusters; // number of clusters
 bool force_dense; // force a (slower) dense calculation
+int max_iters; // maximum number of iterations
 real * min_val; // min value of each dimension of vector space
 real * max_val; // max value of each dimension of vector space
 const char * infile = NULL; // input file
@@ -474,10 +475,11 @@ void parse_args(int argc, char **argv)
     
     // num_points = DEF_NUM_POINTS;
     num_clusters = DEF_NUM_MEANS;
+    max_iters = 0;
     // num_dimensions = DEF_DIM;
     // grid_size = DEF_GRID_SIZE;
     
-    while ((c = getopt(argc, argv, "c:i:d")) != EOF) 
+    while ((c = getopt(argc, argv, "c:i:m:d")) != EOF) 
     {
         switch (c) {
             // case 'd':
@@ -486,6 +488,9 @@ void parse_args(int argc, char **argv)
 	    case 'd':
 		force_dense = true;
 		break;
+            case 'm':
+                max_iters = atoi(optarg);
+                break;
             case 'c':
                 num_clusters = atoi(optarg);
                 break;
@@ -738,16 +743,20 @@ int main(int argc, char **argv)
 	for( int i=0; i < num_points; ++i )
 	    spoints.push_back( sparse_point( points[i] ) );
 
-	while(kmeans_cluster(centres, &spoints[0]))
-	    niter++;
+	while(kmeans_cluster(centres, &spoints[0])) {
+	    if( ++niter >= max_iters && max_iters > 0 )
+		break;
+	}
 
 	for( int i=0; i < num_points; ++i ) {
 	    delete[] spoints[i].c;
 	    delete[] spoints[i].v;
 	}
     } else {
-	while(kmeans_cluster(centres, points))
-	    niter++;
+	while(kmeans_cluster(centres, points)) {
+	    if( ++niter >= max_iters && max_iters > 0 )
+		break;
+	}
     }
     get_time (end);        
 #if SEQUENTIAL && PMC
