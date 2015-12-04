@@ -1,16 +1,24 @@
-## Prep for compiling :
+## Requirements for compiling :
 
 source /var/shared/intel/bin/iccvars.sh intel64
 
-make
-icc -DMMAP_POPULATE -I/home/kmurphy/hvan03/cilkpub_v105/include  -I../../../include  -DTIMING  -O3 -std=c++11 -I. -I../../include -I../../../../phoenix++-1.0/include  -I../cilkpub_v105/include  -lrt   words.C   -o words
-
 module unload compilers/gcc-4.9.0
 module unload compilers/gcc-4.9.2
+
+make
 
  gcc -v
 
     should show version something like 4.4.7
 
 Then edit container.h and comment out #include events.h
+
+
+To run:
+
+    ./tfidf_dbg -d test
+
+or for non-debug version:
+
+    ./tfidf -d test
 

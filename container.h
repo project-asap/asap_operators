@@ -305,37 +305,6 @@ public:
 
     size_t capacity() const { return msize; }
 
-#if 0
-    V& operator() (K const& key, uint64_t fileReserve)
-    {
-        size_t hash = kh(key);
-        uint64_t index = hash & (msize-1);
-        // should use a user-defined comparator here
-        while( occupied[index] && !(table[index].first == key) ) {
-            index = (index+1) & (msize-1);
-        }
-
-        if(occupied[index])
-            return table[index].second;
-        else {
-            load++;
-            if(load >= msize>>1) {
-                rehash(msize<<1);
-                index = hash & (msize-1);
-                while( occupied[index] && !(table[index].first == key) ) {
-                    index = (index+1) & (msize-1);
-                }
-            }
-            table[index].first = key;
-            table[index].second = V();
-            table[index].second.reserve(fileReserve);
-            occupied[index] = true;
-            hashes[index] = hash;
-            return table[index].second;
-        }
-    }
-#endif
-
     V& operator[] (K const& key) 
     {
 	size_t hash = kh(key);
@@ -358,7 +327,6 @@ public:
             }
             table[index].first = key;
             table[index].second = V(fileReserve, 0);
-            // table[index].second.reserve(fileReserve);
             occupied[index] = true;
             hashes[index] = hash;
             return table[index].second;

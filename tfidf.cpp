@@ -65,6 +65,18 @@
 #endif
 
 #include "stddefines.h"
+#include <tuple>
+// #include <iostream>
+#include <map>
+#include <set>
+// #include <string>
+// #include <algorithm>
+#include <fstream>
+// #include "vector"
+#include <math.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <errno.h>
 
 #define DEFAULT_DISP_NUM 10
 
@@ -147,7 +159,7 @@ typedef hash_table<wc_word, size_t, wc_word_hash> wc_unordered_map;
 #include "container.h"
 // typedef hash_table_stored_hash<wc_word, size_t, wc_word_hash> wc_unordered_map;
 typedef std::vector<size_t> fileVector;
-typedef hash_table_stored_hash<wc_word, std::vector<size_t>, wc_word_hash> wc_unordered_map;
+typedef hash_table_stored_hash<wc_word, fileVector, wc_word_hash> wc_unordered_map;
 
  
          // typedef std::pair<size_t, size_t> fileWordIndexType;
@@ -164,9 +176,12 @@ typedef std::map<fileWordIndexType, double> idfFileWordMap;
 
 void merge_two_dicts( wc_unordered_map & m1, wc_unordered_map & m2 ) {
 
+    std::cout << "In merge 2 dicts" << "\n";
     for( auto I=m2.cbegin(), E=m2.cend(); I != E; ++I ) {
 	std::vector<size_t> counts =  I->second;
+        std::cout << "m2 word is " << I->first.data << "\n";
         for( auto J=counts.begin(), JE=counts.end(); J != JE; ++J ) {
+            std::cout << "added " << *J << " to " << m1[I->first][std::distance(counts.begin(), J)] << "\n";
 	    m1[I->first][std::distance(counts.begin(), J)] += *J;
         }
     }
@@ -281,23 +296,10 @@ void merge_dicts( wc_unordered_map ** dicts, size_t length ) {
 
 void wc( char * data, uint64_t data_size, uint64_t chunk_size, wc_unordered_map & final_dict, unsigned int file,  uint64_t fileReserve ) {
     final_dict.rehash( 256 );
-#if TLSREDUCE
-    static __thread wc_unordered_map * tls_dict = 0;
-    std::vector<wc_unordered_map *> all_dicts;
-#else
+
     // dictionary_reducer dict;
     wc_unordered_map  dict;
 
-    // previous code: size_t & s = dict[w];
-#if 0
-khere
-    std::vector<size_t> & v = dict[w];
-    size_t & si = v[i];
-    size_t & si = dict[w][i];
-    dict[w].begin();
-#endif
-
-#endif
     uint64_t splitter_pos = 0;
     while( 1 ) {
 	TRACE( e_ssplit );
@@ -332,13 +334,7 @@ khere
         /* Continue with map since the s data is valid. */
 	// cilk_spawn [&] (wc_string s) 
 	    TRACE( e_smap );
-#if TLSREDUCE
-	    if( !tls_dict ) {
-		tls_dict = new wc_unordered_map;
-		all_dicts.push_back( tls_dict );
-	    }
-	    wc_unordered_map & dict = *tls_dict;
-#endif
+
 	    // TODO: is it better for locatiy to move toupper() into the inner loop?
 	    for (uint64_t i = 0; i < s.len; i++)
 		s.data[i] = toupper(s.data[i]);
@@ -396,18 +392,8 @@ khere
          }
     }
 #endif
-#if TLSREDUCE
-    // for( auto I=all_dicts.begin(), E=all_dicts.end(); I != E; ++I ) {
-    merge_dicts( &all_dicts[0], all_dicts.size() );
-    wc_unordered_map & dict = *all_dicts[0];
-#endif
-#if MASTER
-    if( !dict.empty() ) {
-    }
-    master_map.swap( final_dict );
-#else
     dict.swap( final_dict );
-#endif
+
     TRACE( e_synced );
     // std::cout << "final hash table size=" << final_dict.bucket_count() << std::endl;
 }
@@ -417,19 +403,6 @@ khere
 // vim: ts=8 sw=4 sts=4 smarttab smartindent
 
 
-/* Program to find the frequency of words in a text file */
-#include <tuple>
-#include <iostream>
-#include <map>
-#include <set>
-#include <string>
-#include <algorithm>
-#include <fstream>
-#include "vector"
-#include <math.h>
-#include <sys/types.h>
-#include <dirent.h>
-#include <errno.h>
 
 using namespace std;
 int getdir (std::string dir, std::vector<std::string> &files)
@@ -506,9 +479,6 @@ int main(int argc, char *argv[])
         abort ();
     }
 
-    // fname = argv[1];
-    // disp_num_str = argv[2];
-    
     // Make sure a filename is specified
     if( argc < 2 ) {
         printf("USAGE: %s <directory name> [Top # of results to display]\n", argv[0]);
@@ -518,15 +488,9 @@ int main(int argc, char *argv[])
     getdir(fname,files);
     dict.setReserve(files.size());
 
-    // sorted_result_type sorted_result[files.size()];
-
-    wc_unordered_map * asap_dict;
-    // /* static */wc_unordered_map * asap_dict[files.size()];
-    // std::vector<wc_unordered_map *> all_dicts;
-
-    // printf("Wordcount: Running...\n");
 
     cilk_for (unsigned int i = 0;i < files.size();i++) {
+
 
         // Read in the file
         fd = open(files[i].c_str(), O_RDONLY);
@@ -565,12 +529,11 @@ int main(int argc, char *argv[])
 #endif // SEQUENTIAL && PMC
         get_time (begin);
 
+        wc_unordered_map * asap_dict;
         asap_dict = new wc_unordered_map;
-        // all_dicts.push_back( asap_dict[i] );
 
         wc_unordered_map result = *asap_dict;
 
-        // std::vector<std::pair<wc_word, size_t>> result;
         wc(fdata, finfo.st_size, 1024*1024, result, i, files.size());
 
         get_time (ser_begin);
@@ -582,10 +545,6 @@ int main(int argc, char *argv[])
         LIKWID_MARKER_START("serialize");
 #endif // SEQUENTIAL && PMC
         TRACE( e_smerge );
-
-        // sorted_result[i].reserve( result.size() );
-
-        TRACE( e_emerge );
 
         // No important performance difference between the two sort versions
         // for 100MB x4 data set.
