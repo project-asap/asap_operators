@@ -1,18 +1,10 @@
-include ../Config.mk
-
-# benchmark=wc wc_rec wc_seq wc_trace wc_tls wc_p2 wc_std
 benchmark=tfidf tfidf_dbg tfidf_timed
 
 CXX=icc
-#CXXFLAGS+=-O3 -std=c++11 -I. -I../../include -I../../../../phoenix++-1.0/include -gcc-name=/usr/local/bin/gcc
-#CXXFLAGS+=-O3 -std=c++11 -I. -I../../include -I../../../../phoenix++-1.0/include 
-CXXFLAGS+=-O3 -std=c++11 -I. -I../../include -I../../../../phoenix++-1.0/include
-CXXFLAGSDEBUG+=-g -std=c++11 -I. -I../../include -I../../../../phoenix++-1.0/include
-# CXXFLAGS+=-O3 -I. -I../../include -I../../../../phoenix++-1.0/include 
-# #CXXFLAGS+=-O0 -g -std=c++11 -I. -I../../include -I../../../../phoenix++-1.0/include
-#
-CXXFLAGS += -I../cilkpub_v105/include -I..
-CXXFLAGSDEBUG += -I../cilkpub_v105/include -I..
+CXXFLAGS+=-O3 -std=c++11 -I. -DASAP
+CXXFLAGS += -I../cilkpub_v105/include -I.. 
+CXXFLAGSDEBUG+=-g $(CXXFLAGS) 
+LDFLAGS += -lrt
 
 all: $(benchmark)
 
