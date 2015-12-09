@@ -1,0 +1,15 @@
+Mahout ouput:
+
+Dictionary (sequencefile @ hdfs) :
+	Key class: class org.apache.hadoop.io.Text Value Class: class org.apache.hadoop.io.IntWritable
+	Key: am: Value: 0
+	Key: dog: Value: 1
+	Key: dummy: Value: 2
+	Key: i: Value: 3
+	Key: pretty: Value: 4
+	Key: test: Value: 5
+Document Vectors (sequencefile @ hdfs):
+	Key class: class org.apache.hadoop.io.Text Value Class: class org.apache.mahout.math.VectorWritable
+	Key: file1: Value: file1:{1:1.0,4:1.4054651260375977}
+	Key: file2: Value: file2:{0:1.4054651260375977,1:1.4142135381698608,3:1.4054651260375977}
+	Key: file3: Value: file3:{2:1.4054651260375977,5:1.4054651260375977}

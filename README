@@ -1,0 +1,24 @@
+## Requirements for compiling :
+
+source /var/shared/intel/bin/iccvars.sh intel64
+
+module unload compilers/gcc-4.9.0
+module unload compilers/gcc-4.9.2
+
+make
+
+ gcc -v
+
+    should show version something like 4.4.7
+
+Then edit container.h and comment out #include events.h
+
+
+To run:
+
+    ./tfidf_dbg -d test
+
+or for non-debug version:
+
+    ./tfidf -d test
+
