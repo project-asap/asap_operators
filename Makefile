@@ -1,7 +1,7 @@
 include ../Config.mk
 
 # benchmark=wc wc_rec wc_seq wc_trace wc_tls wc_p2 wc_std
-benchmark=tfidf tfidf_dbg
+benchmark=tfidf tfidf_dbg tfidf_timed
 
 CXX=icc
 #CXXFLAGS+=-O3 -std=c++11 -I. -I../../include -I../../../../phoenix++-1.0/include -gcc-name=/usr/local/bin/gcc
@@ -45,6 +45,9 @@ tfidf_std: tfidf.cpp
 
 tfidf_dbg: tfidf.cpp
 	$(CXX) $(CXXFLAGSDEBUG) -DASAP $^ -o $@ $(LDFLAGS)
+
+tfidf_timed: tfidf.cpp
+	$(CXX) $(CXXFLAGS) -DTIMING=1 -DASAP $^ -o $@ $(LDFLAGS)
 
 clean:
 	rm -fr $(benchmark)

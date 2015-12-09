@@ -277,6 +277,8 @@ public:
 
     void setReserve(size_t size) { fileReserve=size; }
 
+    size_t getReserve() { return fileReserve; }
+
     size_t size() const { return load; }
     
     void rehash(uint64_t newsize) {

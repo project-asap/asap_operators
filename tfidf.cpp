@@ -176,12 +176,9 @@ typedef std::map<fileWordIndexType, double> idfFileWordMap;
 
 void merge_two_dicts( wc_unordered_map & m1, wc_unordered_map & m2 ) {
 
-    std::cout << "In merge 2 dicts" << "\n";
     for( auto I=m2.cbegin(), E=m2.cend(); I != E; ++I ) {
 	std::vector<size_t> counts =  I->second;
-        std::cout << "m2 word is " << I->first.data << "\n";
         for( auto J=counts.begin(), JE=counts.end(); J != JE; ++J ) {
-            std::cout << "added " << *J << " to " << m1[I->first][std::distance(counts.begin(), J)] << "\n";
 	    m1[I->first][std::distance(counts.begin(), J)] += *J;
         }
     }
@@ -251,60 +248,27 @@ public:
     // typename wc_unordered_map::const_iterator cend() { return imp_.view().cend(); }
 
     void setReserve(size_t size) { imp_.view().setReserve(size); }
+
+    size_t getReserve() { return imp_.view().getReserve(); }
+
+    void rehash(uint64_t newsize) { imp_.view().setReserve(newsize); }
+
 };
 #else
 typedef wc_unordered_map dictionary_reducer;
 #endif
 
-#if 0
-#if TLSREDUCE || ASAP
-#if 1
-void merge_dicts( wc_unordered_map ** dicts, size_t length ) {
-    TRACE( e_sreduce );
-    if( length > 2 ) {
-	cilk_spawn merge_dicts( dicts, length/2 );
-	merge_dicts( &dicts[length/2], length-length/2 );
-	cilk_sync;
-	merge_two_dicts( *dicts[0], *dicts[length/2] );
-    } else if( length > 1 ) {
-	merge_two_dicts( *dicts[0], *dicts[1] );
-    }
-    TRACE( e_ereduce );
-}
-#else
-// Need to do fine-grain striping across dictionaries, creating tasks
-// that consist of reducing the n-th slice of each of the dictionaries.
-// Only sensible if combining this with serialization to key-value pairs,
-// or if we provide a data structure that is a set of (slices of) hash tables
-// *and* we distribute keys to identical slices for each thread's hash table.
-void merge_dicts( wc_unordered_map ** dicts, size_t length ) {
-    size_t nslices = 16; // so many slices
-    wc_unordered_map dict[nslices];
-    cilk_for( size_t s=0; s < nslices; ++s ) {
-	for( size_t i=0; i < length; ++i ) {
-	    wc_unordered_map & m1 = dict[s];
-	    wc_unordered_map & m2 = *dicts[i];
-	    for( auto I=m2.slice_begin(s,nslices), E=m2.slice_end(s,nslices);
-		 I != E; ++I )
-		m1[I->first] += I->second;
-	}
-    }
-}
-#endif if 1
-#endif TLS or ASAP
-#endif // if 0
+void wc( char * data, uint64_t data_size, uint64_t chunk_size, dictionary_reducer & dict, unsigned int file) {
 
-void wc( char * data, uint64_t data_size, uint64_t chunk_size, wc_unordered_map & final_dict, unsigned int file,  uint64_t fileReserve ) {
-    final_dict.rehash( 256 );
+    // final_dict.rehash( 256 );
+    // dict.rehash( 256 );
 
     // dictionary_reducer dict;
-    wc_unordered_map  dict;
+    // wc_unordered_map  dict;
 
     uint64_t splitter_pos = 0;
     while( 1 ) {
 	TRACE( e_ssplit );
-
-        dict.setReserve(fileReserve);
 
         /* End of data reached, return FALSE. */
         if ((uint64_t)splitter_pos >= data_size) {
@@ -332,7 +296,7 @@ void wc( char * data, uint64_t data_size, uint64_t chunk_size, wc_unordered_map 
 	// ++parts;
 
         /* Continue with map since the s data is valid. */
-	// cilk_spawn [&] (wc_string s) 
+	cilk_spawn [&] (wc_string s) {
 	    TRACE( e_smap );
 
 	    // TODO: is it better for locatiy to move toupper() into the inner loop?
@@ -361,15 +325,11 @@ void wc( char * data, uint64_t data_size, uint64_t chunk_size, wc_unordered_map 
 		{
 		    s.data[i] = 0;
 		    word = { s.data+start };
-		    // dict(word,fileReserve)[file]++;
 		    dict[word][file]++;
-                    // std::vector<size_t> & v = dict[word];
-                    // size_t & si = v[file];
-                    // si++;
-                    // std::cout << s.data+start << "\n";
 		}
 	    }
 	    TRACE( e_emap );
+        }( s );
 #if 0
     std::cout << "File " << file << "\n";
     for( auto I=dict.begin(), E=dict.cend(); I != E; ++I ) {
@@ -381,7 +341,7 @@ void wc( char * data, uint64_t data_size, uint64_t chunk_size, wc_unordered_map 
     }
 #endif
     }
-    // cilk_sync;
+    cilk_sync;
     // typename wc_unordered_map::const_iterator begin() { return imp_.view().begin(); }
 #if 0
     std::cout << "_File " << file << "\n";
@@ -392,7 +352,7 @@ void wc( char * data, uint64_t data_size, uint64_t chunk_size, wc_unordered_map 
          }
     }
 #endif
-    dict.swap( final_dict );
+    // khere dict.swap( final_dict );
 
     TRACE( e_synced );
     // std::cout << "final hash table size=" << final_dict.bucket_count() << std::endl;
@@ -428,27 +388,15 @@ int getdir (std::string dir, std::vector<std::string> &files)
 
 int main(int argc, char *argv[]) 
 {
-    int fd;
-    char * fdata;
-    unsigned int disp_num;
-    struct stat finfo;
-    char * fname, * disp_num_str;
+    // unsigned int disp_num;
+    char * fname;
+    // char * disp_num_str;
     struct timespec begin, end, ser_begin;
     vector<string> files = vector<string>();
-    // typedef std::vector<std::pair<wc_word, size_t> > sorted_result_type;
-    // // typedef std::vector< sorted_result_type > dir_sorted_result_type;
-    uint64_t dictionaryIndex=0;
 
-    // wc_unordered_map dict;
     dictionary_reducer dict;
 
-    // std::vector<std::vector<std::pair<wc_word, size_t>>> sorted_result;
-
     get_time (begin);
-
-#if SEQUENTIAL && PMC
-    LIKWID_MARKER_INIT;
-#endif // SEQUENTIAL && PMC
 
 #if TRACING
     event_tracer::init();
@@ -487,98 +435,66 @@ int main(int argc, char *argv[])
 
     getdir(fname,files);
     dict.setReserve(files.size());
-
-
-    cilk_for (unsigned int i = 0;i < files.size();i++) {
-
-
-        // Read in the file
-        fd = open(files[i].c_str(), O_RDONLY);
-       
-        // Get the file info (for file length)
-        fstat(fd, &finfo);
-#ifndef NO_MMAP
-#ifdef MMAP_POPULATE
-    // Memory map the file
-        fdata = (char*)mmap(0, finfo.st_size + 1, 
-			PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0);
-#else
-        // Memory map the file
-        fdata = (char*)mmap(0, finfo.st_size + 1, 
-        PROT_READ, MAP_PRIVATE, fd, 0);
-#endif
-#else
-        uint64_t r = 0;
-
-        fdata = (char *)malloc (finfo.st_size);
-        while(r < (uint64_t)finfo.st_size)
-            r += pread (fd, fdata + r, finfo.st_size, r);
-#endif    
-    
-        // Get the number of results to display
-        disp_num = (disp_num_str == NULL) ? DEFAULT_DISP_NUM : atoi(disp_num_str);
-
-        get_time (end);
+    char * fdata[files.size()];
+    struct stat finfo[files.size()];
+    int fd[files.size()];
+    get_time (end);
 
 #ifdef TIMING
         print_time("initialize", begin, end);
 #endif
 
-#if SEQUENTIAL && PMC
-        LIKWID_MARKER_START("mapreduce");
-#endif // SEQUENTIAL && PMC
-        get_time (begin);
+    cilk_for (unsigned int i = 0;i < files.size();i++) {
 
-        wc_unordered_map * asap_dict;
-        asap_dict = new wc_unordered_map;
+        struct timespec beginI, endI, beginWC, endWC;
+        get_time(beginI);
 
-        wc_unordered_map result = *asap_dict;
+        dict.setReserve(files.size());
 
-        wc(fdata, finfo.st_size, 1024*1024, result, i, files.size());
+        // Read in the file
+        fd[i] = open(files[i].c_str(), O_RDONLY);
+       
+        // Get the file info (for file length)
+        fstat(fd[i], &finfo[i]);
+#ifndef NO_MMAP
+#ifdef MMAP_POPULATE
+    // Memory map the file
+        fdata[i] = (char*)mmap(0, finfo.st_size + 1, 
+			PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd[i], 0);
+#else
+        // Memory map the file
+        fdata[i] = (char*)mmap(0, finfo.st_size + 1, 
+        PROT_READ, MAP_PRIVATE, fd[i], 0);
+#endif
+#else
+        uint64_t r = 0;
 
-        get_time (ser_begin);
-#if SEQUENTIAL && PMC
-        LIKWID_MARKER_STOP("mapreduce");
-#endif // SEQUENTIAL && PMC
+        fdata[i] = (char *)malloc (finfo[i].st_size);
+        while(r < (uint64_t)finfo[i].st_size)
+            r += pread (fd[i], fdata[i] + r, finfo[i].st_size, r);
+#endif    
+    
+        get_time (endI);
 
-#if SEQUENTIAL && PMC
-        LIKWID_MARKER_START("serialize");
-#endif // SEQUENTIAL && PMC
+#ifdef TIMING
+        print_time("thread initialize", beginI, endI);
+#endif
+
+        get_time (beginWC);
+
+        wc(fdata[i], finfo[i].st_size, 1024*1024, dict, i);
+
+        get_time (endWC);
+#ifdef TIMING
+        print_time("thread WC ", beginWC, endWC);
+#endif
+
         TRACE( e_smerge );
 
         // No important performance difference between the two sort versions
         // for 100MB x4 data set.
         TRACE( e_ssort );
-#if SEQUENTIAL
-        // std::sort( sorted_result[i]->begin(), sorted_result[i]->end(), wc_sort_pred_by_first() );
-#else
-        // cilkpub::cilk_sort( sorted_result[i].begin(), sorted_result[i].end(), wc_sort_pred_by_first() );
-#endif
 
-        TRACE( e_esort );
-        // cilkpub::cilk_sort_in_place( sorted_result[i].begin(), sorted_result[i].end(), wc_sort_pred() );
-        get_time (end);
-#if SEQUENTIAL && PMC
-        LIKWID_MARKER_STOP("serialize");
-#endif // SEQUENTIAL && PMC
-
-#ifdef TIMING
-        print_time("serialize", ser_begin, end);
-        print_time("library", begin, end);
-#endif
-        get_time (begin);
-
-// End of trace to go
-        // printf("parts: %lu\n", parts );
-
-#ifndef NO_MMAP
-        munmap(fdata, finfo.st_size + 1);
-#else
-        // free (fdata);
-#endif
-        close(fd);
-
-        dict.swap(result);
 #if 0
     // Temporary trace: todelete khere
     std::cout << "Single Stage \n\n" << "Single File  " << files[i] << "\n";
@@ -592,6 +508,7 @@ int main(int argc, char *argv[])
 #endif
     }
 
+#if 0
     // Temporary trace: todelete khere
     std::cout << "Merge Stage \n\n" << "Merged File  " << "\n";
     for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
@@ -601,13 +518,12 @@ int main(int argc, char *argv[])
                 std::cout << "       second: " << *J << "\n";
          }
     }
+#endif
 
     ofstream resFile ("testRes.txt", ios::out | ios::trunc | ios::binary);
     string headerText("Document Vectors (sequencefile @ hdfs):");
     string classText("Key class: class org.apache.hadoop.io.Text Value Class: class org.apache.mahout.math.VectorWritable");
-    // Print the dictionary
-    cout << "Dictionary\n" ;
-  
+
     // printing mahoot Dictionary
     char nline='\n';
     char tab='\t';
@@ -615,8 +531,8 @@ int main(int argc, char *argv[])
     char colon=':';
     char rbrace='}';
     char what;
-    cout << headerText;
-    cout << "\t" << classText;
+    cout << headerText << nline;
+    cout << "\t" << classText << nline;
     resFile.write (headerText.c_str(), headerText.size());
     resFile.write ((char *)&nline,1);
     resFile.write ((char *)&tab,1);
@@ -772,18 +688,21 @@ int main(int argc, char *argv[])
     get_time (end);
 
 #ifdef TIMING
-    print_time("finalize", begin, end);
+    // print_time("finalize", begin, end);
 #endif
 
 #if TRACING
     event_tracer::destroy();
 #endif
 
-#if SEQUENTIAL && PMC
-    LIKWID_MARKER_CLOSE;
-#endif // SEQUENTIAL && PMC
-    
-    free (fdata);
+    cilk_for(int i = 0; i < files.size() ; ++i) {
+#ifndef NO_MMAP
+        munmap(fdata[i], finfo.st_size + 1);
+#else
+        free (fdata[i]);
+#endif
+        close(fd[i]);
+    }
 
     return 0;
 }
