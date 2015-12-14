@@ -27,7 +27,7 @@ tfidf_master_ph: tfidf.cpp
 	$(CXX) $(CXXFLAGS) -DMASTER=1 -DPHOENIX_MAP=1 $^ -o $@ $(LDFLAGS)
 
 tfidf_ph: tfidf.cpp
-        $(CXX) $(CXXFLAGS) -DPHOENIX_MAP=1 $^ -o $@ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -DPHOENIX_MAP=1 $^ -o $@ $(LDFLAGS)
 	
 tfidf_p2: tfidf.cpp
 	$(CXX) $(CXXFLAGS) -DP2_UNORDERED_MAP=1 -DTIMING=1 $^ -o $@ $(LDFLAGS)
