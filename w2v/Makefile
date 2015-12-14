@@ -1,24 +1,31 @@
-benchmark=word2vec word2vec_dbg word2vec_timed
+# benchmark=word2vec word2vec_dbg word2vec_timed
+benchmark=word2vec word2vec_dbg origw2v
 
 CXX=icc
-CXXFLAGS+=-O3 -std=c++11 -I. -DASAP
-CXXFLAGS += -I../cilkpub_v105/include -I..
-CXXFLAGS+= -O3 -march=native -Wall -funroll-loops
+OPTFLAGS+=-O3
+CXXFLAGS+=-std=c++11 -I. -DASAP
+CXXFLAGS+= -I../cilkpub_v105/include -I..
+CXXFLAGS+= -march=native -Wall -funroll-loops
 CXXFLAGSDEBUG+=-g $(CXXFLAGS)
-LDFLAGS += -lrt
+LDFLAGS += -lrt -lpthread
 
-benchmark=word2vec
 
 all: $(benchmark)
 
-word2vec: word2vec.c
-	$(CXX) $(CXXFLAGS) -DASAP $^ -o $@ $(LDFLAGS)
+word2vec: word2vec.cpp
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) -DTIMING=1 -DASAP $^ -o $@ $(LDFLAGS)
 
-word2vec_dbg: word2vec.c
-	$(CXX) $(CXXFLAGSDEBUG) -DASAP $^ -o $@ $(LDFLAGS)
+word2vec_dbg: word2vec.cpp
+	$(CXX) -O0 $(CXXFLAGSDEBUG) -DASAP $^ -o $@ $(LDFLAGS)
+
+origw2v: origw2v.cpp
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) -DTIMING=1 -DASAP $^ -o $@ $(LDFLAGS)
+
+origw2v_dbg: origw2v.cpp
+	$(CXX) -O0 $(CXXFLAGSDEBUG) -DASAP $^ -o $@ $(LDFLAGS)
 
 word2vec_timed: word2vec.cpp
-	$(CXX) $(CXXFLAGS) -DTIMING=1 -DASAP $^ -o $@ $(LDFLAGS)
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) -DTIMING=1 -DASAP $^ -o $@ $(LDFLAGS)
 
 clean:
 	rm -fr $(benchmark)

@@ -1,0 +1,17 @@
+## Run via run.sh, for example:
+./run.sh word2vec 4 text8
+
+## OR direct run, ie. not via numactl via run.sh script:
+CILK_NWORKERS=4 ./word2vec -train text8 -output vectors.bin -cbow 1 -size 20 -window 3 -negative 3 -hs 0 -threads 4 -binary 1 iter 2
+CILK_NWORKERS=1 ./word2vec -train text8 -output vectors.bin -cbow 1 -size 200 -window 3 -negative 3 -hs 0 -threads 1 -binary 1 -iter 2
+CILK_NWORKERS=2 ./word2vec -train text8 -output vectors.bin -cbow 1 -size 200 -window 3 -negative 3 -hs 0 -threads 2 -binary 1 -iter 2
+
+
+## Original pthreads version via run.sh:
+./run.sh origw2v 4 text8
+## Original pthreads version run direct:
+./origw2v_dbg -train text8 -output vectors.bin -cbow 1 -size 20 -window 3 -negative 3 -hs 0 -threads 4 -binary 1 iter 
+
+
+
+## Note, at time of writing numactl gives significantly worse performance
