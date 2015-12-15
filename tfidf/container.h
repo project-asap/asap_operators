@@ -49,6 +49,7 @@ private:
     Hash kh;
     uint64_t msize;
     uint64_t load;
+    // size_t fileReserve;
 public:
     hash_table( size_t init_size = 256 )
     {
@@ -61,6 +62,10 @@ public:
     {
 	// dprintf( "destruct hash table, bucket count=%lu\n", table.size() );
     }
+
+    // void setReserve(size_t size) { fileReserve=size; }
+
+    // size_t getReserve() { return fileReserve; }
 
     void swap( hash_table<K, V, Hash, Allocator> & h ) {
 	table.swap( h.table );
@@ -121,6 +126,7 @@ public:
                 }
             }
             table[index].first = key;
+            // table[index].second = V(fileReserve, 0);
             table[index].second = V();
             occupied[index] = true;
             return table[index].second;
@@ -178,6 +184,12 @@ public:
                 this->index++;
             }
         }
+        uint64_t getIndex() {
+	    return index;
+	}
+        bool operator !=(iterator const& other) const {
+            return index != other.index;
+        }
         bool operator !=(const_iterator const& other) const {
             return index != other.index;
         }
@@ -191,10 +203,10 @@ public:
             }
             return *this;
         }
-        entry & operator*() {
+        entry const & operator*() {
             return a->table[index];
         }
-	entry * operator->() {
+	entry const * operator->() {
             return &a->table[index];
 	}
     };
@@ -245,7 +257,7 @@ private:
     Hash kh;
     uint64_t msize;
     uint64_t load;
-    size_t fileReserve;
+    // size_t fileReserve;
 public:
     hash_table_stored_hash( size_t init_size=256 )
     {
@@ -275,9 +287,9 @@ public:
 	load = 0;
     }
 
-    void setReserve(size_t size) { fileReserve=size; }
+    // void setReserve(size_t size) { fileReserve=size; }
 
-    size_t getReserve() { return fileReserve; }
+    // size_t getReserve() { return fileReserve; }
 
     size_t size() const { return load; }
     
@@ -328,7 +340,8 @@ public:
 		}
             }
             table[index].first = key;
-            table[index].second = V(fileReserve, 0);
+            // table[index].second = V(fileReserve, 0);
+            table[index].second = V();
             occupied[index] = true;
             hashes[index] = hash;
             return table[index].second;

@@ -49,7 +49,7 @@
 #include <cilk/cilk.h>
 #include <cilk/reducer.h>
 #include <cilk/reducer_opadd.h>
-#include "cilkpub/sort.h"
+// #include "cilkpub/sort.h"
 #else
 #define cilk_sync
 #define cilk_spawn
@@ -148,17 +148,25 @@ struct wc_merge_pred
     }
 };
 
+// Use inheritance for convenience, should use encapsulation.
+static size_t nfiles = 0;
+class fileVector : public std::vector<size_t> {
+public:
+    fileVector() : std::vector<size_t>( nfiles, 0 ) { }
+};
+
 #ifdef P2_UNORDERED_MAP
 typedef std::p2_unordered_map<wc_word, size_t, wc_word_hash, wc_word_pred> wc_unordered_map;
 #elif defined(STD_UNORDERED_MAP)
 typedef std::unordered_map<wc_word, size_t, wc_word_hash, wc_word_pred> wc_unordered_map;
-#elif defined(PHOENIX_MAP)
+#elif 1 || defined(PHOENIX_MAP)
 #include "container.h"
-typedef hash_table<wc_word, size_t, wc_word_hash> wc_unordered_map;
+// typedef std::vector<size_t> fileVector;
+typedef hash_table<wc_word, fileVector, wc_word_hash> wc_unordered_map;
 #else
 #include "container.h"
 // typedef hash_table_stored_hash<wc_word, size_t, wc_word_hash> wc_unordered_map;
-typedef std::vector<size_t> fileVector;
+// typedef std::vector<size_t> fileVector;
 typedef hash_table_stored_hash<wc_word, fileVector, wc_word_hash> wc_unordered_map;
 
  
@@ -177,7 +185,7 @@ typedef std::map<fileWordIndexType, double> idfFileWordMap;
 void merge_two_dicts( wc_unordered_map & m1, wc_unordered_map & m2 ) {
 
     for( auto I=m2.cbegin(), E=m2.cend(); I != E; ++I ) {
-	std::vector<size_t> counts =  I->second;
+	const std::vector<size_t> & counts =  I->second;
         for( auto J=counts.begin(), JE=counts.end(); J != JE; ++J ) {
 	    m1[I->first][std::distance(counts.begin(), J)] += *J;
         }
@@ -247,11 +255,11 @@ public:
     typename wc_unordered_map::iterator end() { return imp_.view().end(); }
     // typename wc_unordered_map::const_iterator cend() { return imp_.view().cend(); }
 
-    void setReserve(size_t size) { imp_.view().setReserve(size); }
+    // void setReserve(size_t size) { imp_.view().setReserve(size); }
 
-    size_t getReserve() { return imp_.view().getReserve(); }
+    // size_t getReserve() { return imp_.view().getReserve(); }
 
-    void rehash(uint64_t newsize) { imp_.view().setReserve(newsize); }
+    // void rehash(uint64_t newsize) { imp_.view().setReserve(newsize); }
 
 };
 #else
@@ -283,7 +291,8 @@ void wc( char * data, uint64_t data_size, uint64_t chunk_size, dictionary_reduce
             data[end] != ' ' && data[end] != '\t' &&
             data[end] != '\r' && data[end] != '\n')
             end++;
-	data[end] = '\0';
+	if( end < data_size )
+	    data[end] = '\0';
 
         /* Set the start of the next data. */
 	wc_string s;
@@ -389,10 +398,10 @@ int getdir (std::string dir, std::vector<std::string> &files)
 int main(int argc, char *argv[]) 
 {
     // unsigned int disp_num;
-    char * fname;
+    char * fname = 0;
     // char * disp_num_str;
     struct timespec begin, end, ser_begin;
-    vector<string> files = vector<string>();
+    vector<string> files;
 
     dictionary_reducer dict;
 
@@ -402,46 +411,47 @@ int main(int argc, char *argv[])
     event_tracer::init();
 #endif
 
-  bool checkResults=false;
-  int c;
+    bool checkResults=false;
+    int c;
 
-  while ( (c = getopt (argc, argv, "cd:")) != -1 )
-    switch (c) {
-      case 'c':
-        checkResults = 1;
-        break;
-      case 'd':
-        fname = optarg;
-        break;
-      case '?':
-        if (optopt == 'd')
-          fprintf (stderr, "Option -%c requires a directory argument.\n", optopt);
-        else if (isprint (optopt))
-          fprintf (stderr, "Unknown option `-%c'.\n", optopt);
-        else
-          fprintf (stderr,
-                   "Unknown option character `\\x%x'.\n",
-                   optopt);
-        return 1;
-      default:
-        abort ();
-    }
+    while ( (c = getopt (argc, argv, "cd:")) != -1 )
+	switch (c) {
+	case 'c':
+	    checkResults = 1;
+	    break;
+	case 'd':
+	    fname = optarg;
+	    break;
+	case '?':
+	    if (optopt == 'd')
+		fprintf (stderr, "Option -%c requires a directory argument.\n", optopt);
+	    else if (isprint (optopt))
+		fprintf (stderr, "Unknown option `-%c'.\n", optopt);
+	    else
+		fprintf (stderr,
+			 "Unknown option character `\\x%x'.\n",
+			 optopt);
+	    return 1;
+	default:
+	    abort ();
+	}
 
     // Make sure a filename is specified
-    if( argc < 2 ) {
-        printf("USAGE: %s <directory name> [Top # of results to display]\n", argv[0]);
+    if( !fname ) {
+        printf("USAGE: %s -d <directory name> [-c]\n", argv[0]);
         exit(1);
     }
 
     getdir(fname,files);
-    dict.setReserve(files.size());
+    nfiles = files.size();
+    // dict.setReserve(files.size());
     char * fdata[files.size()];
     struct stat finfo[files.size()];
     int fd[files.size()];
     get_time (end);
 
 #ifdef TIMING
-        print_time("initialize", begin, end);
+    print_time("initialize", begin, end);
 #endif
 
     cilk_for (unsigned int i = 0;i < files.size();i++) {
@@ -449,7 +459,7 @@ int main(int argc, char *argv[])
         struct timespec beginI, endI, beginWC, endWC;
         get_time(beginI);
 
-        dict.setReserve(files.size());
+        // dict.setReserve(files.size());
 
         // Read in the file
         fd[i] = open(files[i].c_str(), O_RDONLY);
@@ -458,13 +468,13 @@ int main(int argc, char *argv[])
         fstat(fd[i], &finfo[i]);
 #ifndef NO_MMAP
 #ifdef MMAP_POPULATE
-    // Memory map the file
-        fdata[i] = (char*)mmap(0, finfo.st_size + 1, 
-			PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd[i], 0);
+	// Memory map the file
+        fdata[i] = (char*)mmap(0, finfo[i].st_size + 1, 
+			       PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd[i], 0);
 #else
         // Memory map the file
-        fdata[i] = (char*)mmap(0, finfo.st_size + 1, 
-        PROT_READ, MAP_PRIVATE, fd[i], 0);
+        fdata[i] = (char*)mmap(0, finfo[i].st_size + 1, 
+			       PROT_READ, MAP_PRIVATE, fd[i], 0);
 #endif
 #else
         uint64_t r = 0;
@@ -496,15 +506,15 @@ int main(int argc, char *argv[])
         TRACE( e_ssort );
 
 #if 0
-    // Temporary trace: todelete khere
-    std::cout << "Single Stage \n\n" << "Single File  " << files[i] << "\n";
-    for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
-        std::cout << "Word: " << I->first.data << "\n";
-        for( auto J=I->second.begin(), JE=I->second.end(); J != JE; ++J ) {
-            // for( auto J=I->second.cbegin(), JE=I->second.end(); J != JE; ++J ) {
+	// Temporary trace: todelete khere
+	std::cout << "Single Stage \n\n" << "Single File  " << files[i] << "\n";
+	for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
+	    std::cout << "Word: " << I->first.data << "\n";
+	    for( auto J=I->second.begin(), JE=I->second.end(); J != JE; ++J ) {
+		// for( auto J=I->second.cbegin(), JE=I->second.end(); J != JE; ++J ) {
                 std::cout << "       second: " << *J << "\n";
-         }
-    }
+	    }
+	}
 #endif
     }
 
@@ -515,8 +525,8 @@ int main(int argc, char *argv[])
         std::cout << "Word: " << I->first.data << "\n";
         for( auto J=I->second.begin(), JE=I->second.end(); J != JE; ++J ) {
             // for( auto J=I->second.cbegin(), JE=I->second.end(); J != JE; ++J ) {
-                std::cout << "       second: " << *J << "\n";
-         }
+	    std::cout << "       second: " << *J << "\n";
+	}
     }
 #endif
 
@@ -573,33 +583,33 @@ int main(int argc, char *argv[])
         // OR the number of files that contain the work (existsInFilesCount)
         for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
 
-                size_t tf = I->second[i];
-                if (!tf) continue;
+	    size_t tf = I->second[i];
+	    if (!tf) continue;
 
-                // todo: workout how the best way to calculate and store each 
-                // word total once for all files
-                cilk::reducer< cilk::op_add<size_t> > existsInFilesCount(0);
-                cilk_for (int j = 0; j < I->second.size(); ++j) {
-                    // *reducedCount += I->second[j];  // Use this if we want to count every occurence
-                    if (I->second[j] > 0) *existsInFilesCount += 1;
-                }
+	    // todo: workout how the best way to calculate and store each 
+	    // word total once for all files
+	    cilk::reducer< cilk::op_add<size_t> > existsInFilesCount(0);
+	    cilk_for (int j = 0; j < I->second.size(); ++j) {
+		// *reducedCount += I->second[j];  // Use this if we want to count every occurence
+		if (I->second[j] > 0) *existsInFilesCount += 1;
+	    }
 
-                //     Calculate tfidf  ---   Alternative versions of tfidf:
-                // double tfidf = tf * log10(((double) files.size() + 1.0) / ((double) sumOccurencesOfWord + 1.0)); 
-                // double tfidf = tf * log10(((double) files.size() + 1.0) / ((double) numOfOtherDocsWithWord + 2.0)); 
-                // double tfidf = tf * log10(((double) files.size() + 1.0) / ((double) reducedCount.get_value() + 1.0)); 
-                // Sparks version;
-                double tfidf = (double) tf * log10(((double) files.size() + 1.0) / ((double) existsInFilesCount.get_value() + 1.0)); 
+	    //     Calculate tfidf  ---   Alternative versions of tfidf:
+	    // double tfidf = tf * log10(((double) files.size() + 1.0) / ((double) sumOccurencesOfWord + 1.0)); 
+	    // double tfidf = tf * log10(((double) files.size() + 1.0) / ((double) numOfOtherDocsWithWord + 2.0)); 
+	    // double tfidf = tf * log10(((double) files.size() + 1.0) / ((double) reducedCount.get_value() + 1.0)); 
+	    // Sparks version;
+	    double tfidf = (double) tf * log10(((double) files.size() + 1.0) / ((double) existsInFilesCount.get_value() + 1.0)); 
 
-                uint64_t id = I.getIndex();
-                resFile.write ((char *) &id, sizeof(uint64_t));
-                resFile.write ((char *) &colon, sizeof(char));
-                resFile.write ((char *) &tfidf, sizeof(double));
-                resFile.write ((char *) &comma, sizeof(char));
-                cout << id << ":" << tfidf;
-                if ( I != E ) {
-                    cout << ",";
-                }
+	    uint64_t id = I.getIndex();
+	    resFile.write ((char *) &id, sizeof(uint64_t));
+	    resFile.write ((char *) &colon, sizeof(char));
+	    resFile.write ((char *) &tfidf, sizeof(double));
+	    resFile.write ((char *) &comma, sizeof(char));
+	    cout << id << ":" << tfidf;
+	    if ( I != E ) {
+		cout << ",";
+	    }
 
         }
         cout << "\n";
@@ -648,39 +658,39 @@ int main(int argc, char *argv[])
             // cout << tab << preText << id;
         }
 
-            // reading mahoot TFIDF mappings per word per file
-            inResFile.read( (char*)checkHeaderText, headerText.size());
-            inResFile.read( (char*)&nline, sizeof(char));
-            inResFile.read( (char*)&tab, 1);
-            inResFile.read( (char*)checkClassText, classText.size());
-            inResFile.read( (char*)&nline, sizeof(char));
-            cout << checkHeaderText << nline << tab << checkClassText << nline;
+	// reading mahoot TFIDF mappings per word per file
+	inResFile.read( (char*)checkHeaderText, headerText.size());
+	inResFile.read( (char*)&nline, sizeof(char));
+	inResFile.read( (char*)&tab, 1);
+	inResFile.read( (char*)checkClassText, classText.size());
+	inResFile.read( (char*)&nline, sizeof(char));
+	cout << checkHeaderText << nline << tab << checkClassText << nline;
 
-            // read for each files
-            for (unsigned int i = 0;i < files.size();i++) {
-                string keyStr = files[i];
-                string loopStart = "Key: " + keyStr + ": " + "Value: " + keyStr + ":" + "{";
-                char preText[loopStart.size() +1];
-                inResFile.read( (char*)&tab, 1);
-                inResFile.read( (char*)&preText, loopStart.size());
-                cout << tab << preText;
+	// read for each files
+	for (unsigned int i = 0;i < files.size();i++) {
+	    string keyStr = files[i];
+	    string loopStart = "Key: " + keyStr + ": " + "Value: " + keyStr + ":" + "{";
+	    char preText[loopStart.size() +1];
+	    inResFile.read( (char*)&tab, 1);
+	    inResFile.read( (char*)&preText, loopStart.size());
+	    cout << tab << preText;
                 
-                // iterate over each word to collect total counts of each word in all files
-                for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
+	    // iterate over each word to collect total counts of each word in all files
+	    for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
 
-                    size_t tf = I->second[i];
-                    if (!tf) continue;
-                    inResFile.read( (char*)&id, sizeof(uint64_t));
-                    inResFile.read( (char*)&colon, sizeof(char));
-                    inResFile.read( (char*)&tfidf, sizeof(double));
-                    inResFile.read( (char*)&comma, sizeof(char));
-                    cout << id << colon << tfidf << comma ;
-                }
-                // inResFile.read((char*)&cbrace, 1);  // comma will contain cbrace after last iteration
-                cbrace=comma;
-                inResFile.read((char*)&nline, 1);
-                cout << nline;
-            }
+		size_t tf = I->second[i];
+		if (!tf) continue;
+		inResFile.read( (char*)&id, sizeof(uint64_t));
+		inResFile.read( (char*)&colon, sizeof(char));
+		inResFile.read( (char*)&tfidf, sizeof(double));
+		inResFile.read( (char*)&comma, sizeof(char));
+		cout << id << colon << tfidf << comma ;
+	    }
+	    // inResFile.read((char*)&cbrace, 1);  // comma will contain cbrace after last iteration
+	    cbrace=comma;
+	    inResFile.read((char*)&nline, 1);
+	    cout << nline;
+	}
     }
 
 // #endif
@@ -695,9 +705,9 @@ int main(int argc, char *argv[])
     event_tracer::destroy();
 #endif
 
-    cilk_for(int i = 0; i < files.size() ; ++i) {
+    for(int i = 0; i < files.size() ; ++i) {
 #ifndef NO_MMAP
-        munmap(fdata[i], finfo.st_size + 1);
+        munmap(fdata[i], finfo[i].st_size + 1);
 #else
         free (fdata[i]);
 #endif
