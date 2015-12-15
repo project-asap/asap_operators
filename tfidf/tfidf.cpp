@@ -185,10 +185,12 @@ typedef std::map<fileWordIndexType, double> idfFileWordMap;
 void merge_two_dicts( wc_unordered_map & m1, wc_unordered_map & m2 ) {
 
     for( auto I=m2.cbegin(), E=m2.cend(); I != E; ++I ) {
-	const std::vector<size_t> & counts =  I->second;
-        for( auto J=counts.begin(), JE=counts.end(); J != JE; ++J ) {
-	    m1[I->first][std::distance(counts.begin(), J)] += *J;
-        }
+	std::vector<size_t> & counts1 =  m1[I->first];
+	const std::vector<size_t> & counts2 =  I->second;
+	// Vectorized
+	size_t * v1 = &counts1.front();
+	const size_t * v2 = &counts2.front();
+	v1[0:nfiles] += v2[0:nfiles];
     }
     m2.clear();
 }
@@ -232,19 +234,9 @@ public:
 	imp_.view().swap( c );
     }
 
-    // fileVector & operator []() {
-	// return imp_.view()[idx];
-    // }
-
     fileVector & operator []( wc_word idx ) {
 	return imp_.view()[idx];
     }
-
-#if 0
-    fileVector & operator ()( wc_word idx , uint64_t fileReserve) {
-        return imp_.view()(idx, fileReserve);
-    }
-#endif
 
     size_t empty() const {
 	return imp_.view().size() == 0;
@@ -255,11 +247,7 @@ public:
     typename wc_unordered_map::iterator end() { return imp_.view().end(); }
     // typename wc_unordered_map::const_iterator cend() { return imp_.view().cend(); }
 
-    // void setReserve(size_t size) { imp_.view().setReserve(size); }
-
-    // size_t getReserve() { return imp_.view().getReserve(); }
-
-    // void rehash(uint64_t newsize) { imp_.view().setReserve(newsize); }
+    // void rehash(uint64_t newsize) { imp_.view().rehash(newsize); }
 
 };
 #else
@@ -374,12 +362,13 @@ void wc( char * data, uint64_t data_size, uint64_t chunk_size, dictionary_reduce
 
 
 using namespace std;
+
 int getdir (std::string dir, std::vector<std::string> &files)
 {
     DIR *dp;
     struct dirent *dirp;
     if((dp  = opendir(dir.c_str())) == NULL) {
-        cout << "Error(" << errno << ") opening " << dir << endl;
+	std::cerr << "Error(" << errno << ") opening " << dir << std::endl;
         return errno;
     }
  
@@ -400,12 +389,13 @@ int main(int argc, char *argv[])
     // unsigned int disp_num;
     char * fname = 0;
     // char * disp_num_str;
-    struct timespec begin, end, ser_begin;
-    vector<string> files;
+    struct timespec begin, end, all_begin;
+    std::vector<std::string> files;
 
     dictionary_reducer dict;
 
     get_time (begin);
+    all_begin = begin;
 
 #if TRACING
     event_tracer::init();
@@ -444,7 +434,6 @@ int main(int argc, char *argv[])
 
     getdir(fname,files);
     nfiles = files.size();
-    // dict.setReserve(files.size());
     char * fdata[files.size()];
     struct stat finfo[files.size()];
     int fd[files.size()];
@@ -487,7 +476,7 @@ int main(int argc, char *argv[])
         get_time (endI);
 
 #ifdef TIMING
-        print_time("thread initialize", beginI, endI);
+        print_time("thread file-read", beginI, endI);
 #endif
 
         get_time (beginWC);
@@ -500,10 +489,6 @@ int main(int argc, char *argv[])
 #endif
 
         TRACE( e_smerge );
-
-        // No important performance difference between the two sort versions
-        // for 100MB x4 data set.
-        TRACE( e_ssort );
 
 #if 0
 	// Temporary trace: todelete khere
@@ -530,34 +515,38 @@ int main(int argc, char *argv[])
     }
 #endif
 
+    get_time (begin);
+
     ofstream resFile ("testRes.txt", ios::out | ios::trunc | ios::binary);
     string headerText("Document Vectors (sequencefile @ hdfs):");
     string classText("Key class: class org.apache.hadoop.io.Text Value Class: class org.apache.mahout.math.VectorWritable");
 
+#define SS(str) (str), (sizeof((str))-1)/sizeof((str)[0])
+#define XS(str) (str).c_str(), (str).size()
+#define ST(i)   ((const char *)&i), sizeof((i))
+
     // printing mahoot Dictionary
-    char nline='\n';
-    char tab='\t';
-    char comma=',';
-    char colon=':';
-    char rbrace='}';
+    const char nline='\n';
+    const char tab='\t';
+    const char comma=',';
+    const char colon=':';
+    const char rbrace='}';
     char what;
-    cout << headerText << nline;
-    cout << "\t" << classText << nline;
+    // cout << headerText << nline;
+    // cout << "\t" << classText << nline;
     resFile.write (headerText.c_str(), headerText.size());
     resFile.write ((char *)&nline,1);
     resFile.write ((char *)&tab,1);
     resFile.write (classText.c_str(), classText.size());
     resFile.write ((char *)&nline,1);
     for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
-        resFile.write((char *)&tab, 1);
         uint64_t id = I.getIndex();
-        string str = I->first.data;
-        string loopStart = "Key: " + str + " Value: ";
-        resFile.write((char *)loopStart.c_str(), loopStart.size());
-        resFile.write((char *) &id, sizeof(uint64_t));
-        resFile.write((char *) &nline, sizeof(char));
-        // cout << "\t" << loopStart << std::to_string(static_cast<long long>(id)) << "\n";
-        cout << "\t" << loopStart << id << "\n";
+        const string & str = I->first.data;
+	resFile.write( SS( "\tKey: " ) )
+	    .write( XS( str ) )
+	    .write( SS( " Value: " ) )
+	    .write( ST( id ) )
+	    .write( SS( "\n" ) );
     }
 
     // printing mahoot output header
@@ -566,61 +555,96 @@ int main(int argc, char *argv[])
     resFile.write ((char *)&tab,1);
     resFile.write (classText.c_str(), classText.size());
     resFile.write((char *) &nline, sizeof(char));
-    cout << headerText << nline << "\t" << classText << nline;
+    // cout << headerText << nline << "\t" << classText << nline;
     
 
     // size_t reducedCount[files.size()];
     for (unsigned int i = 0;i < files.size();i++) {
         // printing mahoot loop start text including filename twice !
-        string keyStr = files[i];
-        string loopStart = "Key: " + keyStr + ": " + "Value: " + keyStr + ":" + "{";
-        resFile.write ((char *)&tab, 1);
-        resFile.write (loopStart.c_str(), loopStart.size());
-        cout << "\t" << loopStart;
-        // resFile.write ((char *)&what, 1);
+        string & keyStr = files[i];
+
+	if( dict.empty() ) {
+	    // string loopStart = "Key: " + keyStr + ": " + "Value: "
+	    // + keyStr + ":";
+	    // resFile.write ((char *)&tab, 1);
+	    // resFile.write (loopStart.c_str(), loopStart.size());
+	    // resFile.write ((char *)&rbrace, 1);
+	    // resFile.write ((char *)&nline, 1);
+	    resFile.write( SS( "\tKey: " ) )
+		.write( XS( keyStr ) )
+		.write( SS( ": Value: " ) )
+		.write( XS( keyStr ) )
+		.write( SS( ":{}\n" ) );
+	    continue;
+	}
+
+	resFile.write( SS( "\tKey: " ) )
+	    .write( XS( keyStr ) )
+	    .write( SS( ": Value: " ) )
+	    .write( XS( keyStr ) )
+	    .write( SS( ":{" ) );
 
         // iterate over each word to collect total counts of each word in all files (reducedCount)
         // OR the number of files that contain the work (existsInFilesCount)
-        for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
+        for( auto I=dict.begin(), E=dict.end(); I != E; ) {
 
 	    size_t tf = I->second[i];
-	    if (!tf) continue;
+	    if (!tf) {
+		++I;
+		continue;
+	    }
 
 	    // todo: workout how the best way to calculate and store each 
 	    // word total once for all files
+#if 0
 	    cilk::reducer< cilk::op_add<size_t> > existsInFilesCount(0);
 	    cilk_for (int j = 0; j < I->second.size(); ++j) {
 		// *reducedCount += I->second[j];  // Use this if we want to count every occurence
 		if (I->second[j] > 0) *existsInFilesCount += 1;
 	    }
+	    size_t fcount = existsInFilesCount.get_value();
+#else
+	    const size_t * v = &I->second.front();
+	    size_t len = I->second.size();
+	    size_t fcount = __sec_reduce_add( v[0:len] );
+#endif
 
 	    //     Calculate tfidf  ---   Alternative versions of tfidf:
 	    // double tfidf = tf * log10(((double) files.size() + 1.0) / ((double) sumOccurencesOfWord + 1.0)); 
 	    // double tfidf = tf * log10(((double) files.size() + 1.0) / ((double) numOfOtherDocsWithWord + 2.0)); 
 	    // double tfidf = tf * log10(((double) files.size() + 1.0) / ((double) reducedCount.get_value() + 1.0)); 
 	    // Sparks version;
-	    double tfidf = (double) tf * log10(((double) files.size() + 1.0) / ((double) existsInFilesCount.get_value() + 1.0)); 
+	    double tfidf = (double) tf * log10(((double) files.size() + 1.0) / ((double) fcount + 1.0)); 
 
 	    uint64_t id = I.getIndex();
-	    resFile.write ((char *) &id, sizeof(uint64_t));
-	    resFile.write ((char *) &colon, sizeof(char));
-	    resFile.write ((char *) &tfidf, sizeof(double));
-	    resFile.write ((char *) &comma, sizeof(char));
-	    cout << id << ":" << tfidf;
-	    if ( I != E ) {
-		cout << ",";
-	    }
+	    resFile.write( ST(id) )
+		.write( SS(":") )
+		.write( ST( tfidf ) );
 
+	    ++I;
+	    // if( I != E )
+		resFile.write ((char *) &comma, sizeof(char));
+
+	    // cout << id << ":" << tfidf;
+	    // if ( I != E ) {
+		// cout << ",";
+	    // }
         }
-        cout << "\n";
+        // cout << "\n";
+	// What is this? Reverse one character?
+	// In order to avoid this, need to count number of words in each
+	// file during wc().
         long pos = resFile.tellp();
         resFile.seekp (pos-1);
-        resFile.write ((char *)&rbrace, 1);
-        resFile.write ((char *)&nline, 1);
-        cout << "}\n";
+	resFile.write( SS( "}\n" ) );
     }
     resFile.close();
 
+    get_time (end);
+#ifdef TIMING
+    print_time("output", begin, end);
+    print_time("all", all_begin, end);
+#endif
 
     // Rough check on binary file:
     // -c at the command line with try to read results back in from binary file and display 
@@ -636,7 +660,7 @@ int main(int argc, char *argv[])
         ifstream inResFile;
         inResFile.open("testRes.txt", ios::binary);
 
-        cout << "\nREADING IN --------------------------------" << "\n" ;
+	std::cerr << "\nREADING IN --------------------------------" << "\n" ;
         // reading mahoot Dictionary
         inResFile.read( (char*)&checkHeaderText, headerText.size());
         inResFile.read( (char*)&nline, sizeof(char));
@@ -644,7 +668,7 @@ int main(int argc, char *argv[])
         inResFile.read( (char*)&checkClassText, classText.size());
         inResFile.read( (char*)&nline, sizeof(char));
         // checkClassText[classText.size()+1]=0;
-        cout << checkHeaderText << nline << tab << checkClassText << nline;
+	std::cerr << checkHeaderText << nline << tab << checkClassText << nline;
         for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
             inResFile.read( (char*)&tab, 1);
 
@@ -654,8 +678,8 @@ int main(int argc, char *argv[])
             inResFile.read((char *)&preText, iterStartCheck.size());
             inResFile.read( (char*)&id, sizeof(uint64_t));
             inResFile.read( (char*)&nline, sizeof(char));
-            cout << tab << preText << id << nline;
-            // cout << tab << preText << id;
+	    std::cerr << tab << preText << id << nline;
+            // 	std::cerr << tab << preText << id;
         }
 
 	// reading mahoot TFIDF mappings per word per file
@@ -664,16 +688,16 @@ int main(int argc, char *argv[])
 	inResFile.read( (char*)&tab, 1);
 	inResFile.read( (char*)checkClassText, classText.size());
 	inResFile.read( (char*)&nline, sizeof(char));
-	cout << checkHeaderText << nline << tab << checkClassText << nline;
+	std::cerr << checkHeaderText << nline << tab << checkClassText << nline;
 
 	// read for each files
 	for (unsigned int i = 0;i < files.size();i++) {
-	    string keyStr = files[i];
+	    string & keyStr = files[i];
 	    string loopStart = "Key: " + keyStr + ": " + "Value: " + keyStr + ":" + "{";
 	    char preText[loopStart.size() +1];
 	    inResFile.read( (char*)&tab, 1);
 	    inResFile.read( (char*)&preText, loopStart.size());
-	    cout << tab << preText;
+	    std::cerr << tab << preText;
                 
 	    // iterate over each word to collect total counts of each word in all files
 	    for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
@@ -684,12 +708,12 @@ int main(int argc, char *argv[])
 		inResFile.read( (char*)&colon, sizeof(char));
 		inResFile.read( (char*)&tfidf, sizeof(double));
 		inResFile.read( (char*)&comma, sizeof(char));
-		cout << id << colon << tfidf << comma ;
+		std::cerr << id << colon << tfidf << comma ;
 	    }
 	    // inResFile.read((char*)&cbrace, 1);  // comma will contain cbrace after last iteration
 	    cbrace=comma;
 	    inResFile.read((char*)&nline, 1);
-	    cout << nline;
+	    std::cerr << nline;
 	}
     }
 
