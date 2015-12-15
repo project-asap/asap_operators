@@ -371,6 +371,9 @@ int getdir (std::string dir, std::vector<std::string> &files)
 }
 
 
+size_t is_nonzero( size_t s ) {
+    return s != 0;
+}
 
 int main(int argc, char *argv[]) 
 {
@@ -511,7 +514,7 @@ int main(int argc, char *argv[])
 
 #define SS(str) (str), (sizeof((str))-1)/sizeof((str)[0])
 #define XS(str) (str).c_str(), (str).size()
-#define ST(i)   ((const char *)&i), sizeof((i))
+#define ST(i)   ((const char *)&(i)), sizeof((i))
 
     // printing mahoot Dictionary
     const char nline='\n';
@@ -519,7 +522,6 @@ int main(int argc, char *argv[])
     const char comma=',';
     const char colon=':';
     const char rbrace='}';
-    char what;
     // cout << headerText << nline;
     // cout << "\t" << classText << nline;
     resFile.write (headerText.c_str(), headerText.size());
@@ -594,7 +596,7 @@ int main(int argc, char *argv[])
 #else
 	    const size_t * v = &I->second.front();
 	    size_t len = I->second.size();
-	    size_t fcount = __sec_reduce_add( v[0:len] );
+	    size_t fcount = __sec_reduce_add( is_nonzero(v[0:len]) );
 #endif
 
 	    //     Calculate tfidf  ---   Alternative versions of tfidf:
@@ -621,7 +623,7 @@ int main(int argc, char *argv[])
         // cout << "\n";
 	// What is this? Reverse one character?
 	// In order to avoid this, need to count number of words in each
-	// file during wc().
+	// file during wc(). Not sure if that pays off...
         long pos = resFile.tellp();
         resFile.seekp (pos-1);
 	resFile.write( SS( "}\n" ) );
