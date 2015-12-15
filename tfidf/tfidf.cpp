@@ -171,7 +171,6 @@ typedef hash_table_stored_hash<wc_word, fileVector, wc_word_hash> wc_unordered_m
 #if !SEQUENTIAL
 
 void merge_two_dicts( wc_unordered_map & m1, wc_unordered_map & m2 ) {
-
     for( auto I=m2.cbegin(), E=m2.cend(); I != E; ++I ) {
 	std::vector<size_t> & counts1 =  m1[I->first];
 	const std::vector<size_t> & counts2 =  I->second;
@@ -183,26 +182,12 @@ void merge_two_dicts( wc_unordered_map & m1, wc_unordered_map & m2 ) {
     m2.clear();
 }
 
-#if MASTER
-wc_unordered_map master_map;
-pthread_mutex_t master_mutex;
-#endif
 class dictionary_reducer {
     struct Monoid : cilk::monoid_base<wc_unordered_map> {
 	static void reduce( wc_unordered_map * left,
 			    wc_unordered_map * right ) {
 	    TRACE( e_sreduce );
-#if MASTER
-	    if( pthread_mutex_trylock( &master_mutex ) == 0 ) {
-		// Lock successfully acquired.
-		merge_two_dicts( master_map, *right );
-		pthread_mutex_unlock( &master_mutex );
-	    } else {
-		merge_two_dicts( *left, *right );
-	    }
-#else
 	    merge_two_dicts( *left, *right );
-#endif
 	    TRACE( e_ereduce );
 	}
 	static void identity( wc_unordered_map * p ) {
