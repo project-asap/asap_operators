@@ -1,7 +1,7 @@
 benchmark=tfidf tfidf_dbg tfidf_timed
 
 CXX=icc
-CXXFLAGS+=-O3 -std=c++11 -I. -DASAP
+CXXFLAGS+=-O3 -std=c++11 -I. -DASAP -DTIMING
 CXXFLAGS += -I../cilkpub_v105/include -I.. 
 CXXFLAGSDEBUG+=-g $(CXXFLAGS) 
 LDFLAGS += -lrt
