@@ -159,24 +159,12 @@ public:
 typedef std::p2_unordered_map<wc_word, size_t, wc_word_hash, wc_word_pred> wc_unordered_map;
 #elif defined(STD_UNORDERED_MAP)
 typedef std::unordered_map<wc_word, size_t, wc_word_hash, wc_word_pred> wc_unordered_map;
-#elif 1 || defined(PHOENIX_MAP)
+#elif defined(PHOENIX_MAP)
 #include "container.h"
-// typedef std::vector<size_t> fileVector;
 typedef hash_table<wc_word, fileVector, wc_word_hash> wc_unordered_map;
 #else
 #include "container.h"
-// typedef hash_table_stored_hash<wc_word, size_t, wc_word_hash> wc_unordered_map;
-// typedef std::vector<size_t> fileVector;
 typedef hash_table_stored_hash<wc_word, fileVector, wc_word_hash> wc_unordered_map;
-
- 
-         // typedef std::pair<size_t, size_t> fileWordIndexType;
-         // fileWordIndexType thisIdf(i,j);
-         // typedef std::map<fileWordIndexType, double> idfFileWordMap;
- 
-// typedef std::map<std::pair<size_t, size_t>, double> idfFileWordMap;
-typedef std::pair<size_t, size_t> fileWordIndexType;
-typedef std::map<fileWordIndexType, double> idfFileWordMap;
 
 #endif // P2_UNORDERED_MAP
 
