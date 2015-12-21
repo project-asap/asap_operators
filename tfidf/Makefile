@@ -1,7 +1,7 @@
 benchmark=tfidf tfidf_dbg tfidf_timed
 
 CXX=icc
-CXXFLAGS+=-O3 -std=c++11 -I. -DASAP
+CXXFLAGS+=-O3 -std=c++11 -I. -DASAP -DTIMING
 CXXFLAGS += -I../cilkpub_v105/include -I.. 
 CXXFLAGSDEBUG+=-g $(CXXFLAGS) 
 LDFLAGS += -lrt
@@ -36,7 +36,7 @@ tfidf_std: tfidf.cpp
 	$(CXX) $(CXXFLAGS) -DASAP -DSTD_UNORDERED_MAP=1 -DTIMING=1 $^ -o $@ $(LDFLAGS)
 
 tfidf_dbg: tfidf.cpp
-	$(CXX) $(CXXFLAGSDEBUG) -DASAP $^ -o $@ $(LDFLAGS)
+	$(CXX) $(CXXFLAGSDEBUG) -DASAP -O0 $^ -o $@ $(LDFLAGS)
 
 tfidf_timed: tfidf.cpp
 	$(CXX) $(CXXFLAGS) -DTIMING=1 -DASAP $^ -o $@ $(LDFLAGS)

@@ -35,7 +35,6 @@
 #include <pthread.h>
 #include <vector>
 #include <algorithm>
-//#include <unordered_map>
 #include <iostream>
 #ifdef P2_UNORDERED_MAP
 #include "p2_unordered_map.h"
@@ -49,7 +48,7 @@
 #include <cilk/cilk.h>
 #include <cilk/reducer.h>
 #include <cilk/reducer_opadd.h>
-#include "cilkpub/sort.h"
+// #include "cilkpub/sort.h"
 #else
 #define cilk_sync
 #define cilk_spawn
@@ -148,63 +147,46 @@ struct wc_merge_pred
     }
 };
 
+// Use inheritance for convenience, should use encapsulation.
+static size_t nfiles = 0;
+class fileVector : public std::vector<size_t> {
+public:
+    fileVector() : std::vector<size_t>( nfiles, 0 ) { }
+};
+
 #ifdef P2_UNORDERED_MAP
 typedef std::p2_unordered_map<wc_word, size_t, wc_word_hash, wc_word_pred> wc_unordered_map;
 #elif defined(STD_UNORDERED_MAP)
 typedef std::unordered_map<wc_word, size_t, wc_word_hash, wc_word_pred> wc_unordered_map;
 #elif defined(PHOENIX_MAP)
 #include "container.h"
-typedef hash_table<wc_word, size_t, wc_word_hash> wc_unordered_map;
+typedef hash_table<wc_word, fileVector, wc_word_hash> wc_unordered_map;
 #else
 #include "container.h"
-// typedef hash_table_stored_hash<wc_word, size_t, wc_word_hash> wc_unordered_map;
-typedef std::vector<size_t> fileVector;
 typedef hash_table_stored_hash<wc_word, fileVector, wc_word_hash> wc_unordered_map;
-
- 
-         // typedef std::pair<size_t, size_t> fileWordIndexType;
-         // fileWordIndexType thisIdf(i,j);
-         // typedef std::map<fileWordIndexType, double> idfFileWordMap;
- 
-// typedef std::map<std::pair<size_t, size_t>, double> idfFileWordMap;
-typedef std::pair<size_t, size_t> fileWordIndexType;
-typedef std::map<fileWordIndexType, double> idfFileWordMap;
 
 #endif // P2_UNORDERED_MAP
 
 #if !SEQUENTIAL
 
 void merge_two_dicts( wc_unordered_map & m1, wc_unordered_map & m2 ) {
-
     for( auto I=m2.cbegin(), E=m2.cend(); I != E; ++I ) {
-	std::vector<size_t> counts =  I->second;
-        for( auto J=counts.begin(), JE=counts.end(); J != JE; ++J ) {
-	    m1[I->first][std::distance(counts.begin(), J)] += *J;
-        }
+	std::vector<size_t> & counts1 =  m1[I->first];
+	const std::vector<size_t> & counts2 =  I->second;
+	// Vectorized
+	size_t * v1 = &counts1.front();
+	const size_t * v2 = &counts2.front();
+	v1[0:nfiles] += v2[0:nfiles];
     }
     m2.clear();
 }
 
-#if MASTER
-wc_unordered_map master_map;
-pthread_mutex_t master_mutex;
-#endif
 class dictionary_reducer {
     struct Monoid : cilk::monoid_base<wc_unordered_map> {
 	static void reduce( wc_unordered_map * left,
 			    wc_unordered_map * right ) {
 	    TRACE( e_sreduce );
-#if MASTER
-	    if( pthread_mutex_trylock( &master_mutex ) == 0 ) {
-		// Lock successfully acquired.
-		merge_two_dicts( master_map, *right );
-		pthread_mutex_unlock( &master_mutex );
-	    } else {
-		merge_two_dicts( *left, *right );
-	    }
-#else
 	    merge_two_dicts( *left, *right );
-#endif
 	    TRACE( e_ereduce );
 	}
 	static void identity( wc_unordered_map * p ) {
@@ -224,19 +206,9 @@ public:
 	imp_.view().swap( c );
     }
 
-    // fileVector & operator []() {
-	// return imp_.view()[idx];
-    // }
-
     fileVector & operator []( wc_word idx ) {
 	return imp_.view()[idx];
     }
-
-#if 0
-    fileVector & operator ()( wc_word idx , uint64_t fileReserve) {
-        return imp_.view()(idx, fileReserve);
-    }
-#endif
 
     size_t empty() const {
 	return imp_.view().size() == 0;
@@ -247,11 +219,6 @@ public:
     typename wc_unordered_map::iterator end() { return imp_.view().end(); }
     // typename wc_unordered_map::const_iterator cend() { return imp_.view().cend(); }
 
-    void setReserve(size_t size) { imp_.view().setReserve(size); }
-
-    size_t getReserve() { return imp_.view().getReserve(); }
-
-    void rehash(uint64_t newsize) { imp_.view().setReserve(newsize); }
 
 };
 #else
@@ -283,7 +250,8 @@ void wc( char * data, uint64_t data_size, uint64_t chunk_size, dictionary_reduce
             data[end] != ' ' && data[end] != '\t' &&
             data[end] != '\r' && data[end] != '\n')
             end++;
-	data[end] = '\0';
+	if( end < data_size )
+	    data[end] = '\0';
 
         /* Set the start of the next data. */
 	wc_string s;
@@ -319,7 +287,8 @@ void wc( char * data, uint64_t data_size, uint64_t chunk_size, dictionary_reduce
 		      break;
 		}
 		*/
-		while(i < s.len && ((s.data[i] >= 'A' && s.data[i] <= 'Z') || s.data[i] == '\''))
+		// while(i < s.len && ((s.data[i] >= 'A' && s.data[i] <= 'Z') || s.data[i] == '\''))
+		while(i < s.len && ((s.data[i] >= 'A' && s.data[i] <= 'Z') ))
 		    i++;
 		if(i > start)
 		{
@@ -365,18 +334,20 @@ void wc( char * data, uint64_t data_size, uint64_t chunk_size, dictionary_reduce
 
 
 using namespace std;
+
 int getdir (std::string dir, std::vector<std::string> &files)
 {
     DIR *dp;
     struct dirent *dirp;
     if((dp  = opendir(dir.c_str())) == NULL) {
-        cout << "Error(" << errno << ") opening " << dir << endl;
+	std::cerr << "Error(" << errno << ") opening " << dir << std::endl;
         return errno;
     }
  
     while ((dirp = readdir(dp)) != NULL) {
         if (dirp->d_type == DT_REG) {
-            std::string relFilePath=std::string(dir + "/") + dirp->d_name;
+            string dirFull=(dir);
+            std::string relFilePath=dirFull + "/" + dirp->d_name;
             files.push_back(relFilePath);
         }
     }
@@ -385,63 +356,66 @@ int getdir (std::string dir, std::vector<std::string> &files)
 }
 
 
+#include <unordered_map>
+size_t is_nonzero( size_t s ) {
+    return s != 0;
+}
 
 int main(int argc, char *argv[]) 
 {
-    // unsigned int disp_num;
-    char * fname;
-    // char * disp_num_str;
-    struct timespec begin, end, ser_begin;
-    vector<string> files = vector<string>();
+    char * fname=0;
+    struct timespec begin, end, all_begin;
+    std::vector<std::string> files;
 
     dictionary_reducer dict;
 
     get_time (begin);
+    all_begin = begin;
 
 #if TRACING
     event_tracer::init();
 #endif
 
-  bool checkResults=false;
-  int c;
+    bool checkResults=false;
+    int c;
 
-  while ( (c = getopt (argc, argv, "cd:")) != -1 )
-    switch (c) {
-      case 'c':
-        checkResults = 1;
-        break;
-      case 'd':
-        fname = optarg;
-        break;
-      case '?':
-        if (optopt == 'd')
-          fprintf (stderr, "Option -%c requires a directory argument.\n", optopt);
-        else if (isprint (optopt))
-          fprintf (stderr, "Unknown option `-%c'.\n", optopt);
-        else
-          fprintf (stderr,
-                   "Unknown option character `\\x%x'.\n",
-                   optopt);
-        return 1;
-      default:
-        abort ();
-    }
+    while ( (c = getopt (argc, argv, "cd:")) != -1 )
+	switch (c) {
+	case 'c':
+	    checkResults = 1;
+	    break;
+	case 'd':
+	    fname = optarg;
+	    break;
+	case '?':
+	    if (optopt == 'd')
+		fprintf (stderr, "Option -%c requires a directory argument.\n", optopt);
+	    else if (isprint (optopt))
+		fprintf (stderr, "Unknown option `-%c'.\n", optopt);
+	    else
+		fprintf (stderr,
+			 "Unknown option character `\\x%x'.\n",
+			 optopt);
+	    return 1;
+	default:
+	    abort ();
+	}
 
     // Make sure a filename is specified
-    if( argc < 2 ) {
-        printf("USAGE: %s <directory name> [Top # of results to display]\n", argv[0]);
+    if( !fname ) {
+        printf("USAGE: %s -d <directory name> [-c]\n", argv[0]);
         exit(1);
     }
 
     getdir(fname,files);
-    dict.setReserve(files.size());
+    nfiles = files.size();
     char * fdata[files.size()];
     struct stat finfo[files.size()];
     int fd[files.size()];
     get_time (end);
 
 #ifdef TIMING
-        print_time("initialize", begin, end);
+    print_time("initialize", begin, end);
 #endif
 
     cilk_for (unsigned int i = 0;i < files.size();i++) {
@@ -449,7 +423,7 @@ int main(int argc, char *argv[])
         struct timespec beginI, endI, beginWC, endWC;
         get_time(beginI);
 
-        dict.setReserve(files.size());
+        // dict.setReserve(files.size());
 
         // Read in the file
         fd[i] = open(files[i].c_str(), O_RDONLY);
@@ -458,13 +432,13 @@ int main(int argc, char *argv[])
         fstat(fd[i], &finfo[i]);
 #ifndef NO_MMAP
 #ifdef MMAP_POPULATE
-    // Memory map the file
-        fdata[i] = (char*)mmap(0, finfo.st_size + 1, 
-			PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd[i], 0);
+	// Memory map the file
+        fdata[i] = (char*)mmap(0, finfo[i].st_size + 1, 
+			       PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd[i], 0);
 #else
         // Memory map the file
-        fdata[i] = (char*)mmap(0, finfo.st_size + 1, 
-        PROT_READ, MAP_PRIVATE, fd[i], 0);
+        fdata[i] = (char*)mmap(0, finfo[i].st_size + 1, 
+			       PROT_READ, MAP_PRIVATE, fd[i], 0);
 #endif
 #else
         uint64_t r = 0;
@@ -477,7 +451,15 @@ int main(int argc, char *argv[])
         get_time (endI);
 
 #ifdef TIMING
-        print_time("thread initialize", beginI, endI);
+        print_time("thread file-read", beginI, endI);
+#endif
+
+#ifndef NO_MMAP
+#ifdef MMAP_POPULATE
+#else
+#endif
+#else
+        close(fd[i]);
 #endif
 
         get_time (beginWC);
@@ -491,63 +473,100 @@ int main(int argc, char *argv[])
 
         TRACE( e_smerge );
 
-        // No important performance difference between the two sort versions
-        // for 100MB x4 data set.
-        TRACE( e_ssort );
-
-#if 0
-    // Temporary trace: todelete khere
-    std::cout << "Single Stage \n\n" << "Single File  " << files[i] << "\n";
-    for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
-        std::cout << "Word: " << I->first.data << "\n";
-        for( auto J=I->second.begin(), JE=I->second.end(); J != JE; ++J ) {
-            // for( auto J=I->second.cbegin(), JE=I->second.end(); J != JE; ++J ) {
-                std::cout << "       second: " << *J << "\n";
-         }
-    }
-#endif
     }
 
-#if 0
-    // Temporary trace: todelete khere
-    std::cout << "Merge Stage \n\n" << "Merged File  " << "\n";
-    for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
-        std::cout << "Word: " << I->first.data << "\n";
-        for( auto J=I->second.begin(), JE=I->second.end(); J != JE; ++J ) {
-            // for( auto J=I->second.cbegin(), JE=I->second.end(); J != JE; ++J ) {
-                std::cout << "       second: " << *J << "\n";
-         }
-    }
-#endif
+    string strFilename(fname);
+    string txtFilename(strFilename + ".txt");
+    string binFilename(strFilename + ".bin");
+    string arffTextFilename(strFilename + ".arff");
+    string arffBinFilename(strFilename + ".arff.bin");
+    ofstream resFile (txtFilename, ios::out | ios::trunc | ios::binary);
+    ofstream resFileArff ( arffBinFilename, ios::out | ios::trunc | ios::binary);
+    auto name_max = pathconf(fname, _PC_NAME_MAX);
+    ofstream resFileTextArff;
+    resFileTextArff.open(arffTextFilename, ios::out | ios::trunc );
+    
+    get_time (begin);
 
-    ofstream resFile ("testRes.txt", ios::out | ios::trunc | ios::binary);
     string headerText("Document Vectors (sequencefile @ hdfs):");
+    string headerTextArff("@relation tfidf");
     string classText("Key class: class org.apache.hadoop.io.Text Value Class: class org.apache.mahout.math.VectorWritable");
+    string classTextArff("@attribute @@class@@ {text}");
 
-    // printing mahoot Dictionary
+#define SS(str) (str), (sizeof((str))-1)/sizeof((str)[0])
+#define XS(str) (str).c_str(), (str).size()
+#define ST(i)   ((const char *)&(i)), sizeof((i))
+
     char nline='\n';
+    char space=' ';
     char tab='\t';
     char comma=',';
     char colon=':';
+    char lbrace='{';
     char rbrace='}';
     char what;
+
+    // print arff
+    string loopStart = "@attribute ";
+    string typeStr = "numeric";
+    string dataStr = "@data";
+    resFileArff.write (headerTextArff.c_str(), headerTextArff.size());
+    resFileArff.write ((char *)&nline,1);
+    resFileArff.write ((char *)&tab,1);
+    resFileArff.write (classTextArff.c_str(), classTextArff.size());
+    resFileArff.write ((char *)&nline,1);
+
+    resFileTextArff << headerTextArff << "\n" << classTextArff << "\n";;
+    resFileTextArff.flush();
+    // uint64_t indices[dict.size()];
+    unordered_map<uint64_t, uint64_t> idMap;
+    // hash_table<uint64_t, uint64_t, wc_word_hash> idMap;
+    int i=1;
+    for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
+        resFileArff.write((char *)&tab, 1);
+
+        resFileTextArff << "\t";
+
+        uint64_t id = I.getIndex();
+        string str = I->first.data;
+        resFileArff.write((char *) loopStart.c_str(), loopStart.size());
+        resFileArff.write((char *) str.c_str(), str.size());
+        resFileArff.write((char *) &space, sizeof(char));
+        resFileArff.write((char *) typeStr.c_str(), typeStr.size());
+        resFileArff.write((char *) &nline, sizeof(char));
+
+        resFileTextArff << loopStart << str << " " << typeStr << "\n";
+
+        idMap[id]=i;
+        i++;
+        // cout << "\t" << loopStart << id << "\n";
+    }
+    resFileArff.write((char *) &nline, sizeof(char));
+    resFileArff.write((char *) &nline, sizeof(char));
+    resFileArff.write((char *) dataStr.c_str(), dataStr.size());
+    resFileArff.write((char *) &nline, sizeof(char));
+    resFileArff.write((char *) &nline, sizeof(char));
+
+    resFileTextArff << "\n\n" << dataStr << "\n\n";
+
+    // printing mahoot Dictionary
     cout << headerText << nline;
     cout << "\t" << classText << nline;
+
+    // printing mahoot Dictionary
     resFile.write (headerText.c_str(), headerText.size());
     resFile.write ((char *)&nline,1);
     resFile.write ((char *)&tab,1);
     resFile.write (classText.c_str(), classText.size());
     resFile.write ((char *)&nline,1);
     for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
-        resFile.write((char *)&tab, 1);
         uint64_t id = I.getIndex();
-        string str = I->first.data;
-        string loopStart = "Key: " + str + " Value: ";
-        resFile.write((char *)loopStart.c_str(), loopStart.size());
-        resFile.write((char *) &id, sizeof(uint64_t));
-        resFile.write((char *) &nline, sizeof(char));
-        // cout << "\t" << loopStart << std::to_string(static_cast<long long>(id)) << "\n";
-        cout << "\t" << loopStart << id << "\n";
+        const string & str = I->first.data;
+	resFile.write( SS( "\tKey: " ) )
+	    .write( XS( str ) )
+	    .write( SS( " Value: " ) )
+	    .write( ST( id ) )
+	    .write( SS( "\n" ) );
     }
 
     // printing mahoot output header
@@ -556,61 +575,124 @@ int main(int argc, char *argv[])
     resFile.write ((char *)&tab,1);
     resFile.write (classText.c_str(), classText.size());
     resFile.write((char *) &nline, sizeof(char));
-    cout << headerText << nline << "\t" << classText << nline;
+    // cout << headerText << nline << "\t" << classText << nline;
     
+    resFileTextArff.flush();
 
-    // size_t reducedCount[files.size()];
     for (unsigned int i = 0;i < files.size();i++) {
         // printing mahoot loop start text including filename twice !
-        string keyStr = files[i];
-        string loopStart = "Key: " + keyStr + ": " + "Value: " + keyStr + ":" + "{";
-        resFile.write ((char *)&tab, 1);
-        resFile.write (loopStart.c_str(), loopStart.size());
-        cout << "\t" << loopStart;
-        // resFile.write ((char *)&what, 1);
+        string & keyStr = files[i];
+
+	if( dict.empty() ) {
+	    // khere - TODELETE
+	    // string loopStart = "Key: " + keyStr + ": " + "Value: "
+	    // + keyStr + ":";
+	    // resFile.write ((char *)&tab, 1);
+	    // resFile.write (loopStart.c_str(), loopStart.size());
+	    // resFile.write ((char *)&rbrace, 1);
+	    // resFile.write ((char *)&nline, 1);
+	    resFile.write( SS( "\tKey: " ) )
+		.write( XS( keyStr ) )
+		.write( SS( ": Value: " ) )
+		.write( XS( keyStr ) )
+		.write( SS( ":{}\n" ) );
+	    continue;
+	}
+
+	resFile.write( SS( "\tKey: " ) )
+	    .write( XS( keyStr ) )
+	    .write( SS( ": Value: " ) )
+	    .write( XS( keyStr ) )
+	    .write( SS( ":{" ) );
+
+        resFileTextArff << "\t{";
+
 
         // iterate over each word to collect total counts of each word in all files (reducedCount)
         // OR the number of files that contain the work (existsInFilesCount)
-        for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
+        for( auto I=dict.begin(), E=dict.end(); I != E; ) {
 
                 size_t tf = I->second[i];
-                if (!tf) continue;
+	        if (!tf) {
+		    ++I;
+		    continue;
+	        }
 
                 // todo: workout how the best way to calculate and store each 
                 // word total once for all files
-                cilk::reducer< cilk::op_add<size_t> > existsInFilesCount(0);
-                cilk_for (int j = 0; j < I->second.size(); ++j) {
-                    // *reducedCount += I->second[j];  // Use this if we want to count every occurence
-                    if (I->second[j] > 0) *existsInFilesCount += 1;
-                }
+#if 0
+	        cilk::reducer< cilk::op_add<size_t> > existsInFilesCount(0);
+	        cilk_for (int j = 0; j < I->second.size(); ++j) {
+		    // *reducedCount += I->second[j];  // Use this if we want to count every occurence
+		    if (I->second[j] > 0) *existsInFilesCount += 1;
+	        }
+	        size_t fcount = existsInFilesCount.get_value();
+#else
+	        const size_t * v = &I->second.front();
+	        size_t len = I->second.size();
+	        size_t fcount = __sec_reduce_add( is_nonzero(v[0:len]) );
+#endif
 
                 //     Calculate tfidf  ---   Alternative versions of tfidf:
                 // double tfidf = tf * log10(((double) files.size() + 1.0) / ((double) sumOccurencesOfWord + 1.0)); 
                 // double tfidf = tf * log10(((double) files.size() + 1.0) / ((double) numOfOtherDocsWithWord + 2.0)); 
                 // double tfidf = tf * log10(((double) files.size() + 1.0) / ((double) reducedCount.get_value() + 1.0)); 
                 // Sparks version;
-                double tfidf = (double) tf * log10(((double) files.size() + 1.0) / ((double) existsInFilesCount.get_value() + 1.0)); 
+                double tfidf = (double) tf * log10(((double) files.size() + 1.0) / ((double) fcount + 1.0)); 
 
                 uint64_t id = I.getIndex();
-                resFile.write ((char *) &id, sizeof(uint64_t));
-                resFile.write ((char *) &colon, sizeof(char));
-                resFile.write ((char *) &tfidf, sizeof(double));
-                resFile.write ((char *) &comma, sizeof(char));
-                cout << id << ":" << tfidf;
-                if ( I != E ) {
+
+	        resFile.write( ST(id) )
+		    .write( SS(":") )
+		    .write( ST( tfidf ) );
+
+                resFileTextArff << idMap[id] << space << tfidf;
+
+	        // if( I != E )
+                    resFile.write ((char *) &comma, sizeof(char));
+
+                    resFileArff.write ((char *) &comma, sizeof(char));
+
+
+                ++I;
+
+                // Note:
+                // If Weka etc doesn't care if there is an extra unnecessary comma at end
+                // of a each record then we'd rather avoid the branch test here, so leave it in
                     cout << ",";
-                }
+                    resFileArff.write ((char *) &comma, sizeof(char));
+                    resFileTextArff << comma;
 
         }
-        cout << "\n";
+        // cout << "\n";
+	// What is this? Reverse one character?
+	// In order to avoid this, need to count number of words in each
+	// file during wc(). Not sure if that pays off...
         long pos = resFile.tellp();
         resFile.seekp (pos-1);
+
         resFile.write ((char *)&rbrace, 1);
         resFile.write ((char *)&nline, 1);
+
+        pos = resFileArff.tellp();
+        resFileArff.seekp (pos-1);
+	resFileArff.write( SS( "}\n" ) );
+
+	resFile.write( SS( "}\n" ) );
+
+         resFileTextArff << "}\n";
+
         cout << "}\n";
     }
+    resFileArff.close();
+    resFileTextArff.close();
     resFile.close();
 
+    get_time (end);
+#ifdef TIMING
+    print_time("output", begin, end);
+    print_time("all", all_begin, end);
+#endif
 
     // Rough check on binary file:
     // -c at the command line with try to read results back in from binary file and display 
@@ -626,7 +708,7 @@ int main(int argc, char *argv[])
         ifstream inResFile;
         inResFile.open("testRes.txt", ios::binary);
 
-        cout << "\nREADING IN --------------------------------" << "\n" ;
+	std::cerr << "\nREADING IN --------------------------------" << "\n" ;
         // reading mahoot Dictionary
         inResFile.read( (char*)&checkHeaderText, headerText.size());
         inResFile.read( (char*)&nline, sizeof(char));
@@ -634,7 +716,7 @@ int main(int argc, char *argv[])
         inResFile.read( (char*)&checkClassText, classText.size());
         inResFile.read( (char*)&nline, sizeof(char));
         // checkClassText[classText.size()+1]=0;
-        cout << checkHeaderText << nline << tab << checkClassText << nline;
+	std::cerr << checkHeaderText << nline << tab << checkClassText << nline;
         for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
             inResFile.read( (char*)&tab, 1);
 
@@ -644,46 +726,44 @@ int main(int argc, char *argv[])
             inResFile.read((char *)&preText, iterStartCheck.size());
             inResFile.read( (char*)&id, sizeof(uint64_t));
             inResFile.read( (char*)&nline, sizeof(char));
-            cout << tab << preText << id << nline;
-            // cout << tab << preText << id;
+	    std::cerr << tab << preText << id << nline;
+            // 	std::cerr << tab << preText << id;
         }
 
-            // reading mahoot TFIDF mappings per word per file
-            inResFile.read( (char*)checkHeaderText, headerText.size());
-            inResFile.read( (char*)&nline, sizeof(char));
-            inResFile.read( (char*)&tab, 1);
-            inResFile.read( (char*)checkClassText, classText.size());
-            inResFile.read( (char*)&nline, sizeof(char));
-            cout << checkHeaderText << nline << tab << checkClassText << nline;
+	// reading mahoot TFIDF mappings per word per file
+	inResFile.read( (char*)checkHeaderText, headerText.size());
+	inResFile.read( (char*)&nline, sizeof(char));
+	inResFile.read( (char*)&tab, 1);
+	inResFile.read( (char*)checkClassText, classText.size());
+	inResFile.read( (char*)&nline, sizeof(char));
+	std::cerr << checkHeaderText << nline << tab << checkClassText << nline;
 
-            // read for each files
-            for (unsigned int i = 0;i < files.size();i++) {
-                string keyStr = files[i];
-                string loopStart = "Key: " + keyStr + ": " + "Value: " + keyStr + ":" + "{";
-                char preText[loopStart.size() +1];
-                inResFile.read( (char*)&tab, 1);
-                inResFile.read( (char*)&preText, loopStart.size());
-                cout << tab << preText;
+	// read for each files
+	for (unsigned int i = 0;i < files.size();i++) {
+	    string & keyStr = files[i];
+	    string loopStart = "Key: " + keyStr + ": " + "Value: " + keyStr + ":" + "{";
+	    char preText[loopStart.size() +1];
+	    inResFile.read( (char*)&tab, 1);
+	    inResFile.read( (char*)&preText, loopStart.size());
+	    std::cerr << tab << preText;
                 
-                // iterate over each word to collect total counts of each word in all files
-                for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
+	    // iterate over each word to collect total counts of each word in all files
+	    for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
 
-                    size_t tf = I->second[i];
-                    if (!tf) continue;
-                    inResFile.read( (char*)&id, sizeof(uint64_t));
-                    inResFile.read( (char*)&colon, sizeof(char));
-                    inResFile.read( (char*)&tfidf, sizeof(double));
-                    inResFile.read( (char*)&comma, sizeof(char));
-                    cout << id << colon << tfidf << comma ;
-                }
-                // inResFile.read((char*)&cbrace, 1);  // comma will contain cbrace after last iteration
-                cbrace=comma;
-                inResFile.read((char*)&nline, 1);
-                cout << nline;
-            }
+		size_t tf = I->second[i];
+		if (!tf) continue;
+		inResFile.read( (char*)&id, sizeof(uint64_t));
+		inResFile.read( (char*)&colon, sizeof(char));
+		inResFile.read( (char*)&tfidf, sizeof(double));
+		inResFile.read( (char*)&comma, sizeof(char));
+		std::cerr << id << colon << tfidf << comma ;
+	    }
+	    // inResFile.read((char*)&cbrace, 1);  // comma will contain cbrace after last iteration
+	    cbrace=comma;
+	    inResFile.read((char*)&nline, 1);
+	    std::cerr << nline;
+	}
     }
-
-// #endif
 
     get_time (end);
 
@@ -695,13 +775,12 @@ int main(int argc, char *argv[])
     event_tracer::destroy();
 #endif
 
-    cilk_for(int i = 0; i < files.size() ; ++i) {
+    for(int i = 0; i < files.size() ; ++i) {
 #ifndef NO_MMAP
-        munmap(fdata[i], finfo.st_size + 1);
+        munmap(fdata[i], finfo[i].st_size + 1);
 #else
         free (fdata[i]);
 #endif
-        close(fd[i]);
     }
 
     return 0;
