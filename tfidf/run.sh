@@ -44,7 +44,7 @@ done
 
 rm output/out.$program.$data.all.$hostname
 for t in 32 16 8 4 2 ; do
-    grep "complete time" output/out.$program.$data.$t.$hostname | awk -F: '{ print $2 }' >> output/out.$program.$data.all.$hostname
+    grep "complete time" output/out.$program.$data.$t.$hostname | awk -F: '{ print "'"$t"'", $2 }' >> output/out.$program.$data.all.$hostname
 done
 
 # Example call to this script:

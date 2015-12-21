@@ -1,4 +1,4 @@
-benchmark=tfidf tfidf_dbg tfidf_timed
+benchmark=tfidf tfidf_dbg tfidf_timed tfidf_std
 
 CXX=icc
 CXXFLAGS+=-O3 -std=c++11 -I. -DASAP -DTIMING

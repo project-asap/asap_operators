@@ -576,7 +576,7 @@ int main(int argc, char *argv[])
     get_time (end);
 #ifdef TIMING
     print_time("output", begin, end);
-    print_time("complete time:", all_begin, end);
+    print_time("complete time", all_begin, end);
 #endif
 
     get_time (end);
