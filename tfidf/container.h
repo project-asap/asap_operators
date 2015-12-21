@@ -328,7 +328,8 @@ public:
 		}
             }
             table[index].first = key;
-            table[index].second = V(fileReserve, 0);
+            // table[index].second = V(fileReserve, 0);
+            table[index].second = V();
             occupied[index] = true;
             hashes[index] = hash;
             return table[index].second;
