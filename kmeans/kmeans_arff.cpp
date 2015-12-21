@@ -36,7 +36,8 @@
 #include "tracing/events.cc"
 #endif
 
-#include "stddefines.h"
+// khere #include "stddefines.h"
+#include <stddefines.h>
 
 #define DEF_NUM_POINTS 100000
 #define DEF_NUM_MEANS 100
@@ -682,10 +683,12 @@ public:
 int main(int argc, char **argv)
 {
     struct timespec begin, end;
+    struct timespec veryStart, veryEnd;
 
     srand( time(NULL) );
 
     get_time( begin );
+    get_time( veryStart );
 
     //read args
     parse_args(argc,argv);
@@ -838,6 +841,7 @@ int main(int argc, char **argv)
 
     get_time (end);
     print_time("finalize", begin, end);
+    print_time("complete time", veryStart, end);
 
 #if TRACING
     event_tracer::destroy();

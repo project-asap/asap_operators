@@ -19,7 +19,6 @@
 #include <time.h>
 #include <stddefines.h>
 #include <pthread.h>
-#if 1
 #if !SEQUENTIAL
 #include <cilk/cilk.h>
 #include <cilk/reducer.h>
@@ -30,13 +29,13 @@
 #define cilk_spawn
 #define cilk_for for
 #endif
-#endif
 
 #define MAX_STRING 100
 #define EXP_TABLE_SIZE 1000
 #define MAX_EXP 6
 #define MAX_SENTENCE_LENGTH 1000
 #define MAX_CODE_LENGTH 40
+// #define KTEST 1
 
 const int vocab_hash_size = 30000000;  // Maximum 30 * 0.7 = 21M words in the vocabulary
 
@@ -68,10 +67,13 @@ void InitUnigramTable() {
   double train_words_pow = 0;
   double d1, power = 0.75;
   table = (int *)malloc(table_size * sizeof(int));
+#if KTEST
   cilk::reducer< cilk::op_add<double> > twp_sum(0); 
-  // for (a = 0; a < vocab_size; a++) train_words_pow += pow(vocab[a].cn, power);
   cilk_for (a = 0; a < vocab_size; a++) *twp_sum += pow(vocab[a].cn, power);
   train_words_pow = twp_sum.get_value();
+#else
+  for (a = 0; a < vocab_size; a++) train_words_pow += pow(vocab[a].cn, power);
+#endif
   i = 0;
   d1 = pow(vocab[i].cn, power) / train_words_pow;
   // dependency of d1 within loop, so not eligible for cilk_for - khere ??
@@ -185,10 +187,16 @@ void SortVocab() {
   int a, size;
   unsigned int hash;
   // Sort the vocabulary and keep </s> at the first position
-  // cilk sort here ?? khere ?
-  qsort(&vocab[1], vocab_size - 1, sizeof(struct vocab_word), VocabCompare);
+//#ifdef KTEST
   // cilkpub::cilk_sort(&vocab[1], &vocab[vocab_size - 1], w2v_sort_pred());
+//#else
+  qsort(&vocab[1], vocab_size - 1, sizeof(struct vocab_word), VocabCompare);
+// #endif
+#ifdef KTEST
   cilk_for (a = 0; a < vocab_hash_size; a++) vocab_hash[a] = -1;
+#else
+  for (a = 0; a < vocab_hash_size; a++) vocab_hash[a] = -1;
+#endif
   size = vocab_size;
   train_words = 0;
   for (a = 0; a < size; a++) {
@@ -206,7 +214,11 @@ void SortVocab() {
   }
   vocab = (struct vocab_word *)realloc(vocab, (vocab_size + 1) * sizeof(struct vocab_word));
   // Allocate memory for the binary tree construction
+#ifdef KTEST
   cilk_for (a = 0; a < vocab_size; a++) {
+#else
+  for (a = 0; a < vocab_size; a++) {
+#endif
     vocab[a].code = (char *)calloc(MAX_CODE_LENGTH, sizeof(char));
     vocab[a].point = (int *)calloc(MAX_CODE_LENGTH, sizeof(int));
   }
@@ -222,8 +234,13 @@ void ReduceVocab() {
     b++;
   } else free(vocab[a].word);
   vocab_size = b;
+#ifdef KTEST
   cilk_for (a = 0; a < vocab_hash_size; a++) vocab_hash[a] = -1;
   cilk_for (a = 0; a < vocab_size; a++) {
+#else
+  for (a = 0; a < vocab_hash_size; a++) vocab_hash[a] = -1;
+  for (a = 0; a < vocab_size; a++) {
+#endif
     // Hash will be re-computed, as it is not actual
     hash = GetWordHash(vocab[a].word);
     while (vocab_hash[hash] != -1) hash = (hash + 1) % vocab_hash_size;
@@ -241,12 +258,21 @@ void CreateBinaryTree() {
   long long *count = (long long *)calloc(vocab_size * 2 + 1, sizeof(long long));
   long long *binary = (long long *)calloc(vocab_size * 2 + 1, sizeof(long long));
   long long *parent_node = (long long *)calloc(vocab_size * 2 + 1, sizeof(long long));
+#ifdef KTEST
   cilk_for (a = 0; a < vocab_size; a++) count[a] = vocab[a].cn;
   cilk_for (a = vocab_size; a < vocab_size * 2; a++) count[a] = 1e15;
+#else
+  for (a = 0; a < vocab_size; a++) count[a] = vocab[a].cn;
+  for (a = vocab_size; a < vocab_size * 2; a++) count[a] = 1e15;
+#endif
   pos1 = vocab_size - 1;
   pos2 = vocab_size;
   // Following algorithm constructs the Huffman tree by adding one node at a time
+// #ifdef KTEST
+  // cilk_for (a = 0; a < vocab_size - 1; a++) {
+// #else
   for (a = 0; a < vocab_size - 1; a++) {
+// #endif
     // First, find two smallest nodes 'min1, min2'
     if (pos1 >= 0) {
       if (count[pos1] < count[pos2]) {
@@ -304,7 +330,11 @@ void LearnVocabFromTrainFile() {
   char word[MAX_STRING];
   FILE *fin;
   long long a, i;
+#ifdef KTEST
   cilk_for (a = 0; a < vocab_hash_size; a++) vocab_hash[a] = -1;
+#else
+  for (a = 0; a < vocab_hash_size; a++) vocab_hash[a] = -1;
+#endif
   fin = fopen(train_file, "rb");
   if (fin == NULL) {
     printf("ERROR: training data file not found!\n");
@@ -386,22 +416,28 @@ void InitNet() {
   if (hs) {
     a = posix_memalign((void **)&syn1, 128, (long long)vocab_size * layer1_size * sizeof(real));
     if (syn1 == NULL) {printf("Memory allocation failed\n"); exit(1);}
-    // for (a = 0; a < vocab_size; a++) for (b = 0; b < layer1_size; b++)
-     // syn1[a * layer1_size + b] = 0;
-    for (a = 0; a < vocab_size; a++) {
-        cilk_for (b = 0; b < layer1_size; b++)
+#if KTEST
+    cilk_for (a = 0; a < vocab_size; a++) {
+        for (b = 0; b < layer1_size; b++)
             syn1[a * layer1_size + b] = 0;
     }
+#else
+    for (a = 0; a < vocab_size; a++) for (b = 0; b < layer1_size; b++)
+        syn1[a * layer1_size + b] = 0;
+#endif
   }
   if (negative>0) {
     a = posix_memalign((void **)&syn1neg, 128, (long long)vocab_size * layer1_size * sizeof(real));
     if (syn1neg == NULL) {printf("Memory allocation failed\n"); exit(1);}
-    // for (a = 0; a < vocab_size; a++) for (b = 0; b < layer1_size; b++)
-     // syn1neg[a * layer1_size + b] = 0;
+#if KTEST
     cilk_for (a = 0; a < vocab_size; a++) {
         for (b = 0; b < layer1_size; b++)
             syn1neg[a * layer1_size + b] = 0;
     }
+#else
+    for (a = 0; a < vocab_size; a++) for (b = 0; b < layer1_size; b++)
+        syn1neg[a * layer1_size + b] = 0;
+#endif
   }
   for (a = 0; a < vocab_size; a++) for (b = 0; b < layer1_size; b++) {
     next_random = next_random * (unsigned long long)25214903917 + 11;
@@ -416,7 +452,6 @@ void *TrainModelThread(void *id) {
   long long word_count = 0, last_word_count = 0, sen[MAX_SENTENCE_LENGTH + 1];
   long long l1, l2, c, target, label, local_iter = iter;
   unsigned long long next_random = (long long)id;
-  // real *syn0, *syn1, *syn1neg, *expTable;
   real f, g;
   clock_t now;
   real *neu1 = (real *)calloc(layer1_size, sizeof(real));
@@ -609,8 +644,8 @@ void TrainModel() {
   InitNet();
   if (negative > 0) InitUnigramTable();
   start = clock();
-  // for (a = 0; a < num_threads; a++) pthread_create(&pt[a], NULL, TrainModelThread, (void *)a);
   cilk_for (a = 0; a < num_threads; a++) TrainModelThread((void *) a);
+  // for (a = 0; a < num_threads; a++) pthread_create(&pt[a], NULL, TrainModelThread, (void *)a);
   // for (a = 0; a < num_threads; a++) pthread_join(pt[a], NULL);
   fo = fopen(output_file, "wb");
   if (classes == 0) {
