@@ -65,13 +65,9 @@
 
 #include "stddefines.h"
 #include <tuple>
-// #include <iostream>
 #include <map>
 #include <set>
-// #include <string>
-// #include <algorithm>
 #include <fstream>
-// #include "vector"
 #include <math.h>
 #include <sys/types.h>
 #include <dirent.h>
@@ -157,7 +153,7 @@ public:
 #ifdef P2_UNORDERED_MAP
 typedef std::p2_unordered_map<wc_word, size_t, wc_word_hash, wc_word_pred> wc_unordered_map;
 #elif defined(STD_UNORDERED_MAP)
-typedef std::unordered_map<wc_word, size_t, wc_word_hash, wc_word_pred> wc_unordered_map;
+typedef unordered_map<wc_word, size_t, wc_word_hash, wc_word_pred> wc_unordered_map;
 #elif defined(PHOENIX_MAP)
 #include "container.h"
 typedef hash_table<wc_word, fileVector, wc_word_hash> wc_unordered_map;
@@ -299,29 +295,8 @@ void wc( char * data, uint64_t data_size, uint64_t chunk_size, dictionary_reduce
 	    }
 	    TRACE( e_emap );
         }( s );
-#if 0
-    std::cout << "File " << file << "\n";
-    for( auto I=dict.begin(), E=dict.cend(); I != E; ++I ) {
-        std::cout << "Word: " << I->first.data << "\n";
-        for( auto J=I->second.begin(), JE=I->second.cend(); J != JE; ++J ) {
-            // for( auto J=I->second.cbegin(), JE=I->second.cend(); J != JE; ++J ) 
-                std::cout << "       second: " << *J << "\n";
-         }
-    }
-#endif
     }
     cilk_sync;
-    // typename wc_unordered_map::const_iterator begin() { return imp_.view().begin(); }
-#if 0
-    std::cout << "_File " << file << "\n";
-    for( auto I=dict.begin(), E=dict.cend(); I != E; ++I ) {
-        std::cout << "Word: " << I->first.data << "\n";
-        for( auto J=I->second.begin(), JE=I->second.cend(); J != JE; ++J ) {
-                std::cout << "       second: " << *J << "\n";
-         }
-    }
-#endif
-    // khere dict.swap( final_dict );
 
     TRACE( e_synced );
     // std::cout << "final hash table size=" << final_dict.bucket_count() << std::endl;
@@ -475,6 +450,159 @@ int main(int argc, char *argv[])
 
     }
 
+    // File initialisation
+    string strFilename(fname);
+    string arffTextFilename(strFilename + ".arff");
+    ofstream resFileTextArff;
+    resFileTextArff.open(arffTextFilename, ios::out | ios::trunc );
+    
+    get_time (begin);
+
+#define SS(str) (str), (sizeof((str))-1)/sizeof((str)[0])
+#define XS(str) (str).c_str(), (str).size()
+#define ST(i)   ((const char *)&(i)), sizeof((i))
+
+    // Char initialisations
+    char nline='\n';
+    char space=' ';
+    char tab='\t';
+    char comma=',';
+    char colon=':';
+    char lbrace='{';
+    char rbrace='}';
+    char what;
+
+    //
+    // arff format
+    //
+    string loopStart = "@attribute ";
+    string typeStr = "numeric";
+    string dataStr = "@data";
+    string headerTextArff("@relation tfidf");
+    string classTextArff("@attribute @@class@@ {text}");
+
+    resFileTextArff << headerTextArff << "\n" << classTextArff << "\n";;
+    resFileTextArff.flush();
+
+    unordered_map<uint64_t, uint64_t> idMap;
+    // hash_table<uint64_t, uint64_t, wc_word_hash> idMap;
+    int i=1;
+    for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
+
+        resFileTextArff << "\t";
+
+        uint64_t id = I.getIndex();
+        string str = I->first.data;
+
+        resFileTextArff << loopStart << str << " " << typeStr << "\n";
+        idMap[id]=i;
+
+        i++;
+    }
+
+    resFileTextArff << "\n\n" << dataStr << "\n\n";
+    resFileTextArff.flush();
+
+    //
+    // print the data
+    //
+    for (unsigned int i = 0;i < files.size();i++) {
+
+        string & keyStr = files[i];
+
+	if( dict.empty() ) {
+	    continue;
+	}
+
+        resFileTextArff << "\t{";
+
+        // iterate over each word to collect total counts of each word in all files (reducedCount)
+        // OR the number of files that contain the work (existsInFilesCount)
+        for( auto I=dict.begin(), E=dict.end(); I != E; ) {
+
+                size_t tf = I->second[i];
+	        if (!tf) {
+		    ++I;
+		    continue;
+	        }
+
+                // todo: workout how the best way to calculate and store each 
+                // word total once for all files
+#if 0
+	        cilk::reducer< cilk::op_add<size_t> > existsInFilesCount(0);
+	        cilk_for (int j = 0; j < I->second.size(); ++j) {
+		    // *reducedCount += I->second[j];  // Use this if we want to count every occurence
+		    if (I->second[j] > 0) *existsInFilesCount += 1;
+	        }
+	        size_t fcount = existsInFilesCount.get_value();
+#else
+                // Think this counts total occurences in all files, rather than number of other files it exists in ???
+                // Makes it different from sparks implementation, maybe not so important ?
+	        const size_t * v = &I->second.front();
+	        size_t len = I->second.size();
+	        size_t fcount = __sec_reduce_add( is_nonzero(v[0:len]) );
+#endif
+
+                //     Calculate tfidf  ---   Alternative versions of tfidf:
+                // double tfidf = tf * log10(((double) files.size() + 1.0) / ((double) sumOccurencesOfWord + 1.0)); 
+                // double tfidf = tf * log10(((double) files.size() + 1.0) / ((double) numOfOtherDocsWithWord + 2.0)); 
+                // double tfidf = tf * log10(((double) files.size() + 1.0) / ((double) reducedCount.get_value() + 1.0)); 
+                // Sparks version;
+                double tfidf = (double) tf * log10(((double) files.size() + 1.0) / ((double) fcount + 1.0)); 
+
+                uint64_t id = I.getIndex();
+
+                resFileTextArff << idMap[id] << space << tfidf;
+
+                ++I;
+
+                // Note:
+                // If Weka etc doesn't care if there is an extra unnecessary comma at end
+                // of a each record then we'd rather avoid the branch test here, so leave comma in
+                resFileTextArff << comma;
+
+        }
+        resFileTextArff << "}\n";
+    }
+    resFileTextArff.close();
+
+    get_time (end);
+#ifdef TIMING
+    print_time("output", begin, end);
+    print_time("all", all_begin, end);
+#endif
+
+    get_time (end);
+
+#ifdef TIMING
+    // print_time("finalize", begin, end);
+#endif
+
+#if TRACING
+    event_tracer::destroy();
+#endif
+
+    for(int i = 0; i < files.size() ; ++i) {
+#ifndef NO_MMAP
+        munmap(fdata[i], finfo[i].st_size + 1);
+#else
+        free (fdata[i]);
+#endif
+    }
+
+    return 0;
+}
+
+
+
+
+// Unused function, code for future reference
+void recordOfCodeForALLOutputFormats() {
+
+    //
+    // This func is Non-compilable, for future record for cleaner output formats code
+    //
+#if 0
     string strFilename(fname);
     string txtFilename(strFilename + ".txt");
     string binFilename(strFilename + ".bin");
@@ -584,7 +712,6 @@ int main(int argc, char *argv[])
         string & keyStr = files[i];
 
 	if( dict.empty() ) {
-	    // khere - TODELETE
 	    // string loopStart = "Key: " + keyStr + ": " + "Value: "
 	    // + keyStr + ":";
 	    // resFile.write ((char *)&tab, 1);
@@ -606,7 +733,6 @@ int main(int argc, char *argv[])
 	    .write( SS( ":{" ) );
 
         resFileTextArff << "\t{";
-
 
         // iterate over each word to collect total counts of each word in all files (reducedCount)
         // OR the number of files that contain the work (existsInFilesCount)
@@ -694,9 +820,9 @@ int main(int argc, char *argv[])
     print_time("all", all_begin, end);
 #endif
 
-    // Rough check on binary file:
+    // Check on binary file:
     // -c at the command line with try to read results back in from binary file and display 
-    // but note there will be funny chars before unsigned int64's as we do simple read of unsigned 
+    // but note there will be odd chars before unsigned int64's as we do simple read of unsigned 
     // int 64 for 'id' Examining the binary file itself shows the binary file has the correct values for 'id'
     if (checkResults) {
         char colon, comma, cbrace, nline, tab;
@@ -764,24 +890,6 @@ int main(int argc, char *argv[])
 	    std::cerr << nline;
 	}
     }
-
-    get_time (end);
-
-#ifdef TIMING
-    // print_time("finalize", begin, end);
 #endif
 
-#if TRACING
-    event_tracer::destroy();
-#endif
-
-    for(int i = 0; i < files.size() ; ++i) {
-#ifndef NO_MMAP
-        munmap(fdata[i], finfo[i].st_size + 1);
-#else
-        free (fdata[i]);
-#endif
-    }
-
-    return 0;
 }
