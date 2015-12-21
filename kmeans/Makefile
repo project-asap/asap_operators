@@ -2,11 +2,13 @@ benchmark=kmeans_arff
 
 CXX=icpc
 CXXFLAGS+=-O3 -I..
+# CXXFLAGS+=-std=c++11
+LDFLAGS=-lrt
 
 all: $(benchmark)
 
-kmeans_arff: kmeans_arff.cpp ../stddefines.h
-	$(CXX) $(CXXFLAGS) -std=c++11 $^ -o $@ $(LDFLAGS)
+kmeans_arff: kmeans_arff.cpp 
+	$(CXX) $(CXXFLAGS) -DTIMING $^ -o $@ $(LDFLAGS)
 
 clean:
 	rm -fr $(benchmark)
