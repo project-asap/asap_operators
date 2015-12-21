@@ -1,6 +1,6 @@
 benchmark=kmeans_arff
 
-CXX=icc
+CXX=icpc
 CXXFLAGS+=-O3 -I..
 
 all: $(benchmark)
