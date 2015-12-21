@@ -36,6 +36,7 @@
 #include <vector>
 #include <algorithm>
 #include <iostream>
+#include <memory>
 #ifdef P2_UNORDERED_MAP
 #include "p2_unordered_map.h"
 #endif // P2_UNORDERED_MAP
@@ -153,7 +154,8 @@ public:
 #ifdef P2_UNORDERED_MAP
 typedef std::p2_unordered_map<wc_word, size_t, wc_word_hash, wc_word_pred> wc_unordered_map;
 #elif defined(STD_UNORDERED_MAP)
-typedef unordered_map<wc_word, size_t, wc_word_hash, wc_word_pred> wc_unordered_map;
+#include <unordered_map>
+typedef std::unordered_map<wc_word, fileVector, wc_word_hash, wc_word_pred> wc_unordered_map;
 #elif defined(PHOENIX_MAP)
 #include "container.h"
 typedef hash_table<wc_word, fileVector, wc_word_hash> wc_unordered_map;
@@ -215,6 +217,11 @@ public:
     typename wc_unordered_map::iterator end() { return imp_.view().end(); }
     // typename wc_unordered_map::const_iterator cend() { return imp_.view().cend(); }
 
+#if defined(STD_UNORDERED_MAP)
+    wc_unordered_map::hasher hash_function() {
+        return imp_.view().hash_function();
+    }
+#endif
 
 };
 #else
@@ -222,12 +229,6 @@ typedef wc_unordered_map dictionary_reducer;
 #endif
 
 void wc( char * data, uint64_t data_size, uint64_t chunk_size, dictionary_reducer & dict, unsigned int file) {
-
-    // final_dict.rehash( 256 );
-    // dict.rehash( 256 );
-
-    // dictionary_reducer dict;
-    // wc_unordered_map  dict;
 
     uint64_t splitter_pos = 0;
     while( 1 ) {
@@ -256,8 +257,6 @@ void wc( char * data, uint64_t data_size, uint64_t chunk_size, dictionary_reduce
         
         splitter_pos = end;
 	TRACE( e_esplit );
-
-	// ++parts;
 
         /* Continue with map since the s data is valid. */
 	cilk_spawn [&] (wc_string s) {
@@ -305,8 +304,6 @@ void wc( char * data, uint64_t data_size, uint64_t chunk_size, dictionary_reduce
 #define NO_MMAP
 
 // vim: ts=8 sw=4 sts=4 smarttab smartindent
-
-
 
 using namespace std;
 
@@ -473,7 +470,7 @@ int main(int argc, char *argv[])
     char what;
 
     //
-    // arff format
+    // print out arff text format
     //
     string loopStart = "@attribute ";
     string typeStr = "numeric";
@@ -487,12 +484,19 @@ int main(int argc, char *argv[])
     unordered_map<uint64_t, uint64_t> idMap;
     // hash_table<uint64_t, uint64_t, wc_word_hash> idMap;
     int i=1;
+#ifdef STD_UNORDERED_MAP
+    wc_unordered_map::hasher fn = dict.hash_function();
+#endif
     for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
 
         resFileTextArff << "\t";
 
-        uint64_t id = I.getIndex();
         string str = I->first.data;
+#ifndef STD_UNORDERED_MAP
+        uint64_t id = I.getIndex();
+#else
+        uint64_t id = fn(I->first);
+#endif
 
         resFileTextArff << loopStart << str << " " << typeStr << "\n";
         idMap[id]=i;
@@ -537,7 +541,7 @@ int main(int argc, char *argv[])
 	        size_t fcount = existsInFilesCount.get_value();
 #else
                 // Think this counts total occurences in all files, rather than number of other files it exists in ???
-                // Makes it different from sparks implementation, maybe not so important ?
+                // Makes it different to sparks tfidf implementation following ?
 	        const size_t * v = &I->second.front();
 	        size_t len = I->second.size();
 	        size_t fcount = __sec_reduce_add( is_nonzero(v[0:len]) );
@@ -550,8 +554,11 @@ int main(int argc, char *argv[])
                 // Sparks version;
                 double tfidf = (double) tf * log10(((double) files.size() + 1.0) / ((double) fcount + 1.0)); 
 
+#ifndef STD_UNORDERED_MAP
                 uint64_t id = I.getIndex();
-
+#else
+                uint64_t id = fn(I->first);
+#endif
                 resFileTextArff << idMap[id] << space << tfidf;
 
                 ++I;
@@ -569,7 +576,7 @@ int main(int argc, char *argv[])
     get_time (end);
 #ifdef TIMING
     print_time("output", begin, end);
-    print_time("all", all_begin, end);
+    print_time("complete time:", all_begin, end);
 #endif
 
     get_time (end);
