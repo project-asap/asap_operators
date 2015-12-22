@@ -167,7 +167,12 @@ typedef hash_table_stored_hash<wc_word, fileVector, wc_word_hash> wc_unordered_m
 
 #if !SEQUENTIAL
 
+static double merge_time = 0;
+
 void merge_two_dicts( wc_unordered_map & m1, wc_unordered_map & m2 ) {
+    struct timespec begin, end;
+    get_time (begin);
+    // std::cerr << "merge 2...\n";
     for( auto I=m2.cbegin(), E=m2.cend(); I != E; ++I ) {
 	std::vector<size_t> & counts1 =  m1[I->first];
 	const std::vector<size_t> & counts2 =  I->second;
@@ -177,6 +182,9 @@ void merge_two_dicts( wc_unordered_map & m1, wc_unordered_map & m2 ) {
 	v1[0:nfiles] += v2[0:nfiles];
     }
     m2.clear();
+    get_time (end);
+    merge_time += time_diff(end, begin);
+    // std::cerr << "merge 2 done...\n";
 }
 
 class dictionary_reducer {
@@ -489,7 +497,7 @@ int main(int argc, char *argv[])
     // store the additional idMap.
     // unordered_map<uint64_t, uint64_t> idMap;
     // hash_table<uint64_t, uint64_t, wc_word_hash> idMap;
-    long i=1;
+    // long i=1;
 /*
 #ifdef STD_UNORDERED_MAP
     wc_unordered_map::hasher fn = dict.hash_function();
@@ -511,7 +519,7 @@ int main(int argc, char *argv[])
         resFileTextArff << loopStart << str << " " << typeStr << "\n";
         // idMap[id]=i;
 
-        i++;
+        // i++;
     }
 
     resFileTextArff << "\n\n" << dataStr << "\n\n";
@@ -552,8 +560,8 @@ int main(int argc, char *argv[])
 		// No: is_nonzero counts 1 per file with non-zero count
                 // Makes it different to sparks tfidf implementation following ?
 	        const size_t * v = &I->second.front();
-	        size_t len = I->second.size();
-	        size_t fcount = __sec_reduce_add( is_nonzero(v[0:len]) );
+	        // size_t len = I->second.size();
+	        size_t fcount = __sec_reduce_add( is_nonzero(v[0:nfiles]) );
 #endif
 
                 //     Calculate tfidf  ---   Alternative versions of tfidf:
@@ -584,6 +592,7 @@ int main(int argc, char *argv[])
     get_time (end);
 #ifdef TIMING
     print_time("output", begin, end);
+    print_time("merge", merge_time);
     print_time("complete time", all_begin, end);
 #endif
 
