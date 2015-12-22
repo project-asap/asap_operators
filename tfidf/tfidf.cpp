@@ -25,6 +25,7 @@
 */ 
 
 #include <sys/mman.h>
+#include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
@@ -327,11 +328,15 @@ int getdir (std::string dir, std::vector<std::string> &files)
     }
  
     while ((dirp = readdir(dp)) != NULL) {
-        if (dirp->d_type == DT_REG) {
-            string dirFull=(dir);
-            std::string relFilePath=dirFull + "/" + dirp->d_name;
+	std::string relFilePath=dir + "/" + dirp->d_name;
+	struct stat buf;
+	if( lstat(relFilePath.c_str(), &buf) < 0 ) {
+	    std::cerr << "Error(" << errno << ") lstat " << relFilePath << std::endl;
+	    return errno;
+	}
+
+        if (S_ISREG(buf.st_mode))
             files.push_back(relFilePath);
-        }
     }
     closedir(dp);
     return 0;
