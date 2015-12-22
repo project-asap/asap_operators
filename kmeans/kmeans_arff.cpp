@@ -56,6 +56,7 @@ int max_iters; // maximum number of iterations
 real * min_val; // min value of each dimension of vector space
 real * max_val; // max value of each dimension of vector space
 const char * infile = NULL; // input file
+const char * outfile = NULL; // output file
 
 #define CROAK(x)   croak(x,__FILE__,__LINE__)
 
@@ -234,8 +235,14 @@ sparse_point::sparse_point(const point&pt) {
 
 real sparse_point::sq_dist(point const& p) const {
     real sum = 0;
-    for (int i = 0; i < nonzeros; i++) {
-	real diff = v[i] - p.d[c[i]];
+    int j=0;
+    for( int i=0; i < num_dimensions; ++i ) {
+	real diff;
+	if( j < nonzeros && i == c[j] ) {
+	    diff = v[j] - p.d[i];
+	    ++j;
+	} else
+	    diff = p.d[i];
 	sum += diff * diff;
     }
     return sum;
@@ -480,7 +487,7 @@ void parse_args(int argc, char **argv)
     // num_dimensions = DEF_DIM;
     // grid_size = DEF_GRID_SIZE;
     
-    while ((c = getopt(argc, argv, "c:i:m:d")) != EOF) 
+    while ((c = getopt(argc, argv, "c:i:o:m:d")) != EOF) 
     {
         switch (c) {
             // case 'd':
@@ -498,6 +505,9 @@ void parse_args(int argc, char **argv)
             case 'i':
                 infile = optarg;
                 break;
+            case 'o':
+                outfile = optarg;
+                break;
             // case 'p':
                 // num_points = atoi(optarg);
                 // break;
@@ -514,9 +524,12 @@ void parse_args(int argc, char **argv)
 	CROAK( "Number of clusters must be larger than 0." );
     if( !infile )
 	CROAK( "Input file must be supplied." );
+    if( !outfile )
+	CROAK( "Output file must be supplied." );
     
     std::cerr << "Number of clusters = " << num_clusters << '\n';
     std::cerr << "Input file = " << infile << '\n';
+    std::cerr << "Output file = " << outfile << '\n';
 }
 
 struct arff_file {
@@ -752,6 +765,7 @@ int main(int argc, char **argv)
 	}
 
 	for( int i=0; i < num_points; ++i ) {
+	    points[i].cluster = spoints[i].cluster; // copy result
 	    delete[] spoints[i].c;
 	    delete[] spoints[i].v;
 	}
@@ -777,6 +791,8 @@ int main(int argc, char **argv)
     for(int i = 0; i < num_clusters; i++)
 	centres[i].dump();
 #endif
+    fprintf( stdout, "sparse? %s\n",
+	     ( arff_data.sparse_data && !force_dense ) ? "yes" : "no" );
     fprintf( stdout, "iterations: %d\n", niter );
 
     real sse = 0;
@@ -785,30 +801,34 @@ int main(int argc, char **argv)
     }
     fprintf( stdout, "within cluster sum of squared errors: %11.4lf\n", sse );
 
-    fprintf( stdout, "%37s\n", "Cluster#" );
-    fprintf( stdout, "%-16s", "Attribute" );
-    fprintf( stdout, "%10s", "Full Data" );
+    FILE * outfp = fopen( outfile, "w" );
+    if( !outfp )
+	CROAK( "cannot open output file for writing" );
+
+    fprintf( outfp, "%37s\n", "Cluster#" );
+    fprintf( outfp, "%-16s", "Attribute" );
+    fprintf( outfp, "%10s", "Full Data" );
     for( int i=0; i < num_clusters; ++i )
-	fprintf( stdout, "%11d", i );
-    fprintf( stdout, "\n" );
+	fprintf( outfp, "%11d", i );
+    fprintf( outfp, "\n" );
 
     char buf[32];
     sprintf( buf, "(%d)", num_points );
-    fprintf( stdout, "%26s", buf );
+    fprintf( outfp, "%26s", buf );
     for( int i=0; i < num_clusters; ++i ) {
 	sprintf( buf, "(%d)", centres[i].cluster );
-	fprintf( stdout, "%11s", buf );
+	fprintf( outfp, "%11s", buf );
     }
-    fprintf( stdout, "\n" );
+    fprintf( outfp, "\n" );
 
-    fprintf( stdout, "================" );
-    fprintf( stdout, "==========" );
+    fprintf( outfp, "================" );
+    fprintf( outfp, "==========" );
     for( int i=0; i < num_clusters; ++i )
-	fprintf( stdout, "===========" );
-    fprintf( stdout, "\n" );
+	fprintf( outfp, "===========" );
+    fprintf( outfp, "\n" );
 
     for( int i=0; i < num_dimensions; ++i ) {
-	fprintf( stdout, "%-16s", arff_data.idx[i] );
+	fprintf( outfp, "%-16s", arff_data.idx[i] );
 #if REAL_IS_INT
 #error not yet implemented
 #else
@@ -817,7 +837,7 @@ int main(int argc, char **argv)
 	    s += points[j].d[i];
 	s /= (real)num_points;
 	s = min_val[i] + s * (max_val[i] - min_val[i] + 1);
-	fprintf( stdout, "%10.4lf", s );
+	fprintf( outfp, "%10.4lf", s );
 #endif
 	for( int k=0; k < num_clusters; ++k ) {
 #if REAL_IS_INT
@@ -829,10 +849,10 @@ int main(int argc, char **argv)
 		    s += points[j].d[i];
 	    s /= (real)centres[k].cluster;
 	    s = min_val[i] + s * (max_val[i] - min_val[i] + 1);
-	    fprintf( stdout, "%11.4lf", s );
+	    fprintf( outfp, "%11.4lf", s );
 #endif
 	}
-	fprintf( stdout, "\n" );
+	fprintf( outfp, "\n" );
     }
 
     //free memory
