@@ -692,21 +692,24 @@ int getdir (std::string dir, std::vector<std::string> &files)
     DIR *dp;
     struct dirent *dirp;
     if((dp  = opendir(dir.c_str())) == NULL) {
-	std::cerr << "Error(" << errno << ") opening " << dir << std::endl;
+        std::cerr << "Error(" << errno << ") opening " << dir << std::endl;
         return errno;
     }
- 
+
     while ((dirp = readdir(dp)) != NULL) {
-        if (dirp->d_type == DT_REG) {
-            string dirFull=(dir);
-            std::string relFilePath=dirFull + "/" + dirp->d_name;
-            files.push_back(relFilePath);
+        std::string relFilePath=dir + "/" + dirp->d_name;
+        struct stat buf;
+        if( lstat(relFilePath.c_str(), &buf) < 0 ) {
+            std::cerr << "Error(" << errno << ") lstat " << relFilePath << std::endl;
+            return errno;
         }
+
+        if (S_ISREG(buf.st_mode))
+            files.push_back(relFilePath);
     }
     closedir(dp);
     return 0;
 }
-
 
 #include <unordered_map>
 size_t is_nonzero( size_t s ) {
