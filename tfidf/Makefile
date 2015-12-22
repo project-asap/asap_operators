@@ -41,11 +41,11 @@ tfidf_dbg: tfidf.cpp
 tfidf_timed: tfidf.cpp
 	$(CXX) $(CXXFLAGS) -DTIMING=1 -DASAP $^ -o $@ $(LDFLAGS)
 
-tfidf_kmeans: tfidf_kmeans.cpp
-	$(CXX) $(CXXFLAGS) -DTIMING=1 -DASAP $^ -o $@ $(LDFLAGS)
+tfidf_kmeans: tfidf.cpp
+	$(CXX) $(CXXFLAGS) -DKMEANS -DTIMING=1 -DASAP $^ -o $@ $(LDFLAGS)
 
-tfidf_kmeans_dbg: tfidf_kmeans.cpp
-	$(CXX) $(CXXFLAGSDEBUG) -DASAP -O0 $^ -o $@ $(LDFLAGS)
+tfidf_kmeans_dbg: tfidf.cpp
+	$(CXX) $(CXXFLAGSDEBUG) -DKMEANS -DASAP -O0 $^ -o $@ $(LDFLAGS)
 
 clean:
 	rm -fr $(benchmark)
