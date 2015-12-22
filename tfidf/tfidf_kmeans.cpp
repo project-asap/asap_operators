@@ -1144,26 +1144,28 @@ int main(int argc, char *argv[])
     resFileTextArff << headerTextArff << "\n" << classTextArff << "\n";;
     resFileTextArff.flush();
 
-    unordered_map<uint64_t, uint64_t> idMap;
-    // hash_table<uint64_t, uint64_t, wc_word_hash> idMap;
-    int i=1;
+    long i=1;
+/*
 #ifdef STD_UNORDERED_MAP
     wc_unordered_map::hasher fn = dict.hash_function();
 #endif
+*/
     for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
 
         resFileTextArff << "\t";
 
-        string str = I->first.data;
+        const string & str = I->first.data;
+/*
 #ifndef STD_UNORDERED_MAP
         uint64_t id = I.getIndex();
 #else
         uint64_t id = fn(I->first);
 #endif
+*/
 
         resFileTextArff << loopStart << str << " " << typeStr << "\n";
         arff_data.idx.push_back(str.c_str());
-        idMap[id]=i;
+        // idMap[id]=i;
 
         i++;
     }
@@ -1183,21 +1185,19 @@ int main(int argc, char *argv[])
 
         string & keyStr = files[i];
 
-	if( dict.empty() ) {
+	if( dict.empty() )
 	    continue;
-	}
 
         resFileTextArff << "\t{";
 
         // iterate over each word to collect total counts of each word in all files (reducedCount)
         // OR the number of files that contain the work (existsInFilesCount)
-        for( auto I=dict.begin(), E=dict.end(); I != E; ) {
+        long id=1;
+        for( auto I=dict.begin(), E=dict.end(); I != E; ++I, ++id ) {
 
                 size_t tf = I->second[i];
-	        if (!tf) {
-		    ++I;
+	        if (!tf) 
 		    continue;
-	        }
 
                 // todo: workout how the best way to calculate and store each 
                 // word total once for all files
@@ -1209,8 +1209,6 @@ int main(int argc, char *argv[])
 	        }
 	        size_t fcount = existsInFilesCount.get_value();
 #else
-                // Think this counts total occurences in all files, rather than number of other files it exists in ???
-                // Makes it different to sparks tfidf implementation following ?
 	        const size_t * v = &I->second.front();
 	        size_t len = I->second.size();
 	        size_t fcount = __sec_reduce_add( is_nonzero(v[0:len]) );
@@ -1222,22 +1220,19 @@ int main(int argc, char *argv[])
                 // double tfidf = tf * log10(((double) files.size() + 1.0) / ((double) reducedCount.get_value() + 1.0)); 
                 // Sparks version;
                 double tfidf = (double) tf * log10(((double) files.size() + 1.0) / ((double) fcount + 1.0)); 
-
+/*
 #ifndef STD_UNORDERED_MAP
                 uint64_t id = I.getIndex();
 #else
                 uint64_t id = fn(I->first);
 #endif
+*/
                 coord[id] = tfidf;
-
-                // ERROR, keep in for file output version resFileTextArff << idMap[id] << space << tfidf;
-
-                ++I;
 
                 // Note:
                 // If Weka etc doesn't care if there is an extra unnecessary comma at end
                 // of a each record then we'd rather avoid the branch test here, so leave comma in
-                resFileTextArff << comma;
+                resFileTextArff << id << ' ' << tfidf << ',';
 
         }
         resFileTextArff << "}\n";
