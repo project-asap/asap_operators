@@ -83,6 +83,8 @@ public:
 #if TRACING
 	event_tracer::get().record( event_tracer::e_rehash, 0, 0 );
 #endif
+	// if( msize > 0 )
+	    // std::cerr << "rehash " << this << " from " << msize << " to " << newsize << std::endl;
         std::vector<entry, Allocator<entry> > newtable(newsize);
         std::vector<bool, Allocator<bool> > newoccupied(newsize, false);
         for(uint64_t i = 0; i < msize; i++) {
@@ -121,7 +123,7 @@ public:
                 }
             }
             table[index].first = key;
-            table[index].second = V();
+            table[index].second = V(true);
             occupied[index] = true;
             return table[index].second;
         }
@@ -329,7 +331,7 @@ public:
             }
             table[index].first = key;
             // table[index].second = V(fileReserve, 0);
-            table[index].second = V();
+            table[index].second = V(true);
             occupied[index] = true;
             hashes[index] = hash;
             return table[index].second;
