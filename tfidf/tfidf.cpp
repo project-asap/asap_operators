@@ -94,13 +94,14 @@ typedef float real;
 int num_points; // number of vectors
 int num_dimensions;         // Dimension of each vector
 int num_clusters; // number of clusters
-// bool force_dense; // force a (slower) dense calculation
+bool force_dense; // force a (slower) dense calculation
 bool kmeans_workflow = false;
 bool tfidf_unit = true;
 int max_iters; // maximum number of iterations
 real * min_val; // min value of each dimension of vector space
 real * max_val; // max value of each dimension of vector space
 const char * fname= NULL; // input file
+const char * outfile = NULL; // output file
 
 #define CROAK(x)   croak(x,__FILE__,__LINE__)
 // kmeans merged header sections end
@@ -177,7 +178,8 @@ struct wc_merge_pred
 static size_t nfiles = 0;
 class fileVector : public std::vector<size_t> {
 public:
-    fileVector() : std::vector<size_t>( nfiles, 0 ) { }
+    fileVector() { }
+    fileVector(bool) : std::vector<size_t>( nfiles, 0 ) { }
 };
 
 #ifdef P2_UNORDERED_MAP
@@ -797,17 +799,20 @@ void parse_args(int argc, char **argv)
     // num_dimensions = DEF_DIM;
     // grid_size = DEF_GRID_SIZE;
     
-    while ((c = getopt(argc, argv, "c:i:m:d:")) != EOF) 
+    while ((c = getopt(argc, argv, "c:i:m:d:o:D:")) != EOF) 
     {
         switch (c) {
             // case 'd':
                 // num_dimensions = atoi(optarg);
                 // break;
-	    // case 'd':
-		// force_dense = true;
-		// break;
+	    case 'D':
+		force_dense = true;
+		break;
 	    case 'd':
 	        fname = optarg;
+	        break;
+	    case 'o':
+	        outfile = optarg;
 	        break;
             case 'm':
                 max_iters = atoi(optarg);
@@ -876,6 +881,7 @@ int main(int argc, char *argv[])
     event_tracer::init();
 #endif
 
+    char *outfile = 0;
     bool checkResults=false;
     int c;
 
@@ -885,70 +891,83 @@ int main(int argc, char *argv[])
     getdir(fname,files);
     nfiles = files.size();
     char * fdata[files.size()];
-    struct stat finfo[files.size()];
-    int fd[files.size()];
+#ifndef NO_MMAP
+    struct stat finfo_array[files.size()];
+#endif
     get_time (end);
 
-#ifdef TIMING
     print_time("initialize", begin, end);
-#endif
+
+    get_time(begin);
+    cilk::reducer< cilk::op_add<double> > time_read(0);
+    cilk::reducer< cilk::op_add<double> > time_wc(0);
 
     cilk_for (unsigned int i = 0;i < files.size();i++) {
-
+#ifndef NO_MMAP
+	struct stat & finfo = finfo_array[i];
+#else
+	struct stat finfo;
+#endif
+	int fd;
         struct timespec beginI, endI, beginWC, endWC;
         get_time(beginI);
 
         // dict.setReserve(files.size());
 
         // Read in the file
-        fd[i] = open(files[i].c_str(), O_RDONLY);
+        fd = open(files[i].c_str(), O_RDONLY);
        
         // Get the file info (for file length)
-        fstat(fd[i], &finfo[i]);
+        fstat(fd, &finfo);
 #ifndef NO_MMAP
 #ifdef MMAP_POPULATE
 	// Memory map the file
-        fdata[i] = (char*)mmap(0, finfo[i].st_size + 1, 
-			       PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd[i], 0);
+        fdata[i] = (char*)mmap(0, finfo.st_size + 1, 
+			       PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0);
 #else
         // Memory map the file
-        fdata[i] = (char*)mmap(0, finfo[i].st_size + 1, 
-			       PROT_READ, MAP_PRIVATE, fd[i], 0);
+        fdata[i] = (char*)mmap(0, finfo.st_size + 1, 
+			       PROT_READ, MAP_PRIVATE, fd, 0);
 #endif
 #else
         uint64_t r = 0;
 
-        fdata[i] = (char *)malloc (finfo[i].st_size);
-        while(r < (uint64_t)finfo[i].st_size)
-            r += pread (fd[i], fdata[i] + r, finfo[i].st_size, r);
+        fdata[i] = (char *)malloc (finfo.st_size);
+        while(r < (uint64_t)finfo.st_size)
+            r += pread (fd, fdata[i] + r, finfo.st_size, r);
 #endif    
     
         get_time (endI);
+	*time_read += time_diff(endI, beginI);
 
-#ifdef TIMING
-        print_time("thread file-read", beginI, endI);
-#endif
+        // print_time("thread file-read", beginI, endI);
 
 #ifndef NO_MMAP
 #ifdef MMAP_POPULATE
 #else
 #endif
 #else
-        close(fd[i]);
+        close(fd);
 #endif
 
         get_time (beginWC);
 
-        wc(fdata[i], finfo[i].st_size, 1024*1024, dict, i);
+        wc(fdata[i], finfo.st_size, 1024*1024, dict, i);
 
         get_time (endWC);
-#ifdef TIMING
-        print_time("thread WC ", beginWC, endWC);
-#endif
+	*time_wc += time_diff(endWC, beginWC);
+        // print_time("thread WC ", beginWC, endWC);
 
         TRACE( e_smerge );
-
     }
+
+    get_time (end);
+    print_time("input (work)", time_read.get_value());
+    print_time("wc (work)", time_wc.get_value());
+    print_time("input+wc (elapsed)", begin, end);
+
+    printf( "writing output data and calculating TF-IDF\n" );
+    get_time (begin);
 
 #ifdef KMEANS
     arff_file arff_data;
@@ -957,34 +976,31 @@ int main(int argc, char *argv[])
 
     // File initialisation
     string strFilename(fname);
-    string arffTextFilename(strFilename + ".arff");
+    string arffTextFilename = outfile ? outfile : (strFilename + ".arff");
     ofstream resFileTextArff;
-    resFileTextArff.open(arffTextFilename, ios::out | ios::trunc );
+    resFileTextArff.open(arffTextFilename, ios::out | ios::trunc);
     
-    get_time (begin);
-
 #define SS(str) (str), (sizeof((str))-1)/sizeof((str)[0])
 #define XS(str) (str).c_str(), (str).size()
 #define ST(i)   ((const char *)&(i)), sizeof((i))
 
     // Char initialisations
-    char nline='\n';
-    char space=' ';
-    char tab='\t';
-    char comma=',';
-    char colon=':';
-    char lbrace='{';
-    char rbrace='}';
-    char what;
+    const char nline='\n';
+    const char space=' ';
+    const char tab='\t';
+    const char comma=',';
+    const char colon=':';
+    const char lbrace='{';
+    const char rbrace='}';
 
     //
     // print out arff text format
     //
-    string loopStart = "@attribute ";
-    string typeStr = "numeric";
-    string dataStr = "@data";
-    string headerTextArff("@relation tfidf");
-    string classTextArff("@attribute @@class@@ {text}");
+    const string loopStart = "@attribute ";
+    const string typeStr = "numeric";
+    const string dataStr = "@data";
+    const string headerTextArff("@relation tfidf");
+    const string classTextArff("@attribute @@class@@ {text}");
 
     resFileTextArff << headerTextArff << "\n" << classTextArff << "\n";;
     resFileTextArff.flush();
@@ -1002,7 +1018,7 @@ int main(int argc, char *argv[])
 #endif
 */
 
-        resFileTextArff << loopStart << str << " " << typeStr << "\n";
+        resFileTextArff << loopStart << str << ' ' << typeStr << "\n";
 #ifdef KMEANS
         arff_data.idx.push_back(str.c_str());
 #endif
@@ -1023,7 +1039,7 @@ int main(int argc, char *argv[])
 
     for (unsigned int i = 0;i < files.size();i++) {
 
-        string & keyStr = files[i];
+        const string & keyStr = files[i];
 
 	if( dict.empty() )
 	    continue;
@@ -1234,17 +1250,11 @@ int main(int argc, char *argv[])
 #endif
 
     get_time (end);
-#ifdef TIMING
     print_time("output", begin, end);
     print_time("merge", merge_time);
     print_time("complete time", all_begin, end);
-#endif
 
-    get_time (end);
-
-#ifdef TIMING
-    // print_time("finalize", begin, end);
-#endif
+    get_time (begin);
 
 #if TRACING
     event_tracer::destroy();
@@ -1252,11 +1262,14 @@ int main(int argc, char *argv[])
 
     for(int i = 0; i < files.size() ; ++i) {
 #ifndef NO_MMAP
-        munmap(fdata[i], finfo[i].st_size + 1);
+        munmap(fdata[i], finfo_array[i].st_size + 1);
 #else
         free (fdata[i]);
 #endif
     }
+
+    get_time (end);
+    print_time("finalize", begin, end);
 
     return 0;
 }
@@ -1480,10 +1493,8 @@ void recordOfCodeForALLOutputFormats() {
     resFile.close();
 
     get_time (end);
-#ifdef TIMING
     print_time("output", begin, end);
     print_time("all", all_begin, end);
-#endif
 
     // Check on binary file:
     // -c at the command line with try to read results back in from binary file and display 
