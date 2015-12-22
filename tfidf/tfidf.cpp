@@ -1069,6 +1069,7 @@ int main(int argc, char *argv[])
 */
 #ifdef KMEANS
                 coord[id] = tfidf;
+                arff_data.points.push_back( point( coord, -1 ) );
 #endif
 
                 // Note:
@@ -1082,6 +1083,7 @@ int main(int argc, char *argv[])
     resFileTextArff.close();
 
 #ifdef KMEANS
+        ndim = arff_data.idx.size();
 	arff_data.minval = new real[ndim];
 	arff_data.maxval = new real[ndim];
 	for( int i=0; i < ndim; ++i ) {
