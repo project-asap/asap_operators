@@ -1,9 +1,10 @@
-benchmark=tfidf tfidf_dbg tfidf_timed tfidf_std tfidf_kmeans
+benchmark=tfidf tfidf_dbg tfidf_timed tfidf_std tfidf_kmeans tfidf_kmeans_dbg
 
 CXX=icc
 CXXFLAGS+=-O3 -std=c++11 -I. -DASAP -DTIMING
 CXXFLAGS += -I../cilkpub_v105/include -I.. 
 CXXFLAGSDEBUG+=-g $(CXXFLAGS) 
+DEBUG_FLAGS=-O0 -g -std=c++11 -I. -DASAP -DTIMING -I../cilkpub_v105/include -I..
 LDFLAGS += -lrt
 
 all: $(benchmark)
@@ -45,7 +46,7 @@ tfidf_kmeans: tfidf.cpp
 	$(CXX) $(CXXFLAGS) -DKMEANS -DTIMING=1 -DASAP $^ -o $@ $(LDFLAGS)
 
 tfidf_kmeans_dbg: tfidf.cpp
-	$(CXX) $(CXXFLAGSDEBUG) -DKMEANS -DASAP -O0 $^ -o $@ $(LDFLAGS)
+	$(CXX) $(DEBUG_FLAGS) -DKMEANS -DASAP -O0 $^ -o $@ $(LDFLAGS)
 
 clean:
 	rm -fr $(benchmark)
