@@ -17,6 +17,7 @@
 #include <limits>
 #include <cassert>
 #include <vector>
+#include <type_traits>
 
 #if SEQUENTIAL && PMC
 #include <likwid.h>
@@ -46,7 +47,8 @@
 #define DEF_NUM_THREADS 8
 
 #define REAL_IS_INT 0
-typedef float real;
+// typedef float real;
+typedef double real;
 
 int num_points; // number of vectors
 int num_dimensions;         // Dimension of each vector
@@ -126,6 +128,7 @@ struct sparse_point {
 struct point
 {
     real * d;
+    real sumsq;
     int cluster;
 
     point() { d = NULL; cluster = -1; }
@@ -144,6 +147,17 @@ struct point
 #endif
 	    return false;
 	}
+    }
+
+    void update_sum_sq() {
+	real ssq = 0;
+        for (int i = 0; i < num_dimensions; i++) {
+	    ssq += d[i] * d[i];
+	}
+	sumsq = ssq;
+    }
+    real get_sum_sq() const {
+	return sumsq;
     }
 
     void clear() {
@@ -235,6 +249,7 @@ sparse_point::sparse_point(const point&pt) {
 
 real sparse_point::sq_dist(point const& p) const {
     real sum = 0;
+#if 0
     int j=0;
     for( int i=0; i < num_dimensions; ++i ) {
 	real diff;
@@ -245,6 +260,15 @@ real sparse_point::sq_dist(point const& p) const {
 	    diff = p.d[i];
 	sum += diff * diff;
     }
+#else
+    sum = p.get_sum_sq();
+    for( int i=0; i < nonzeros; ++i ) { 
+	sum += v[i] *  ( v[i] - real(2) * p.d[c[i]] );
+	// assert( sum1 > real(0) );
+    }
+#endif
+    // printf( "sum=%f sum1=%f\n", sum, sum1 );
+    // assert( ( sum - sum1 ) / sum1 < 1e-3 );
     return sum;
 }
 
@@ -292,15 +316,17 @@ public:
     }
     void add_point( Point * pt ) {
 	int c = pt->cluster;
+	Point & tgt = centres[c];
 	for( int i=0; i < num_dimensions; ++i )
-	    centres[c].d[i] += pt->d[i];
-	centres[c].cluster++;
+	    tgt.d[i] += pt->d[i];
+	tgt.cluster++;
     }
     void add_point( sparse_point * pt ) {
 	int c = pt->cluster;
+	Point & tgt = centres[c];
 	for( int i=0; i < pt->nonzeros; ++i )
-	    centres[c].d[pt->c[i]] += pt->v[i];
-	centres[c].cluster++;
+	    tgt.d[pt->c[i]] += pt->v[i];
+	tgt.cluster++;
     }
 
     void normalize( int c ) {
@@ -311,6 +337,11 @@ public:
 	cilk_for( int c=0; c < num_clusters; ++c )
 	    modified |= centres[c].normalize();
 	return modified;
+    }
+
+    void update_sum_sq() {
+	cilk_for( int c=0; c < num_clusters; ++c )
+	    centres[c].update_sum_sq();
     }
 
     void select( const point * pts ) {
@@ -354,6 +385,14 @@ public:
 	}
     }
 
+    template<typename DSPoint>
+    real within_sse( DSPoint * points ) {
+	real sse = 0;
+	for( int i=0; i < num_points; ++i ) {
+	    sse += points[i].sq_dist( centres[points[i].cluster] );
+	}
+	return sse;
+    }
 
     const Point & operator[] ( int c ) const {
 	return centres[c];
@@ -394,6 +433,10 @@ public:
 	return imp_.view()[c];
     }
 
+    void update_sum_sq() {
+	imp_.view().update_sum_sq();
+    }
+
     void swap( Centres & c ) {
 	imp_.view().swap( c );
     }
@@ -415,6 +458,9 @@ int kmeans_cluster(Centres & centres, DSPoint * points) {
     int modified = 0;
 
     centres_reducer new_centres;
+
+    if( std::is_same<sparse_point,DSPoint>::value )
+	centres.update_sum_sq();
 
 #if GRANULARITY
     int nmap = std::min(num_points, 16) * 16;
@@ -723,6 +769,9 @@ int main(int argc, char **argv)
     min_val = arff_data.minval;
     max_val = arff_data.maxval;
 
+    // for reproducibility
+    srand(1);
+
     // allocate memory
     // get points
     point * points = &arff_data.points[0];
@@ -745,12 +794,12 @@ int main(int argc, char **argv)
 
     printf("KMeans: Calling MapReduce Scheduler\n");
 
+    get_time (begin);        
     // keep re-clustering until means stabilise (no points are reassigned
     // to different clusters)
 #if SEQUENTIAL && PMC
     LIKWID_MARKER_START("mapreduce");
 #endif // SEQUENTIAL && PMC
-    get_time (begin);        
     int niter = 1;
     if( arff_data.sparse_data && !force_dense ) {
 	// First build sparse representation
@@ -759,9 +808,14 @@ int main(int argc, char **argv)
 	for( int i=0; i < num_points; ++i )
 	    spoints.push_back( sparse_point( points[i] ) );
 
+	// centres.update_sum_sq();
+	// fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &points[0] ) );
+
 	while(kmeans_cluster(centres, &spoints[0])) {
 	    if( ++niter >= max_iters && max_iters > 0 )
 		break;
+	    // centres.update_sum_sq();
+	    // fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &spoints[0] ) );
 	}
 
 	for( int i=0; i < num_points; ++i ) {
