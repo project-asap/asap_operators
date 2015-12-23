@@ -1030,7 +1030,7 @@ struct arff_file {
     bool sparse_data;
 
 public:
-    arff_file() : sparse_data(false) { }
+    arff_file() : sparse_data(true) { }
 
 };
 // kmeans merged reading sections end
@@ -1348,7 +1348,11 @@ int main(int argc, char *argv[])
 		    / (arff_data.maxval[i] - arff_data.minval[i]+1);
 	    }
 	}
-        //
+ 
+        std::cerr << "@relation: " << arff_data.relation << "\n";
+        std::cerr << "@attributes: " << arff_data.idx.size() << "\n";
+        std::cerr << "@points: " << arff_data.points.size() << "\n";
+
         // From kmeans main, the rest of kmeans computation and output
 
         num_dimensions = arff_data.idx.size();
