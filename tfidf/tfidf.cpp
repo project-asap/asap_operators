@@ -90,7 +90,7 @@
 #define DEF_NUM_THREADS 8
 
 #define REAL_IS_INT 0
-typedef float real;
+typedef double real;
 
 int num_points; // number of vectors
 int num_dimensions;         // Dimension of each vector
@@ -230,6 +230,7 @@ struct sparse_point {
 struct point
 {
     real * d;
+    real sumsq;
     int cluster;
 
     point() { d = NULL; cluster = -1; }
@@ -248,6 +249,17 @@ struct point
 #endif
 	    return false;
 	}
+    }
+
+    void update_sum_sq() {
+	real ssq = 0;
+        for (int i = 0; i < num_dimensions; i++) {
+	    ssq += d[i] * d[i];
+	}
+	sumsq = ssq;
+    }
+    real get_sum_sq() const {
+	return sumsq;
     }
 
     void clear() {
@@ -550,10 +562,26 @@ sparse_point<Value>::sparse_point(const point&pt) {
 template<typename Value>
 real sparse_point<Value>::sq_dist(point const& p) const {
     real sum = 0;
-    for (int i = 0; i < nonzeros; i++) {
-	value_type diff = v[i] - p.d[c[i]];
+#if 0
+    int j=0;
+    for( int i=0; i < num_dimensions; ++i ) {
+	real diff;
+	if( j < nonzeros && i == c[j] ) {
+	    diff = v[j] - p.d[i];
+	    ++j;
+	} else
+	    diff = p.d[i];
 	sum += diff * diff;
     }
+#else
+    sum = p.get_sum_sq();
+    for( int i=0; i < nonzeros; ++i ) { 
+	sum += v[i] *  ( v[i] - real(2) * p.d[c[i]] );
+	// assert( sum1 > real(0) );
+    }
+#endif
+    // printf( "sum=%f sum1=%f\n", sum, sum1 );
+    // assert( ( sum - sum1 ) / sum1 < 1e-3 );
     return sum;
 }
 
@@ -623,6 +651,11 @@ public:
 	return modified;
     }
 
+    void update_sum_sq() {
+	cilk_for( int c=0; c < num_clusters; ++c )
+	    centres[c].update_sum_sq();
+    }
+
     void select( const point * pts ) {
 	for( int c=0; c < num_clusters; ) {
 	    int pi = rand() % num_points;
@@ -664,6 +697,14 @@ public:
 	}
     }
 
+    template<typename DSPoint>
+    real within_sse( DSPoint * points ) {
+	real sse = 0;
+	for( int i=0; i < num_points; ++i ) {
+	    sse += points[i].sq_dist( centres[points[i].cluster] );
+	}
+	return sse;
+    }
 
     const Point & operator[] ( int c ) const {
 	return centres[c];
@@ -702,6 +743,10 @@ public:
 
     const Point & operator[] ( int c ) const {
 	return imp_.view()[c];
+    }
+
+    void update_sum_sq() {
+	imp_.view().update_sum_sq();
     }
 
     void swap( Centres & c ) {
@@ -848,6 +893,9 @@ int kmeans_cluster(Centres & centres, DSPoint * points) {
     int modified = 0;
 
     centres_reducer new_centres;
+
+    if( std::is_same<sparse_point<real>,DSPoint>::value )
+	centres.update_sum_sq();
 
 #if GRANULARITY
     int nmap = std::min(num_points, 16) * 16;
@@ -1107,13 +1155,11 @@ int main(int argc, char *argv[])
     print_time("merge (wc)", merge_time_wc);
     print_time("merge (tfidf)", merge_time_tfidf);
 
+#ifndef KMEANS
     printf( "writing output data and calculating TF-IDF\n" );
     get_time (begin);
 
-#ifdef KMEANS
-    arff_file arff_data;
-    arff_data.relation = "tfidf";
-#endif
+    double time_tfidf = 0;
 
     // File initialisation
     string strFilename(fname);
@@ -1164,8 +1210,8 @@ int main(int argc, char *argv[])
 
 #ifdef KMEANS
     // in-memory workflow setup
-    int ndim = dict.size();
-    real * coord = new real[ndim](); // zero init
+    // int ndim = dict.size();
+    // real * coord = new real[ndim](); // zero init
 #endif
 
     for (unsigned int i = 0;i < files.size();i++) {
@@ -1185,6 +1231,9 @@ int main(int argc, char *argv[])
                 size_t tf = I->second[i];
 	        if (!tf) 
 		    continue;
+
+		struct timespec begin_tfidf, end_tfidf;
+		get_time(begin_tfidf);
 
                 // todo: workout how the best way to calculate and store each 
                 // word total once for all files
@@ -1214,9 +1263,11 @@ int main(int argc, char *argv[])
                 uint64_t id = fn(I->first);
 #endif
 */
+		get_time(end_tfidf);
+		time_tfidf += time_diff(end, begin);
 #ifdef KMEANS
-                coord[id] = tfidf;
-                arff_data.points.push_back( point( coord, -1 ) );
+                // coord[id] = tfidf;
+                // arff_data.points.push_back( point( coord, -1 ) );
 #endif
 
                 // Note:
@@ -1229,8 +1280,55 @@ int main(int argc, char *argv[])
     }
     resFileTextArff.close();
 
+    get_time (end);
+    print_time("output", begin, end);
+    print_time("tfidf part of output", time_tfidf);
+#endif
+
 #ifdef KMEANS
-        ndim = arff_data.idx.size();
+    {
+	printf( "Transforming data for K-means and calculating TF-IDF\n" );
+	get_time (begin);
+
+	size_t ndim = dict.size();
+	arff_file arff_data;
+	arff_data.relation = "tfidf";
+	arff_data.fdata = 0;
+    
+	// TODO: do not construct idx but consult hash table which still
+	//       has same iteration order.
+	arff_data.idx.reserve(ndim);
+	arff_data.points.reserve(nfiles);
+	
+	real * norm = new real[ndim];
+	fileVector **par = new fileVector *[ndim];
+
+	int id=0;
+	for( auto I=dict.begin(), E=dict.end(); I != E; ++I, ++id ) {
+	    arff_data.idx.push_back(I->first.data);
+
+	    const size_t * v = &I->second.front();
+	    size_t fcount = __sec_reduce_add( is_nonzero(v[0:nfiles]) );
+	    norm[id] = log10(((double) nfiles + 1.0) / ((double) fcount + 1.0)); 
+	    par[id] = &I->second;
+	}
+
+	cilk_for (unsigned int i = 0; i < nfiles; i++) {
+	    real * coord = new real[ndim](); // zero init
+	    // int id=0;
+	    // for( auto I=dict.begin(), E=dict.end(); I != E; ++I, ++id ) {
+                // real tf = I->second[i];
+	    cilk_for( size_t id=0; id < ndim; ++id ) {
+		size_t tf = (*par[id])[i];
+		if( tf )
+		    coord[id] = ((real)tf) * norm[id]; // tfidf
+	    }
+	    arff_data.points[i] = point( coord, -1 );
+	}
+
+	delete[] par;
+	delete[] norm;
+
 	arff_data.minval = new real[ndim];
 	arff_data.maxval = new real[ndim];
 	for( int i=0; i < ndim; ++i ) {
@@ -1293,10 +1391,14 @@ int main(int argc, char *argv[])
 	    spoints.reserve( num_points );
 	    for( int i=0; i < num_points; ++i )
 	        spoints.push_back( sparse_point<real>( points[i] ) );
+	    centres.update_sum_sq();
+	    fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &points[0] ) );
     
 	    while(kmeans_cluster(centres, &spoints[0])) {
 	        if( ++niter >= max_iters && max_iters > 0 )
 		    break;
+		centres.update_sum_sq();
+		fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &spoints[0] ) );
 	    }
     
 	    for( int i=0; i < num_points; ++i ) {
@@ -1304,9 +1406,13 @@ int main(int argc, char *argv[])
 	        delete[] spoints[i].v;
 	    }
         } else {
+	    centres.update_sum_sq();
+	    fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &points[0] ) );
 	    while(kmeans_cluster(centres, points)) {
 	        if( ++niter >= max_iters && max_iters > 0 )
 		    break;
+		centres.update_sum_sq();
+		fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &points[0] ) );
 	    }
         }
         get_time (end);        
@@ -1328,36 +1434,40 @@ int main(int argc, char *argv[])
         }
         fprintf( stdout, "within cluster sum of squared errors: %11.4lf\n", sse );
     
-        fprintf( stdout, "%37s\n", "Cluster#" );
-        fprintf( stdout, "%-16s", "Attribute" );
-        fprintf( stdout, "%10s", "Full Data" );
+	FILE * outfp = fopen( outfile, "w" );
+	if( !outfp )
+	    CROAK( "cannot open output file for writing" );
+
+        fprintf( outfp, "%37s\n", "Cluster#" );
+        fprintf( outfp, "%-16s", "Attribute" );
+        fprintf( outfp, "%10s", "Full Data" );
         for( int i=0; i < num_clusters; ++i )
-	    fprintf( stdout, "%11d", i );
-        fprintf( stdout, "\n" );
+	    fprintf( outfp, "%11d", i );
+        fprintf( outfp, "\n" );
     
         char buf[32];
         sprintf( buf, "(%d)", num_points );
-        fprintf( stdout, "%26s", buf );
+        fprintf( outfp, "%26s", buf );
         for( int i=0; i < num_clusters; ++i ) {
 	    sprintf( buf, "(%d)", centres[i].cluster );
-	    fprintf( stdout, "%11s", buf );
+	    fprintf( outfp, "%11s", buf );
         }
-        fprintf( stdout, "\n" );
+        fprintf( outfp, "\n" );
     
-        fprintf( stdout, "================" );
-        fprintf( stdout, "==========" );
+        fprintf( outfp, "================" );
+        fprintf( outfp, "==========" );
         for( int i=0; i < num_clusters; ++i )
-	    fprintf( stdout, "===========" );
-        fprintf( stdout, "\n" );
+	    fprintf( outfp, "===========" );
+        fprintf( outfp, "\n" );
     
         for( int i=0; i < num_dimensions; ++i ) {
-	    fprintf( stdout, "%-16s", arff_data.idx[i] );
+	    fprintf( outfp, "%-16s", arff_data.idx[i] );
 	    real s = 0;
 	    for( int j=0; j < num_points; ++j )
 	        s += points[j].d[i];
 	    s /= (real)num_points;
 	    s = min_val[i] + s * (max_val[i] - min_val[i] + 1);
-	    fprintf( stdout, "%10.4lf", s );
+	    fprintf( outfp, "%10.4lf", s );
 	    for( int k=0; k < num_clusters; ++k ) {
 	        real s = 0;
 	        for( int j=0; j < num_points; ++j )
@@ -1365,19 +1475,19 @@ int main(int argc, char *argv[])
 		        s += points[j].d[i];
 	        s /= (real)centres[k].cluster;
 	        s = min_val[i] + s * (max_val[i] - min_val[i] + 1);
-	        fprintf( stdout, "%11.4lf", s );
+	        fprintf( outfp, "%11.4lf", s );
 	    }
-	    fprintf( stdout, "\n" );
+	    fprintf( outfp, "\n" );
         }
+	fclose( outfp );
     
         //free memory
         // delete[] points; -- done in arff_file
         // oops, not freeing points[i].d 
-
+    }
 #endif // KMEANS
 
     get_time (end);
-    print_time("output", begin, end);
     print_time("complete time", all_begin, end);
 
     get_time (begin);
