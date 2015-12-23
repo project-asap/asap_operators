@@ -37,6 +37,7 @@
 #include <algorithm>
 #include <iostream>
 #include <memory>
+#include <pthread.h>
 #ifdef P2_UNORDERED_MAP
 #include "p2_unordered_map.h"
 #endif // P2_UNORDERED_MAP
@@ -96,7 +97,6 @@ int num_dimensions;         // Dimension of each vector
 int num_clusters; // number of clusters
 bool force_dense; // force a (slower) dense calculation
 bool kmeans_workflow = false;
-bool tfidf_unit = true;
 int max_iters; // maximum number of iterations
 real * min_val; // min value of each dimension of vector space
 real * max_val; // max value of each dimension of vector space
@@ -106,197 +106,95 @@ const char * outfile = NULL; // output file
 #define CROAK(x)   croak(x,__FILE__,__LINE__)
 // kmeans merged header sections end
 
-// a passage from the text. The input data to the Map-Reduce
-struct wc_string {
-    char* data;
-    uint64_t len;
-};
-
-// a single null-terminated word
-struct wc_word {
-    char* data;
-    
-    wc_word(char * d = 0) : data( d ) { }
-    
-    // necessary functions to use this as a key
-    bool operator<(wc_word const& other) const {
-        return strcmp(data, other.data) < 0;
-    }
-    bool operator==(wc_word const& other) const {
-        return strcmp(data, other.data) == 0;
-    }
-};
-
-
-// a hash for the word
-struct wc_word_hash
-{
-    // FNV-1a hash for 64 bits
-    size_t operator()(wc_word const& key) const
-    {
-        char* h = key.data;
-        uint64_t v = 14695981039346656037ULL;
-        while (*h != 0)
-            v = (v ^ (size_t)(*(h++))) * 1099511628211ULL;
-        return v;
-    }
-};
-
-struct wc_word_pred
-{
-    bool operator() ( const wc_word & a, const wc_word & b ) const {
-	return !strcmp( a.data, b.data );
-    }
-};
-
-struct wc_sort_pred_by_first
-{
-    bool operator() ( const std::pair<wc_word, size_t> & a,
-		      const std::pair<wc_word, size_t> & b ) const {
-	return a.first < b.first;
-    }
-};
-
-struct wc_sort_pred
-{
-    bool operator() ( const std::pair<wc_word, size_t> & a,
-		      const std::pair<wc_word, size_t> & b ) const {
-	return a.second > b.second 
-	  || (a.second == b.second && strcmp( a.first.data, b.first.data ) > 0);
-    }
-};
-
-struct wc_merge_pred
-{
-    bool operator() ( const std::pair<wc_word, size_t> & a,
-		      const std::pair<wc_word, size_t> & b ) const {
-	return strcmp( a.first.data, b.first.data ) < 0;
-    }
-};
-
-// Use inheritance for convenience, should use encapsulation.
-static size_t nfiles = 0;
-class fileVector : public std::vector<size_t> {
-public:
-    fileVector() { }
-    fileVector(bool) : std::vector<size_t>( nfiles, 0 ) { }
-};
-
-#ifdef P2_UNORDERED_MAP
-typedef std::p2_unordered_map<wc_word, size_t, wc_word_hash, wc_word_pred> wc_unordered_map;
-#elif defined(STD_UNORDERED_MAP)
-#include <unordered_map>
-typedef std::unordered_map<wc_word, fileVector, wc_word_hash, wc_word_pred> wc_unordered_map;
-#elif defined(PHOENIX_MAP)
-#include "container.h"
-typedef hash_table<wc_word, fileVector, wc_word_hash> wc_unordered_map;
-#else
-#include "container.h"
-typedef hash_table_stored_hash<wc_word, fileVector, wc_word_hash> wc_unordered_map;
-
-#endif // P2_UNORDERED_MAP
-
-#if !SEQUENTIAL
-
-static double merge_time = 0; 
-
-void merge_two_dicts( wc_unordered_map & m1, wc_unordered_map & m2 ) {
-    struct timespec begin, end;
-    get_time (begin);
-    // std::cerr << "merge 2...\n"; 
-    for( auto I=m2.cbegin(), E=m2.cend(); I != E; ++I ) {
-	std::vector<size_t> & counts1 =  m1[I->first];
-	const std::vector<size_t> & counts2 =  I->second;
-	// Vectorized
-	size_t * v1 = &counts1.front();
-	const size_t * v2 = &counts2.front();
-	v1[0:nfiles] += v2[0:nfiles];
-    }
-    m2.clear();
-    get_time (end);
-    merge_time += time_diff(end, begin);
-    // std::cerr << "merge 2 done...\n";
-}
-
-class dictionary_reducer {
-    struct Monoid : cilk::monoid_base<wc_unordered_map> {
-	static void reduce( wc_unordered_map * left,
-			    wc_unordered_map * right ) {
-	    TRACE( e_sreduce );
-	    merge_two_dicts( *left, *right );
-	    TRACE( e_ereduce );
-	}
-	static void identity( wc_unordered_map * p ) {
-	    // Initialize to useful default size depending on chunk size
-	    new (p) wc_unordered_map(1<<16);
-	}
-
-    };
-
-private:
-    cilk::reducer<Monoid> imp_;
-
-public:
-    dictionary_reducer() : imp_() { }
-
-    void swap( wc_unordered_map & c ) {
-	imp_.view().swap( c );
-    }
-
-    fileVector & operator []( wc_word idx ) {
-	return imp_.view()[idx];
-    }
-
-    size_t empty() const {
-	return imp_.view().size() == 0;
-    }
-
-    size_t size() const {
-	return imp_.view().size(); 
-    }
-
-    typename wc_unordered_map::iterator begin() { return imp_.view().begin(); }
-    // typename wc_unordered_map::const_iterator cbegin() { return imp_.view().cbegin(); }
-    typename wc_unordered_map::iterator end() { return imp_.view().end(); }
-    // typename wc_unordered_map::const_iterator cend() { return imp_.view().cend(); }
-
-};
-#else
-typedef wc_unordered_map dictionary_reducer;
-#endif
-
-// kmeans merged declarations sections start
-inline void __attribute__((noreturn))
-croak( const char * msg, const char * srcfile, unsigned lineno ) {
-    const char * es = strerror( errno );
-    std::cerr << srcfile << ':' << lineno << ": " << msg
-	      << ": " << es << std::endl;
-    exit( 1 );
-}
-
 struct point;
 
+template<typename Value>
 struct sparse_point {
+    typedef Value value_type;
+
     int * c;
-    real * v;
+    value_type * v;
     int nonzeros;
     int cluster;
 
     sparse_point() { c = NULL; v = NULL; nonzeros = 0; cluster = -1; }
-    sparse_point(int *c, real* d, int nz, int cluster)
+    sparse_point(int *c, value_type* d, int nz, int cluster)
 	: c(c), v(v), nonzeros(nz), cluster(cluster) { }
     sparse_point(const point&pt);
+
+    ~sparse_point() {
+	delete[] c;
+	delete[] v;
+    }
     
+    const sparse_point & operator += ( const sparse_point & pt ) {
+	int new_nonzeros = 0;
+	int ti = 0, pi = 0;
+	while( ti < nonzeros && pi < pt.nonzeros ) {
+	    if( c[ti] <= pt.c[pi] )
+		++ti;
+	    if( c[ti] >= pt.c[pi] )
+		++pi;
+	    ++new_nonzeros;
+	}
+	new_nonzeros += (nonzeros - ti) + (pt.nonzeros - pi);
+
+	int *new_c = new int[new_nonzeros];
+	value_type *new_v = new value_type[new_nonzeros];
+
+	int idx = 0;
+	ti = 0, pi = 0;
+	while( ti < nonzeros && pi < pt.nonzeros ) {
+	    if( c[ti] < pt.c[pi] ) {
+		new_c[idx] = c[ti];
+		new_v[idx] = v[ti];
+		++ti;
+		++idx;
+	    } else if( c[ti] == pt.c[pi] ) {
+		new_c[idx] = c[ti];
+		new_v[idx] = v[ti] + pt.v[pi];
+		++ti;
+		++idx;
+	    } else {
+		new_c[idx] = pt.c[pi];
+		new_v[idx] = pt.v[pi];
+		++pi;
+		++idx;
+	    }
+	}
+	while( ti < nonzeros ) {
+	    new_c[idx] = c[ti];
+	    new_v[idx] = v[ti];
+	    ++ti;
+	    ++idx;
+	}
+	while( pi < pt.nonzeros ) {
+	    new_c[idx] = pt.c[pi];
+	    new_v[idx] = pt.v[pi];
+	    ++pi;
+	    ++idx;
+	}
+
+	delete[] c;
+	delete[] v;
+
+	c = new_c;
+	v = new_v;
+	nonzeros = new_nonzeros;
+
+	return *this;
+    }
+
     bool normalize() {
 	if( cluster == 0 ) {
 	    std::cerr << "empty cluster...\n";
 	    return true;
 	} else {
 #if VECTORIZED
-	    v[0:nonzeros] /= (real)cluster;
+	    v[0:nonzeros] /= (value_type)cluster;
 #else
 	    for(int i = 0; i < nonzeros; ++i)
-		v[i] /= (real)cluster;
+		v[i] /= (value_type)cluster;
 #endif
 	    return false;
 	}
@@ -305,11 +203,11 @@ struct sparse_point {
     void clear() {
 #if VECTORIZED
 	c[0:nonzeros] = (int)0;
-	v[0:nonzeros] = (real)0;
+	v[0:nonzeros] = (value_type)0;
 #else
         for(int i = 0; i < nonzeros; ++i) {
 	    c[i] = (int)0;
-	    v[i] = (real)0;
+	    v[i] = (value_type)0;
 	}
 #endif
     }
@@ -407,7 +305,7 @@ need to adjust ...
 	cluster += pt.cluster;
 	return *this;
     }
-    const point & operator += ( const sparse_point & pt ) {
+    const point & operator += ( const sparse_point<real> & pt ) {
 // #if VECTORIZED
 	// d[0:num_dimensions] += pt.d[0:num_dimensions];
 // #else
@@ -418,20 +316,230 @@ need to adjust ...
 	return *this;
     }
 };
+
+
+// a passage from the text. The input data to the Map-Reduce
+struct wc_string {
+    char* data;
+    uint64_t len;
+};
+
+// a single null-terminated word
+struct wc_word {
+    char* data;
+    
+    wc_word(char * d = 0) : data( d ) { }
+    
+    // necessary functions to use this as a key
+    bool operator<(wc_word const& other) const {
+        return strcmp(data, other.data) < 0;
+    }
+    bool operator==(wc_word const& other) const {
+        return strcmp(data, other.data) == 0;
+    }
+};
+
+
+// a hash for the word
+struct wc_word_hash
+{
+    // FNV-1a hash for 64 bits
+    size_t operator()(wc_word const& key) const
+    {
+        char* h = key.data;
+        uint64_t v = 14695981039346656037ULL;
+        while (*h != 0)
+            v = (v ^ (size_t)(*(h++))) * 1099511628211ULL;
+        return v;
+    }
+};
+
+struct wc_word_pred
+{
+    bool operator() ( const wc_word & a, const wc_word & b ) const {
+	return !strcmp( a.data, b.data );
+    }
+};
+
+struct wc_sort_pred_by_first
+{
+    bool operator() ( const std::pair<wc_word, size_t> & a,
+		      const std::pair<wc_word, size_t> & b ) const {
+	return a.first < b.first;
+    }
+};
+
+struct wc_sort_pred
+{
+    bool operator() ( const std::pair<wc_word, size_t> & a,
+		      const std::pair<wc_word, size_t> & b ) const {
+	return a.second > b.second 
+	  || (a.second == b.second && strcmp( a.first.data, b.first.data ) > 0);
+    }
+};
+
+struct wc_merge_pred
+{
+    bool operator() ( const std::pair<wc_word, size_t> & a,
+		      const std::pair<wc_word, size_t> & b ) const {
+	return strcmp( a.first.data, b.first.data ) < 0;
+    }
+};
+
+// Use inheritance for convenience, should use encapsulation.
+static size_t nfiles = 0;
+#if 1
+class fileVector : public std::vector<size_t> {
+public:
+    fileVector() { }
+    fileVector(bool) : std::vector<size_t>( nfiles, 0 ) { }
+};
+#else
+class fileVector {
+    sparse_point<size_t> sparse;
+public:
+    fileVector() { }
+    fileVector(bool) { }
+
+    fileVector & operator += ( const fileVector & fv ) {
+	sparse += fv.sparse;
+	return *this;
+    }
+};
+#endif
+
+#ifdef P2_UNORDERED_MAP
+typedef std::p2_unordered_map<wc_word, size_t, wc_word_hash, wc_word_pred> wc_unordered_map;
+typedef std::p2_unordered_map<wc_word, fileVector, wc_word_hash, wc_word_pred> tfidf_unordered_map;
+#elif defined(STD_UNORDERED_MAP)
+#include <unordered_map>
+typedef std::unordered_map<wc_word, size_t, wc_word_hash, wc_word_pred> wc_unordered_map;
+typedef std::unordered_map<wc_word, fileVector, wc_word_hash, wc_word_pred> tfidf_unordered_map;
+#elif defined(PHOENIX_MAP)
+#include "container.h"
+typedef hash_table<wc_word, size_t, wc_word_hash> wc_unordered_map;
+typedef hash_table<wc_word, fileVector, wc_word_hash> tfidf_unordered_map;
+#else
+#include "container.h"
+typedef hash_table_stored_hash<wc_word, size_t, wc_word_hash> wc_unordered_map;
+typedef hash_table_stored_hash<wc_word, fileVector, wc_word_hash> tfidf_unordered_map;
+
+#endif // P2_UNORDERED_MAP
+
+#if !SEQUENTIAL
+
+static double merge_time_wc = 0; 
+static double merge_time_tfidf = 0; 
+
+void merge_two_dicts( wc_unordered_map & m1, wc_unordered_map & m2 ) {
+    struct timespec begin, end;
+    get_time (begin);
+    for( auto I=m2.cbegin(), E=m2.cend(); I != E; ++I ) {
+	m1[I->first] += I->second;
+    }
+    m2.clear();
+    get_time (end);
+    merge_time_wc += time_diff(end, begin);
+}
+
+void merge_two_dicts( tfidf_unordered_map & m1, tfidf_unordered_map & m2 ) {
+    struct timespec begin, end;
+    get_time (begin);
+    for( auto I=m2.cbegin(), E=m2.cend(); I != E; ++I ) {
+#if 1
+	fileVector & counts1 =  m1[I->first];
+	const fileVector & counts2 =  I->second;
+#if defined(STD_UNORDERED_MAP)
+	if( counts1.size() == 0 )
+	    counts1 = fileVector(true);
+#endif
+	// Vectorized
+	size_t * v1 = &counts1.front();
+	const size_t * v2 = &counts2.front();
+	v1[0:nfiles] += v2[0:nfiles];
+#else
+	m1[I->first] += I->second;
+#endif
+    }
+    m2.clear();
+    get_time (end);
+    merge_time_tfidf += time_diff(end, begin);
+}
+
+template<typename MapType>
+class dictionary_reducer {
+    struct Monoid : cilk::monoid_base<MapType> {
+	static void reduce( MapType * left,
+			    MapType * right ) {
+	    TRACE( e_sreduce );
+	    merge_two_dicts( *left, *right );
+	    TRACE( e_ereduce );
+	}
+	static void identity( MapType * p ) {
+	    // Initialize to useful default size depending on chunk size
+	    new (p) MapType(1<<16);
+	}
+
+    };
+
+private:
+    cilk::reducer<Monoid> imp_;
+
+public:
+    dictionary_reducer() : imp_() { }
+
+    void swap( MapType & c ) {
+	imp_.view().swap( c );
+    }
+
+    typename MapType::mapped_type & operator []( wc_word idx ) {
+	return imp_.view()[idx];
+    }
+
+    size_t empty() const {
+	return imp_.view().size() == 0;
+    }
+
+    size_t size() const {
+	return imp_.view().size(); 
+    }
+
+    typename MapType::iterator begin() { return imp_.view().begin(); }
+    // typename wc_unordered_map::const_iterator cbegin() { return imp_.view().cbegin(); }
+    typename MapType::iterator end() { return imp_.view().end(); }
+    // typename wc_unordered_map::const_iterator cend() { return imp_.view().cend(); }
+
+};
+typedef dictionary_reducer<wc_unordered_map> wc_dictionary_reducer;
+typedef dictionary_reducer<tfidf_unordered_map> tfidf_dictionary_reducer;
+#else
+typedef wc_unordered_map dictionary_reducer;
+#endif
+
+// kmeans merged declarations sections start
+inline void __attribute__((noreturn))
+croak( const char * msg, const char * srcfile, unsigned lineno ) {
+    const char * es = strerror( errno );
+    std::cerr << srcfile << ':' << lineno << ": " << msg
+	      << ": " << es << std::endl;
+    exit( 1 );
+}
+
 typedef struct point Point;
 
-sparse_point::sparse_point(const point&pt) {
+template<typename Value>
+sparse_point<Value>::sparse_point(const point&pt) {
     nonzeros=0;
     for( int i=0; i < num_dimensions; ++i )
-	if( pt.d[i] != (real)0 )
+	if( pt.d[i] != (value_type)0 )
 	    ++nonzeros;
 
     c = new int[nonzeros];
-    v = new real[nonzeros];
+    v = new value_type[nonzeros];
 
     int k=0;
     for( int i=0; i < num_dimensions; ++i )
-	if( pt.d[i] != (real)0 ) {
+	if( pt.d[i] != (value_type)0 ) {
 	    c[k] = i;
 	    v[k] = pt.d[i];
 	    ++k;
@@ -439,16 +547,18 @@ sparse_point::sparse_point(const point&pt) {
     assert( k == nonzeros );
 }
 
-real sparse_point::sq_dist(point const& p) const {
+template<typename Value>
+real sparse_point<Value>::sq_dist(point const& p) const {
     real sum = 0;
     for (int i = 0; i < nonzeros; i++) {
-	real diff = v[i] - p.d[c[i]];
+	value_type diff = v[i] - p.d[c[i]];
 	sum += diff * diff;
     }
     return sum;
 }
 
-bool sparse_point::equal(point const& p) const {
+template<typename Value>
+bool sparse_point<Value>::equal(point const& p) const {
     int k=0;
     for( int i=0; i < nonzeros; ++i ) {
 	while( k < c[i] ) {
@@ -459,7 +569,7 @@ bool sparse_point::equal(point const& p) const {
 	    return false;
     }
     while( k < num_dimensions ) {
-	if( p.d[k++] != (real)0 )
+	if( p.d[k++] != (value_type)0 )
 	    return false;
     }
     return true;
@@ -496,7 +606,7 @@ public:
 	    centres[c].d[i] += pt->d[i];
 	centres[c].cluster++;
     }
-    void add_point( sparse_point * pt ) {
+    void add_point( sparse_point<real> * pt ) {
 	int c = pt->cluster;
 	for( int i=0; i < pt->nonzeros; ++i )
 	    centres[c].d[pt->c[i]] += pt->v[i];
@@ -533,7 +643,7 @@ public:
 	    }
 	}
     }
-    void select( const sparse_point * pts ) {
+    void select( const sparse_point<real> * pts ) {
 	for( int c=0; c < num_clusters; ) {
 	    int pi = rand() % num_points;
 
@@ -601,7 +711,7 @@ public:
     void add_point( Point * pt ) {
 	imp_.view().add_point( pt );
     }
-    void add_point( sparse_point * pt ) {
+    void add_point( sparse_point<real> * pt ) {
 	imp_.view().add_point( pt );
     }
 };
@@ -612,8 +722,7 @@ typedef Centres centres_reducer;
 
 // kmeans merged declarations sections end
 
-void wc( char * data, uint64_t data_size, uint64_t chunk_size, dictionary_reducer & dict, unsigned int file) {
-
+void wc( char * data, uint64_t data_size, uint64_t chunk_size, wc_dictionary_reducer & dict, unsigned int file) {
     uint64_t splitter_pos = 0;
     while( 1 ) {
 	TRACE( e_ssplit );
@@ -673,7 +782,8 @@ void wc( char * data, uint64_t data_size, uint64_t chunk_size, dictionary_reduce
 		{
 		    s.data[i] = 0;
 		    word = { s.data+start };
-		    dict[word][file]++;
+		    // dict[word][file]++;
+		    dict[word]++;
 		}
 	    }
 	    TRACE( e_emap );
@@ -683,6 +793,17 @@ void wc( char * data, uint64_t data_size, uint64_t chunk_size, dictionary_reduce
 
     TRACE( e_synced );
     // std::cout << "final hash table size=" << final_dict.bucket_count() << std::endl;
+
+#if 0
+    // Merge dict for file into tfidf_dict
+    for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
+#if defined(STD_UNORDERED_MAP)
+	if( tfidf_dict[I->first].size() == 0 )
+	    tfidf_dict[I->first] = fileVector(true);
+#endif
+	tfidf_dict[I->first][file] += I->second;
+    }
+#endif
 }
 
 #define NO_MMAP
@@ -799,7 +920,7 @@ void parse_args(int argc, char **argv)
     // num_dimensions = DEF_DIM;
     // grid_size = DEF_GRID_SIZE;
     
-    while ((c = getopt(argc, argv, "c:i:m:d:o:D:")) != EOF) 
+    while ((c = getopt(argc, argv, "c:i:m:d:o:Dk")) != EOF) 
     {
         switch (c) {
             // case 'd':
@@ -822,9 +943,6 @@ void parse_args(int argc, char **argv)
                 break;
 	    case 'k':
 		kmeans_workflow = true;
-		break;
-	    case 'u':
-		tfidf_unit = true;
 		break;
             // case 'p':
                 // num_points = atoi(optarg);
@@ -849,7 +967,9 @@ void parse_args(int argc, char **argv)
     if( !fname )
 	CROAK( "Input file must be supplied." );
     
+#ifdef KMEANS
     std::cerr << "Number of clusters = " << num_clusters << '\n';
+#endif
     std::cerr << "Input file = " << fname << '\n';
 }
 
@@ -869,10 +989,15 @@ public:
 
 int main(int argc, char *argv[]) 
 {
+    // Applies to all I/O -- no difference observed
+    // std::cout << std::ios_base::sync_with_stdio(false);
+
     struct timespec begin, end, all_begin;
     std::vector<std::string> files;
 
-    dictionary_reducer dict;
+    // tfidf_dictionary_reducer dict;
+    tfidf_unordered_map dict;
+    pthread_mutex_t dict_mux = PTHREAD_MUTEX_INITIALIZER;
 
     get_time (begin);
     all_begin = begin;
@@ -890,6 +1015,8 @@ int main(int argc, char *argv[])
 
     getdir(fname,files);
     nfiles = files.size();
+    printf("number of files: %d\n", nfiles);
+
     char * fdata[files.size()];
 #ifndef NO_MMAP
     struct stat finfo_array[files.size()];
@@ -911,8 +1038,6 @@ int main(int argc, char *argv[])
 	int fd;
         struct timespec beginI, endI, beginWC, endWC;
         get_time(beginI);
-
-        // dict.setReserve(files.size());
 
         // Read in the file
         fd = open(files[i].c_str(), O_RDONLY);
@@ -952,7 +1077,21 @@ int main(int argc, char *argv[])
 
         get_time (beginWC);
 
-        wc(fdata[i], finfo.st_size, 1024*1024, dict, i);
+	{
+	    wc_dictionary_reducer wc_dict;
+	    wc(fdata[i], finfo.st_size, 1024*1024, wc_dict, i);
+
+	    // Merge dict for file into tfidf_dict
+	    pthread_mutex_lock( &dict_mux );
+	    for( auto I=wc_dict.begin(), E=wc_dict.end(); I != E; ++I ) {
+#if defined(STD_UNORDERED_MAP)
+		if( dict[I->first].size() == 0 )
+		    dict[I->first] = fileVector(true);
+#endif
+		dict[I->first][i] += I->second;
+	    }
+	    pthread_mutex_unlock( &dict_mux );
+	}
 
         get_time (endWC);
 	*time_wc += time_diff(endWC, beginWC);
@@ -965,6 +1104,8 @@ int main(int argc, char *argv[])
     print_time("input (work)", time_read.get_value());
     print_time("wc (work)", time_wc.get_value());
     print_time("input+wc (elapsed)", begin, end);
+    print_time("merge (wc)", merge_time_wc);
+    print_time("merge (tfidf)", merge_time_tfidf);
 
     printf( "writing output data and calculating TF-IDF\n" );
     get_time (begin);
@@ -1006,18 +1147,8 @@ int main(int argc, char *argv[])
     resFileTextArff.flush();
 
     for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
-
         resFileTextArff << "\t";
-
         const string & str = I->first.data;
-/*
-#ifndef STD_UNORDERED_MAP
-        uint64_t id = I.getIndex();
-#else
-        uint64_t id = fn(I->first);
-#endif
-*/
-
         resFileTextArff << loopStart << str << ' ' << typeStr << "\n";
 #ifdef KMEANS
         arff_data.idx.push_back(str.c_str());
@@ -1156,12 +1287,12 @@ int main(int argc, char *argv[])
 #endif // SEQUENTIAL && PMC
         get_time (begin);        
         int niter = 1;
-        if( arff_data.sparse_data /* && !force_dense */ ) {
+        if( arff_data.sparse_data && !force_dense ) {
 	    // First build sparse representation
-	    std::vector<sparse_point> spoints;
+	    std::vector<sparse_point<real>> spoints;
 	    spoints.reserve( num_points );
 	    for( int i=0; i < num_points; ++i )
-	        spoints.push_back( sparse_point( points[i] ) );
+	        spoints.push_back( sparse_point<real>( points[i] ) );
     
 	    while(kmeans_cluster(centres, &spoints[0])) {
 	        if( ++niter >= max_iters && max_iters > 0 )
@@ -1243,11 +1374,10 @@ int main(int argc, char *argv[])
         // delete[] points; -- done in arff_file
         // oops, not freeing points[i].d 
 
-#endif
+#endif // KMEANS
 
     get_time (end);
     print_time("output", begin, end);
-    print_time("merge", merge_time);
     print_time("complete time", all_begin, end);
 
     get_time (begin);

@@ -42,6 +42,8 @@ template<typename K, typename V, class Hash=std::tr1::hash<K>,
     template<class> class Allocator = std::allocator>
 class hash_table
 {
+public:
+    typedef V mapped_type;
 private:
     typedef std::pair<K, V> entry;
     std::vector< entry, Allocator<entry> > table;
@@ -78,6 +80,7 @@ public:
     }
 
     size_t size() const { return load; }
+    bool empty() const { return load == 0; }
     
     void rehash(uint64_t newsize) {
 #if TRACING
@@ -239,6 +242,8 @@ template<typename K, typename V, class Hash=std::tr1::hash<K>,
     template<class> class Allocator = std::allocator>
 class hash_table_stored_hash
 {
+public:
+    typedef V mapped_type;
 private:
     typedef std::pair<K, V> entry;
     std::vector< entry, Allocator<entry> > table;
@@ -282,6 +287,7 @@ public:
     size_t getReserve() { return fileReserve; }
 
     size_t size() const { return load; }
+    bool empty() const { return load == 0; }
     
     void rehash(uint64_t newsize) {
 #if TRACING
