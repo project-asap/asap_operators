@@ -122,11 +122,12 @@ struct sparse_point {
 	: c(c), v(v), nonzeros(nz), cluster(cluster) { }
     sparse_point(const point&pt);
 
-    ~sparse_point() {
-	delete[] c;
-	delete[] v;
-    }
+    // ~sparse_point() {
+	// delete[] c;
+	// delete[] v;
+    // }
     
+#if 0 // untested
     const sparse_point & operator += ( const sparse_point & pt ) {
 	int new_nonzeros = 0;
 	int ti = 0, pi = 0;
@@ -184,6 +185,7 @@ struct sparse_point {
 
 	return *this;
     }
+#endif
 
     bool normalize() {
 	if( cluster == 0 ) {
@@ -235,6 +237,11 @@ struct point
 
     point() { d = NULL; cluster = -1; }
     point(real* d, int cluster) { this->d = d; this->cluster = cluster; }
+    point(const point &pt) {
+	d = pt.d;
+	sumsq = pt.sumsq;
+	cluster = pt.cluster;
+    }
     
     bool normalize() {
 	if( cluster == 0 ) {
@@ -630,15 +637,17 @@ public:
     }
     void add_point( Point * pt ) {
 	int c = pt->cluster;
+	Point &tgt = centres[c];
 	for( int i=0; i < num_dimensions; ++i )
-	    centres[c].d[i] += pt->d[i];
-	centres[c].cluster++;
+	    tgt.d[i] += pt->d[i];
+	tgt.cluster++;
     }
     void add_point( sparse_point<real> * pt ) {
 	int c = pt->cluster;
+	Point &tgt = centres[c];
 	for( int i=0; i < pt->nonzeros; ++i )
-	    centres[c].d[pt->c[i]] += pt->v[i];
-	centres[c].cluster++;
+	    tgt.d[pt->c[i]] += pt->v[i];
+	tgt.cluster++;
     }
 
     void normalize( int c ) {
@@ -1040,6 +1049,9 @@ int main(int argc, char *argv[])
     // Applies to all I/O -- no difference observed
     // std::cout << std::ios_base::sync_with_stdio(false);
 
+    // For repeatability
+    srand(1);
+
     struct timespec begin, end, all_begin;
     std::vector<std::string> files;
 
@@ -1054,7 +1066,6 @@ int main(int argc, char *argv[])
     event_tracer::init();
 #endif
 
-    char *outfile = 0;
     bool checkResults=false;
     int c;
 
@@ -1298,10 +1309,13 @@ int main(int argc, char *argv[])
 	// TODO: do not construct idx but consult hash table which still
 	//       has same iteration order.
 	arff_data.idx.reserve(ndim);
-	arff_data.points.reserve(nfiles);
+	arff_data.points.resize(nfiles); // plan direct access
 	
+	// TODO: fileVector should be sparse vector, then this part would be
+	//       much more efficient
 	real * norm = new real[ndim];
-	fileVector **par = new fileVector *[ndim];
+	// fileVector **par = new fileVector *[ndim];
+	const size_t ** par = new const size_t *[ndim];
 
 	int id=0;
 	for( auto I=dict.begin(), E=dict.end(); I != E; ++I, ++id ) {
@@ -1310,7 +1324,8 @@ int main(int argc, char *argv[])
 	    const size_t * v = &I->second.front();
 	    size_t fcount = __sec_reduce_add( is_nonzero(v[0:nfiles]) );
 	    norm[id] = log10(((double) nfiles + 1.0) / ((double) fcount + 1.0)); 
-	    par[id] = &I->second;
+	    // par[id] = &I->second;
+	    par[id] = v;
 	}
 
 	cilk_for (unsigned int i = 0; i < nfiles; i++) {
@@ -1319,7 +1334,7 @@ int main(int argc, char *argv[])
 	    // for( auto I=dict.begin(), E=dict.end(); I != E; ++I, ++id ) {
                 // real tf = I->second[i];
 	    cilk_for( size_t id=0; id < ndim; ++id ) {
-		size_t tf = (*par[id])[i];
+		size_t tf = par[id][i];
 		if( tf )
 		    coord[id] = ((real)tf) * norm[id]; // tfidf
 	    }
@@ -1329,12 +1344,16 @@ int main(int argc, char *argv[])
 	delete[] par;
 	delete[] norm;
 
+	// TODO: fold into transformation loop above...
 	arff_data.minval = new real[ndim];
 	arff_data.maxval = new real[ndim];
 	for( int i=0; i < ndim; ++i ) {
 	    arff_data.minval[i] = std::numeric_limits<real>::max();
 	    arff_data.maxval[i] = std::numeric_limits<real>::min();
 	}
+	// TODO: iteration order is wrong (sparse accesses)
+	//       alternative: define and use a min/max point reducer,
+	//       ideally accepting sparse_point arguments to compare against
 	cilk_for( int i=0; i < ndim; ++i ) {
 	    for( int j=0; j < arff_data.points.size(); ++j ) {
 		real v = arff_data.points[j].d[i];
@@ -1343,9 +1362,14 @@ int main(int argc, char *argv[])
 		if( arff_data.maxval[i] < v )
 		    arff_data.maxval[i] = v;
 	    }
-	    for( int j=0; j < arff_data.points.size(); ++j ) {
-		arff_data.points[j].d[i] = (arff_data.points[j].d[i] - arff_data.minval[i])
-		    / (arff_data.maxval[i] - arff_data.minval[i]+1);
+	    if( arff_data.minval[i] != arff_data.maxval[i] ) {
+		for( int j=0; j < arff_data.points.size(); ++j ) {
+		    arff_data.points[j].d[i] = (arff_data.points[j].d[i] - arff_data.minval[i])
+			/ (arff_data.maxval[i] - arff_data.minval[i]+1);
+		}
+	    } else {
+		for( int j=0; j < arff_data.points.size(); ++j )
+		    arff_data.points[j].d[i] = (real)1;
 	    }
 	}
  
@@ -1378,7 +1402,7 @@ int main(int argc, char *argv[])
         // }
     
         get_time (end);
-        print_time("initialize", begin, end);
+        print_time("transform", begin, end);
     
         printf("KMeans: Calling MapReduce Scheduler\n");
     
@@ -1406,6 +1430,7 @@ int main(int argc, char *argv[])
 	    }
     
 	    for( int i=0; i < num_points; ++i ) {
+		points[i].cluster = spoints[i].cluster; // copy result
 	        delete[] spoints[i].c;
 	        delete[] spoints[i].v;
 	    }
