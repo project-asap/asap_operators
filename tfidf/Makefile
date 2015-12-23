@@ -35,6 +35,9 @@ tfidf_p2: tfidf.cpp
 tfidf_std: tfidf.cpp
 	$(CXX) $(CXXFLAGS) -DASAP -DSTD_UNORDERED_MAP=1 -DTIMING=1 $^ -o $@ $(LDFLAGS)
 
+tfidf_std_kmeans: tfidf.cpp
+	$(CXX) $(CXXFLAGS) -DASAP -DSTD_UNORDERED_MAP=1 -DTIMING=1 -DKMEANS $^ -o $@ $(LDFLAGS)
+
 tfidf_dbg: tfidf.cpp
 	$(CXX) $(CXXFLAGSDEBUG) -DASAP -O0 $^ -o $@ $(LDFLAGS)
 
