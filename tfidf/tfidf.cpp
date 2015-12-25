@@ -1056,7 +1056,7 @@ int main(int argc, char *argv[])
     std::vector<std::string> files;
 
     // tfidf_dictionary_reducer dict;
-    tfidf_unordered_map dict;
+    tfidf_unordered_map dict(1<<16);
     pthread_mutex_t dict_mux = PTHREAD_MUTEX_INITIALIZER;
 
     get_time (begin);
@@ -1087,6 +1087,8 @@ int main(int argc, char *argv[])
     get_time(begin);
     cilk::reducer< cilk::op_add<double> > time_read(0);
     cilk::reducer< cilk::op_add<double> > time_wc(0);
+    cilk::reducer< cilk::op_add<double> > time_lock(0);
+    cilk::reducer< cilk::op_add<double> > time_merge(0);
 
     cilk_for (unsigned int i = 0;i < files.size();i++) {
 #ifndef NO_MMAP
@@ -1095,7 +1097,7 @@ int main(int argc, char *argv[])
 	struct stat finfo;
 #endif
 	int fd;
-        struct timespec beginI, endI, beginWC, endWC;
+        struct timespec beginI, endI, beginWC;
         get_time(beginI);
 
         // Read in the file
@@ -1134,27 +1136,31 @@ int main(int argc, char *argv[])
         close(fd);
 #endif
 
-        get_time (beginWC);
 
 	{
+	    struct timespec begin_lock, end_lock;
+	    get_time (beginWC);
 	    wc_dictionary_reducer wc_dict;
 	    wc(fdata[i], finfo.st_size, 1024*1024, wc_dict, i);
 
+	    get_time(begin_lock);
+	    *time_wc += time_diff(begin_lock, beginWC);
 	    // Merge dict for file into tfidf_dict
 	    pthread_mutex_lock( &dict_mux );
+	    get_time(end_lock);
+	    *time_lock += time_diff(end_lock, begin_lock);
 	    for( auto I=wc_dict.begin(), E=wc_dict.end(); I != E; ++I ) {
 #if defined(STD_UNORDERED_MAP)
 		if( dict[I->first].size() == 0 )
 		    dict[I->first] = fileVector(true);
 #endif
-		dict[I->first][i] += I->second;
+		// dict[I->first][i] += I->second;
+		dict[I->first][i] = I->second; // only one file i
 	    }
 	    pthread_mutex_unlock( &dict_mux );
+	    get_time(begin_lock);
+	    *time_merge += time_diff(begin_lock, end_lock);
 	}
-
-        get_time (endWC);
-	*time_wc += time_diff(endWC, beginWC);
-        // print_time("thread WC ", beginWC, endWC);
 
         TRACE( e_smerge );
     }
@@ -1165,6 +1171,8 @@ int main(int argc, char *argv[])
     print_time("input+wc (elapsed)", begin, end);
     print_time("merge (wc)", merge_time_wc);
     print_time("merge (tfidf)", merge_time_tfidf);
+    print_time("lock (work)", time_lock.get_value());
+    print_time("merge (files, work)", time_merge.get_value());
 
 #ifndef KMEANS
     printf( "writing output data and calculating TF-IDF\n" );
@@ -1275,7 +1283,7 @@ int main(int argc, char *argv[])
 #endif
 */
 		get_time(end_tfidf);
-		time_tfidf += time_diff(end, begin);
+		time_tfidf += time_diff(end_tfidf, begin_tfidf);
 #ifdef KMEANS
                 // coord[id] = tfidf;
                 // arff_data.points.push_back( point( coord, -1 ) );
@@ -1308,7 +1316,7 @@ int main(int argc, char *argv[])
     
 	// TODO: do not construct idx but consult hash table which still
 	//       has same iteration order.
-	arff_data.idx.reserve(ndim);
+	// arff_data.idx.reserve(ndim);
 	arff_data.points.resize(nfiles); // plan direct access
 	
 	// TODO: fileVector should be sparse vector, then this part would be
@@ -1319,7 +1327,7 @@ int main(int argc, char *argv[])
 
 	int id=0;
 	for( auto I=dict.begin(), E=dict.end(); I != E; ++I, ++id ) {
-	    arff_data.idx.push_back(I->first.data);
+	    // arff_data.idx.push_back(I->first.data);
 
 	    const size_t * v = &I->second.front();
 	    size_t fcount = __sec_reduce_add( is_nonzero(v[0:nfiles]) );
@@ -1328,6 +1336,8 @@ int main(int argc, char *argv[])
 	    par[id] = v;
 	}
 
+	// TODO: make this sparse from the start. Already know sparse
+	//       vector length from previous pass
 	cilk_for (unsigned int i = 0; i < nfiles; i++) {
 	    real * coord = new real[ndim](); // zero init
 	    // int id=0;
@@ -1374,12 +1384,12 @@ int main(int argc, char *argv[])
 	}
  
         std::cerr << "@relation: " << arff_data.relation << "\n";
-        std::cerr << "@attributes: " << arff_data.idx.size() << "\n";
+        std::cerr << "@attributes: " << ndim << "\n";
         std::cerr << "@points: " << arff_data.points.size() << "\n";
 
         // From kmeans main, the rest of kmeans computation and output
 
-        num_dimensions = arff_data.idx.size();
+        num_dimensions = ndim; // arff_data.idx.size();
         num_points = arff_data.points.size();
         min_val = arff_data.minval;
         max_val = arff_data.maxval;
@@ -1419,14 +1429,14 @@ int main(int argc, char *argv[])
 	    spoints.reserve( num_points );
 	    for( int i=0; i < num_points; ++i )
 	        spoints.push_back( sparse_point<real>( points[i] ) );
-	    centres.update_sum_sq();
-	    fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &points[0] ) );
+	    // centres.update_sum_sq();
+	    // fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &points[0] ) );
     
 	    while(kmeans_cluster(centres, &spoints[0])) {
 	        if( ++niter >= max_iters && max_iters > 0 )
 		    break;
-		centres.update_sum_sq();
-		fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &spoints[0] ) );
+		// centres.update_sum_sq();
+		// fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &spoints[0] ) );
 	    }
     
 	    for( int i=0; i < num_points; ++i ) {
@@ -1435,13 +1445,11 @@ int main(int argc, char *argv[])
 	        delete[] spoints[i].v;
 	    }
         } else {
-	    centres.update_sum_sq();
-	    fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &points[0] ) );
+	    // fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &points[0] ) );
 	    while(kmeans_cluster(centres, points)) {
 	        if( ++niter >= max_iters && max_iters > 0 )
 		    break;
-		centres.update_sum_sq();
-		fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &points[0] ) );
+		// fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &points[0] ) );
 	    }
         }
         get_time (end);        
@@ -1457,11 +1465,9 @@ int main(int argc, char *argv[])
         printf("KMeans: MapReduce Completed\n");  
         fprintf( stdout, "iterations: %d\n", niter );
     
-        real sse = 0;
-        for( int i=0; i < num_points; ++i ) {
-	    sse += centres[points[i].cluster].sq_dist( points[i] );
-        }
-        fprintf( stdout, "within cluster sum of squared errors: %11.4lf\n", sse );
+        if( arff_data.sparse_data && !force_dense )
+	    centres.update_sum_sq();
+	fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &points[0] ) );
     
 	FILE * outfp = fopen( outfile, "w" );
 	if( !outfp )
@@ -1489,8 +1495,10 @@ int main(int argc, char *argv[])
 	    fprintf( outfp, "===========" );
         fprintf( outfp, "\n" );
     
-        for( int i=0; i < num_dimensions; ++i ) {
-	    fprintf( outfp, "%-16s", arff_data.idx[i] );
+	auto I=dict.begin(), E=dict.end();
+        for( int i=0; i < num_dimensions; ++i, ++I ) {
+	    // assert( I != E );
+	    fprintf( outfp, "%-16s", I->first.data ); // arff_data.idx[i] );
 	    real s = 0;
 	    for( int j=0; j < num_points; ++j )
 	        s += points[j].d[i];
