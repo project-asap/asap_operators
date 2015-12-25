@@ -118,9 +118,16 @@ struct sparse_point {
     int cluster;
 
     sparse_point() { c = NULL; v = NULL; nonzeros = 0; cluster = -1; }
-    sparse_point(int *c, value_type* d, int nz, int cluster)
+    sparse_point(int *c, value_type* v, int nz, int cluster)
 	: c(c), v(v), nonzeros(nz), cluster(cluster) { }
     sparse_point(const point&pt);
+
+    void swap( sparse_point & pt ) {
+	std::swap( c, pt.c );
+	std::swap( v, pt.v );
+	std::swap( nonzeros, pt.nonzeros );
+	std::swap( cluster, pt.cluster );
+    }
 
     // ~sparse_point() {
 	// delete[] c;
@@ -1090,6 +1097,8 @@ int main(int argc, char *argv[])
     cilk::reducer< cilk::op_add<double> > time_lock(0);
     cilk::reducer< cilk::op_add<double> > time_merge(0);
 
+    cilk::reducer< cilk::op_add<size_t> > total_bytes(0);
+
     cilk_for (unsigned int i = 0;i < files.size();i++) {
 #ifndef NO_MMAP
 	struct stat & finfo = finfo_array[i];
@@ -1105,6 +1114,7 @@ int main(int argc, char *argv[])
        
         // Get the file info (for file length)
         fstat(fd, &finfo);
+	*total_bytes += finfo.st_size;
 #ifndef NO_MMAP
 #ifdef MMAP_POPULATE
 	// Memory map the file
@@ -1166,6 +1176,7 @@ int main(int argc, char *argv[])
     }
 
     get_time (end);
+    printf("total file size: %d\n", total_bytes.get_value());
     print_time("input (work)", time_read.get_value());
     print_time("wc (work)", time_wc.get_value());
     print_time("input+wc (elapsed)", begin, end);
@@ -1313,73 +1324,104 @@ int main(int argc, char *argv[])
 	arff_file arff_data;
 	arff_data.relation = "tfidf";
 	arff_data.fdata = 0;
-    
-	// TODO: do not construct idx but consult hash table which still
+
+	// ----: do not construct idx but consult hash table which still
 	//       has same iteration order.
 	// arff_data.idx.reserve(ndim);
-	arff_data.points.resize(nfiles); // plan direct access
+	// arff_data.points.resize(nfiles); // plan direct access
 	
-	// TODO: fileVector should be sparse vector, then this part would be
-	//       much more efficient
-	real * norm = new real[ndim];
-	// fileVector **par = new fileVector *[ndim];
-	const size_t ** par = new const size_t *[ndim];
+        num_dimensions = ndim; // arff_data.idx.size();
+        num_points = nfiles; // arff_data.points.size();
 
-	int id=0;
-	for( auto I=dict.begin(), E=dict.end(); I != E; ++I, ++id ) {
-	    // arff_data.idx.push_back(I->first.data);
-
-	    const size_t * v = &I->second.front();
-	    size_t fcount = __sec_reduce_add( is_nonzero(v[0:nfiles]) );
-	    norm[id] = log10(((double) nfiles + 1.0) / ((double) fcount + 1.0)); 
-	    // par[id] = &I->second;
-	    par[id] = v;
-	}
-
-	// TODO: make this sparse from the start. Already know sparse
-	//       vector length from previous pass
-	cilk_for (unsigned int i = 0; i < nfiles; i++) {
-	    real * coord = new real[ndim](); // zero init
-	    // int id=0;
-	    // for( auto I=dict.begin(), E=dict.end(); I != E; ++I, ++id ) {
-                // real tf = I->second[i];
-	    cilk_for( size_t id=0; id < ndim; ++id ) {
-		size_t tf = par[id][i];
-		if( tf )
-		    coord[id] = ((real)tf) * norm[id]; // tfidf
-	    }
-	    arff_data.points[i] = point( coord, -1 );
-	}
-
-	delete[] par;
-	delete[] norm;
-
-	// TODO: fold into transformation loop above...
 	arff_data.minval = new real[ndim];
 	arff_data.maxval = new real[ndim];
 	for( int i=0; i < ndim; ++i ) {
 	    arff_data.minval[i] = std::numeric_limits<real>::max();
 	    arff_data.maxval[i] = std::numeric_limits<real>::min();
 	}
+    
+	// TODO: fileVector should be sparse vector, then this part would be
+	//       much more efficient
+	real * norm = new real[ndim];
+	// fileVector **par = new fileVector *[ndim];
+	const size_t ** par = new const size_t *[ndim];
+// in progress:
+	std::vector<sparse_point<real>> spoints;
+	spoints.resize(num_points); // plan direct and parallel access
+
+	size_t id=0;
+	for( auto I=dict.begin(), E=dict.end(); I != E; ++I, ++id ) {
+	    // arff_data.idx.push_back(I->first.data);
+
+	    const size_t * v = &I->second.front();
+	    size_t fcount = __sec_reduce_add( is_nonzero(v[0:nfiles]) );
+	    norm[id] = log10(((double) nfiles + 1.0) / ((double) fcount + 1.0)); 
+
+	    // If sparse (fewer non-zeroes then points), then minimum value of
+	    // coordinate across points is 0. Setting now saves work later on.
+	    if( fcount < nfiles )
+		arff_data.minval[id] = 0;
+
+	    // par[id] = &I->second;
+	    par[id] = v;
+	}
+
+	size_t * fcount = new size_t[num_points]();
+	for( size_t id=0; id < num_dimensions; ++id ) {
+	    cilk_for( size_t i=0; i < num_points; ++i )
+		if( par[id][i] )
+		    ++fcount[i];
+	}
+
+	// TODO: make this sparse from the start. Already know sparse
+	//       vector length from previous pass
+	cilk_for( size_t i=0; i < num_points; ++i ) {
+	    real *v = new real[fcount[i]];
+	    int  *c = new int[fcount[i]];
+	    int   f = 0;
+	    for( size_t id=0; id < ndim; ++id ) {
+		size_t tf = par[id][i];
+		if( tf ) {
+		    c[f] = id;
+		    v[f] = ((real)tf) * norm[id]; // tfidf
+		    ++f;
+		}
+	    }
+	    // assert( f == fcount[i] );
+
+	    sparse_point<real> pt( c, v, f, -1 );
+	    spoints[i].swap( pt );
+	}
+	delete[] fcount;
+
+	delete[] par;
+	delete[] norm;
+
 	// TODO: iteration order is wrong (sparse accesses)
 	//       alternative: define and use a min/max point reducer,
 	//       ideally accepting sparse_point arguments to compare against
-	cilk_for( int i=0; i < ndim; ++i ) {
-	    for( int j=0; j < arff_data.points.size(); ++j ) {
-		real v = arff_data.points[j].d[i];
-		if( arff_data.minval[i] > v )
-		    arff_data.minval[i] = v;
-		if( arff_data.maxval[i] < v )
-		    arff_data.maxval[i] = v;
+	for( int j=0; j < num_points; ++j ) {
+	    const sparse_point<real> & pt = spoints[j];
+	    for( int i=0; i < pt.nonzeros; ++i ) {
+		real v = pt.v[i];
+		int  c = pt.c[i];
+		if( arff_data.minval[c] > v )
+		    arff_data.minval[c] = v;
+		if( arff_data.maxval[c] < v )
+		    arff_data.maxval[c] = v;
 	    }
-	    if( arff_data.minval[i] != arff_data.maxval[i] ) {
-		for( int j=0; j < arff_data.points.size(); ++j ) {
-		    arff_data.points[j].d[i] = (arff_data.points[j].d[i] - arff_data.minval[i])
-			/ (arff_data.maxval[i] - arff_data.minval[i]+1);
+	}
+	cilk_for( int j=0; j < num_points; ++j ) {
+	    sparse_point<real> & pt = spoints[j];
+	    for( int i=0; i < pt.nonzeros; ++i ) {
+		real &v = pt.v[i];
+		int   c = pt.c[i];
+		if( arff_data.minval[c] != arff_data.maxval[c] ) {
+		    v = (v - arff_data.minval[c])
+			/ (arff_data.maxval[c] - arff_data.minval[c]+1);
+		} else {
+		    v = (real)1;
 		}
-	    } else {
-		for( int j=0; j < arff_data.points.size(); ++j )
-		    arff_data.points[j].d[i] = (real)1;
 	    }
 	}
  
@@ -1389,27 +1431,22 @@ int main(int argc, char *argv[])
 
         // From kmeans main, the rest of kmeans computation and output
 
-        num_dimensions = ndim; // arff_data.idx.size();
-        num_points = arff_data.points.size();
         min_val = arff_data.minval;
         max_val = arff_data.maxval;
 
         // allocate memory
         // get points
-        point * points = &arff_data.points[0];
+        // point * points = &arff_data.points[0];
     
         // get means
         Centres centres;
     
+	// TODO: integrate loop above
         for( int i=0; i < num_points; ++i ) {
-	    points[i].cluster = rand() % num_clusters;
-	    centres.add_point( &points[i] );
+	    spoints[i].cluster = rand() % num_clusters;
+	    centres.add_point( &spoints[i] );
         }
         centres.normalize();
-    
-        // for(int i = 0; i < num_clusters; i++) {
-	    // std::cout << "in cluster " << i << " " << centres[i].cluster << " points\n";
-        // }
     
         get_time (end);
         print_time("transform", begin, end);
@@ -1423,35 +1460,14 @@ int main(int argc, char *argv[])
 #endif // SEQUENTIAL && PMC
         get_time (begin);        
         int niter = 1;
-        if( arff_data.sparse_data && !force_dense ) {
-	    // First build sparse representation
-	    std::vector<sparse_point<real>> spoints;
-	    spoints.reserve( num_points );
-	    for( int i=0; i < num_points; ++i )
-	        spoints.push_back( sparse_point<real>( points[i] ) );
+    
+	while(kmeans_cluster(centres, &spoints[0])) {
+	    if( ++niter >= max_iters && max_iters > 0 )
+		break;
 	    // centres.update_sum_sq();
-	    // fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &points[0] ) );
+	    // fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &spoints[0] ) );
+	}
     
-	    while(kmeans_cluster(centres, &spoints[0])) {
-	        if( ++niter >= max_iters && max_iters > 0 )
-		    break;
-		// centres.update_sum_sq();
-		// fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &spoints[0] ) );
-	    }
-    
-	    for( int i=0; i < num_points; ++i ) {
-		points[i].cluster = spoints[i].cluster; // copy result
-	        delete[] spoints[i].c;
-	        delete[] spoints[i].v;
-	    }
-        } else {
-	    // fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &points[0] ) );
-	    while(kmeans_cluster(centres, points)) {
-	        if( ++niter >= max_iters && max_iters > 0 )
-		    break;
-		// fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &points[0] ) );
-	    }
-        }
         get_time (end);        
 #if SEQUENTIAL && PMC
         LIKWID_MARKER_STOP("mapreduce");
@@ -1467,8 +1483,10 @@ int main(int argc, char *argv[])
     
         if( arff_data.sparse_data && !force_dense )
 	    centres.update_sum_sq();
-	fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &points[0] ) );
+	fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &spoints[0] ) );
     
+#if 0
+-- TODO
 	FILE * outfp = fopen( outfile, "w" );
 	if( !outfp )
 	    CROAK( "cannot open output file for writing" );
@@ -1517,6 +1535,7 @@ int main(int argc, char *argv[])
 	    fprintf( outfp, "\n" );
         }
 	fclose( outfp );
+#endif
     
         //free memory
         // delete[] points; -- done in arff_file
