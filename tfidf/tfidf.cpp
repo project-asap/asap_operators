@@ -440,6 +440,7 @@ typedef std::p2_unordered_map<wc_word, fileVector, wc_word_hash, wc_word_pred> t
 #elif defined(STD_UNORDERED_MAP)
 #include <unordered_map>
 typedef std::unordered_map<wc_word, size_t, wc_word_hash, wc_word_pred> wc_unordered_map;
+typedef std::unordered_map<wc_word, std::pair<size_t, size_t>, wc_word_hash, wc_word_pred> wc_unordered_pair_map;
 typedef std::unordered_map<wc_word, fileVector, wc_word_hash, wc_word_pred> tfidf_unordered_map;
 #elif defined(PHOENIX_MAP)
 #include "container.h"
@@ -462,6 +463,17 @@ void merge_two_dicts( wc_unordered_map & m1, wc_unordered_map & m2 ) {
     get_time (begin);
     for( auto I=m2.cbegin(), E=m2.cend(); I != E; ++I ) {
 	m1[I->first] += I->second;
+    }
+    m2.clear();
+    get_time (end);
+    merge_time_wc += time_diff(end, begin);
+}
+
+void merge_two_dicts( wc_unordered_pair_map & m1, wc_unordered_pair_map & m2 ) {
+    struct timespec begin, end;
+    get_time (begin);
+    for( auto I=m2.cbegin(), E=m2.cend(); I != E; ++I ) {
+	m1[I->first].first += I->second.first;
     }
     m2.clear();
     get_time (end);
@@ -544,6 +556,7 @@ public:
     }
 };
 typedef dictionary_reducer<wc_unordered_map> wc_dictionary_reducer;
+typedef dictionary_reducer<wc_unordered_pair_map> wc_dictionary_pair_reducer;
 typedef dictionary_reducer<tfidf_unordered_map> tfidf_dictionary_reducer;
 #else
 typedef wc_unordered_map dictionary_reducer;
@@ -1093,7 +1106,7 @@ int main(int argc, char *argv[])
     nfiles = files.size();
     printf("number of files: %d\n", nfiles);
 
-    wc_dictionary_reducer total_dict_red(1<<16);
+    wc_dictionary_pair_reducer total_dict_red(1<<16);
     wc_unordered_map file_dict[nfiles];
 
     char * fdata[files.size()];
@@ -1188,14 +1201,14 @@ int main(int argc, char *argv[])
 	    // Copy-merge into total dictionary to count total number of
 	    // distinct words as well as number of files each word occurs in.
 	    for( auto I=wc_dict.begin(), E=wc_dict.end(); I != E; ++I ) {
-		total_dict_red[I->first] += (I->second > 0);
+		total_dict_red[I->first].first += (I->second > 0);
 	    }
 	}
 
         TRACE( e_smerge );
     }
 
-    wc_unordered_map total_dict(1<<16);
+    wc_unordered_pair_map total_dict(1<<16);
     total_dict_red.swap( total_dict );
 
     get_time (end);
@@ -1363,27 +1376,39 @@ int main(int argc, char *argv[])
 	sparse_point<real> * spoints_p = spoints.data();
 	// memset( spoints_p, 0, sizeof(*spoints_p)*num_points );
 
+	// Assign unique and successive IDs to each word
+	// IDEA: sparse vectors need not work with successive IDs but dense ones
+	//       do...
+	size_t id = 0;
+	for( auto I=total_dict.begin(), E=total_dict.end(); I != E; ++I, ++id ) {
+	    I->second.second = id;
+
+	    // If sparse (fewer non-zeroes then points), then minimum
+	    // value of coordinate across points is 0. Setting now
+	    // saves work later on.
+	    size_t tcount = I->second.first;
+	    if( tcount < nfiles )
+		arff_data.minval[id] = 0;
+	}
+
+
+	// Build vectors
 	cilk_for( size_t i=0; i < num_points; ++i ) {
 	    size_t fcount = file_dict[i].size();
 	    assert( fcount > 0 );
 	    real *v = new real[fcount];
 	    int  *c = new int[fcount];
 	    int   f = 0;
-	    size_t id = 0;
-	    for( auto I=total_dict.begin(), E=total_dict.end(); I != E; ++I, ++id ) {
-		size_t tcount = I->second;
+	    for( auto I=file_dict[i].begin(), E=file_dict[i].end();
+		 I != E; ++I, ++id ) {
+		// Should always find the word!
+		wc_unordered_pair_map::const_iterator TI
+		    = total_dict.find( I->first );
+		if( TI != total_dict.end() ) {
+		    size_t tcount = TI->second.first;
+		    size_t id = TI->second.second;
 
-		// If sparse (fewer non-zeroes then points), then minimum value
-		// of coordinate across points is 0. Setting now saves work
-		// later on.
-		if( i == 0 && tcount < nfiles )
-		    arff_data.minval[id] = 0;
-
-		// size_t tf = (*file_dict[i])[I->first]; // hashed - use stored hash for speed?
-		wc_unordered_map::const_iterator FI
-		    = file_dict[i].find( I->first );
-		if( FI != file_dict[i].end() ) {
-		    size_t tf = FI->second;
+		    size_t tf = I->second;
 		    real norm = log10(((double) nfiles + 1.0) / ((double) tcount + 1.0)); 
 		    c[f] = id;
 		    v[f] = ((real)tf) * norm; // tfidf
