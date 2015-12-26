@@ -92,6 +92,14 @@ public:
         std::vector<bool, Allocator<bool> > newoccupied(newsize, false);
         for(uint64_t i = 0; i < msize; i++) {
             if(occupied[i]) {
+/*
+	std::vector<bool, Allocator<bool> >::const_iterator B=occupied.begin();
+	std::vector<bool, Allocator<bool> >::const_iterator I=occupied.begin();
+	std::vector<bool, Allocator<bool> >::const_iterator E=occupied.end();
+	fo( ; I != E; ++I ) {
+	    if( *I ) {
+		uint64_t i = I-B;
+*/
                 uint64_t index = kh(table[i].first) & (newsize-1);
                 while(newoccupied[index])
                     index = (index+1) & (newsize-1);
@@ -126,11 +134,13 @@ public:
                 }
             }
             table[index].first = key;
-            table[index].second = V(true);
+            table[index].second = V(); // V(true);
             occupied[index] = true;
             return table[index].second;
         }
     }
+
+    class iterator;
 
     class const_iterator {
         hash_table const* a;
@@ -146,6 +156,12 @@ public:
                 this->index++;
             }
         }
+        bool operator !=(iterator const& other) const {
+            return index != other.index;
+        }
+        bool operator !=(const_iterator const& other) const {
+            return index != other.index;
+        }
         const_iterator& operator++() {
             if(index < a->msize) {
                 index++;
@@ -155,16 +171,16 @@ public:
             }
             return *this;
         }
-        entry & operator*() {
+        const entry & operator*() {
             return a->table[index];
         }
-	entry * operator->() {
+	const entry * operator->() {
             return &a->table[index];
 	}
     };
 
     class iterator {
-        hash_table const* a;
+        hash_table * a;
         uint64_t index;
     public:
         iterator(hash_table & a, uint64_t index)
@@ -196,13 +212,27 @@ public:
             }
             return *this;
         }
-        entry const & operator*() {
+        entry & operator*() {
             return a->table[index];
         }
-	entry const * operator->() {
+	entry * operator->() {
             return &a->table[index];
 	}
     };
+
+    const_iterator find(K const& key) 
+    {
+        uint64_t index = kh(key) & (msize-1);
+        while(occupied[index] && !(table[index].first == key)) {
+            index = (index+1) & (msize-1);
+        }
+
+        if(occupied[index])
+            return const_iterator(*this, index);
+        else {
+            return cend();
+        }
+    }
 
     iterator begin() {
         return iterator(*this, 0);
@@ -216,12 +246,12 @@ public:
         return iterator(*this, msize); 
     }
 
-    iterator cbegin() {
-        return iterator(*this, 0);
+    const_iterator cbegin() {
+        return const_iterator(*this, 0);
     }
 
-    iterator cend() {
-        return iterator(*this, msize); 
+    const_iterator cend() {
+        return const_iterator(*this, msize); 
     }
 
     iterator slice_begin( size_t nth, size_t nslices ) {

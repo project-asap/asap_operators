@@ -445,6 +445,7 @@ typedef std::unordered_map<wc_word, fileVector, wc_word_hash, wc_word_pred> tfid
 #elif defined(PHOENIX_MAP)
 #include "container.h"
 typedef hash_table<wc_word, size_t, wc_word_hash> wc_unordered_map;
+typedef hash_table<wc_word, std::pair<size_t, size_t>, wc_word_hash> wc_unordered_pair_map;
 typedef hash_table<wc_word, fileVector, wc_word_hash> tfidf_unordered_map;
 #else
 #include "container.h"
@@ -1391,20 +1392,36 @@ int main(int argc, char *argv[])
 		arff_data.minval[id] = 0;
 	}
 
+	// Accelerate memory allocation and reduce memory fragmentation
+	// present in the standard memory allocator due to variable allocation
+	// sizes.
+	// Can be parallelized as reduction.
+	size_t total_vec_elems = 0;
+	size_t * vec_start = new size_t[num_points];
+	for( size_t i=0; i < num_points; ++i ) {
+	    size_t fcount = file_dict[i].size();
+	    vec_start[i] = total_vec_elems;
+	    total_vec_elems += fcount;
+	}
+
+	int  * alloc_c = new int[total_vec_elems];
+	real * alloc_v = new real[total_vec_elems];
 
 	// Build vectors
 	cilk_for( size_t i=0; i < num_points; ++i ) {
 	    size_t fcount = file_dict[i].size();
 	    assert( fcount > 0 );
-	    real *v = new real[fcount];
-	    int  *c = new int[fcount];
+	    // real *v = new real[fcount];
+	    // int  *c = new int[fcount];
+	    real *v = &alloc_v[vec_start[i]];
+	    int  *c = &alloc_c[vec_start[i]];
 	    int   f = 0;
 	    for( auto I=file_dict[i].begin(), E=file_dict[i].end();
 		 I != E; ++I, ++id ) {
 		// Should always find the word!
 		wc_unordered_pair_map::const_iterator TI
 		    = total_dict.find( I->first );
-		if( TI != total_dict.end() ) {
+		if( TI != total_dict.cend() ) {
 		    size_t tcount = TI->second.first;
 		    size_t id = TI->second.second;
 
