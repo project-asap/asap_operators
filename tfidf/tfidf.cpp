@@ -513,6 +513,10 @@ private:
 
 public:
     dictionary_reducer() : imp_() { }
+    dictionary_reducer(size_t n) : imp_() {
+	MapType init(n);
+	imp_.view().swap( init );
+    }
 
     void swap( MapType & c ) {
 	imp_.view().swap( c );
@@ -1063,8 +1067,8 @@ int main(int argc, char *argv[])
     std::vector<std::string> files;
 
     // tfidf_dictionary_reducer dict;
-    tfidf_unordered_map dict(1<<16);
-    pthread_mutex_t dict_mux = PTHREAD_MUTEX_INITIALIZER;
+    // tfidf_unordered_map dict(1<<16);
+    // pthread_mutex_t dict_mux = PTHREAD_MUTEX_INITIALIZER;
 
     get_time (begin);
     all_begin = begin;
@@ -1082,6 +1086,9 @@ int main(int argc, char *argv[])
     getdir(fname,files);
     nfiles = files.size();
     printf("number of files: %d\n", nfiles);
+
+    wc_dictionary_reducer total_dict(1<<16);
+    wc_dictionary_reducer * file_dict[nfiles];
 
     char * fdata[files.size()];
 #ifndef NO_MMAP
@@ -1150,9 +1157,11 @@ int main(int argc, char *argv[])
 	{
 	    struct timespec begin_lock, end_lock;
 	    get_time (beginWC);
-	    wc_dictionary_reducer wc_dict;
+	    file_dict[i] = cilk::aligned_new<wc_dictionary_reducer>(1<<16);
+	    wc_dictionary_reducer & wc_dict = *file_dict[i];
 	    wc(fdata[i], finfo.st_size, 1024*1024, wc_dict, i);
 
+#if 0
 	    get_time(begin_lock);
 	    *time_wc += time_diff(begin_lock, beginWC);
 	    // Merge dict for file into tfidf_dict
@@ -1170,6 +1179,12 @@ int main(int argc, char *argv[])
 	    pthread_mutex_unlock( &dict_mux );
 	    get_time(begin_lock);
 	    *time_merge += time_diff(begin_lock, end_lock);
+#endif
+	    // Copy-merge into total dictionary to count total number of
+	    // distinct words as well as number of files each word occurs in.
+	    for( auto I=wc_dict.begin(), E=wc_dict.end(); I != E; ++I ) {
+		total_dict[I->first] += (I->second > 0);
+	    }
 	}
 
         TRACE( e_smerge );
@@ -1320,16 +1335,11 @@ int main(int argc, char *argv[])
 	printf( "Transforming data for K-means and calculating TF-IDF\n" );
 	get_time (begin);
 
-	size_t ndim = dict.size();
+	size_t ndim = total_dict.size();
 	arff_file arff_data;
 	arff_data.relation = "tfidf";
 	arff_data.fdata = 0;
 
-	// ----: do not construct idx but consult hash table which still
-	//       has same iteration order.
-	// arff_data.idx.reserve(ndim);
-	// arff_data.points.resize(nfiles); // plan direct access
-	
         num_dimensions = ndim; // arff_data.idx.size();
         num_points = nfiles; // arff_data.points.size();
 
@@ -1343,58 +1353,70 @@ int main(int argc, char *argv[])
 	// TODO: fileVector should be sparse vector, then this part would be
 	//       much more efficient
 	real * norm = new real[ndim];
-	// fileVector **par = new fileVector *[ndim];
-	const size_t ** par = new const size_t *[ndim];
+	// const size_t ** par = new const size_t *[ndim];
 // in progress:
 	std::vector<sparse_point<real>> spoints;
 	spoints.resize(num_points); // plan direct and parallel access
 
 	size_t id=0;
-	for( auto I=dict.begin(), E=dict.end(); I != E; ++I, ++id ) {
-	    // arff_data.idx.push_back(I->first.data);
-
+	for( auto I=total_dict.begin(), E=total_dict.end(); I != E; ++I, ++id ) {
+#if 0
 	    const size_t * v = &I->second.front();
 	    size_t fcount = __sec_reduce_add( is_nonzero(v[0:nfiles]) );
+	    norm[id] = log10(((double) nfiles + 1.0) / ((double) fcount + 1.0)); 
+
+	    // par[id] = v;
+#endif
+	    size_t fcount = I->second;
 	    norm[id] = log10(((double) nfiles + 1.0) / ((double) fcount + 1.0)); 
 
 	    // If sparse (fewer non-zeroes then points), then minimum value of
 	    // coordinate across points is 0. Setting now saves work later on.
 	    if( fcount < nfiles )
 		arff_data.minval[id] = 0;
-
-	    // par[id] = &I->second;
-	    par[id] = v;
 	}
 
+#if 0
 	size_t * fcount = new size_t[num_points]();
-	for( size_t id=0; id < num_dimensions; ++id ) {
-	    cilk_for( size_t i=0; i < num_points; ++i )
-		if( par[id][i] )
+	cilk_for( size_t i=0; i < num_points; ++i ) {
+	    // for( size_t id=0; id < num_dimensions; ++id ) {
+/*
+	    size_t id =0;
+	    for( auto I=file_dict[i].begin(), E=file_dict[i].end(); I != E; ++I, ++id ) {
+		if( I->second > 0 )
 		    ++fcount[i];
+		// if( par[id][i] ) ++fcount[i];
+		*/
+	    fcount[i] = file_dict[i].size();
 	}
+#endif
 
 	// TODO: make this sparse from the start. Already know sparse
 	//       vector length from previous pass
 	cilk_for( size_t i=0; i < num_points; ++i ) {
-	    real *v = new real[fcount[i]];
-	    int  *c = new int[fcount[i]];
+	    size_t fcount = file_dict[i]->size();
+	    real *v = new real[fcount];
+	    int  *c = new int[fcount];
 	    int   f = 0;
-	    for( size_t id=0; id < ndim; ++id ) {
-		size_t tf = par[id][i];
+	    // for( size_t id=0; id < ndim; ++id ) {
+	    size_t id = 0;
+	    for( auto I=total_dict.begin(), E=total_dict.end(); I != E; ++I, ++id ) {
+		size_t tf = (*file_dict[i])[I->first]; // hashed - use stored hash for speed?
+		// size_t tf = par[id][i];
 		if( tf ) {
 		    c[f] = id;
 		    v[f] = ((real)tf) * norm[id]; // tfidf
 		    ++f;
 		}
 	    }
-	    // assert( f == fcount[i] );
+	    assert( f == fcount );
 
 	    sparse_point<real> pt( c, v, f, -1 );
 	    spoints[i].swap( pt );
 	}
-	delete[] fcount;
+	// delete[] fcount;
 
-	delete[] par;
+	// delete[] par;
 	delete[] norm;
 
 	// TODO: iteration order is wrong (sparse accesses)
@@ -1427,7 +1449,7 @@ int main(int argc, char *argv[])
  
         std::cerr << "@relation: " << arff_data.relation << "\n";
         std::cerr << "@attributes: " << ndim << "\n";
-        std::cerr << "@points: " << arff_data.points.size() << "\n";
+        std::cerr << "@points: " << num_points << "\n";
 
         // From kmeans main, the rest of kmeans computation and output
 
