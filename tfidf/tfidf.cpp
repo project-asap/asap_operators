@@ -539,6 +539,9 @@ public:
     typename MapType::iterator end() { return imp_.view().end(); }
     // typename wc_unordered_map::const_iterator cend() { return imp_.view().cend(); }
 
+    typename MapType::const_iterator find( wc_word idx ) {
+	return imp_.view().find( idx );
+    }
 };
 typedef dictionary_reducer<wc_unordered_map> wc_dictionary_reducer;
 typedef dictionary_reducer<tfidf_unordered_map> tfidf_dictionary_reducer;
@@ -787,8 +790,9 @@ typedef Centres centres_reducer;
 
 // kmeans merged declarations sections end
 
-void wc( char * data, uint64_t data_size, uint64_t chunk_size, wc_dictionary_reducer & dict, unsigned int file) {
+void wc( char * data, uint64_t data_size, uint64_t chunk_size, wc_unordered_map & wc_dict, unsigned int file) {
     uint64_t splitter_pos = 0;
+    wc_dictionary_reducer dict(1<<16);
     while( 1 ) {
 	TRACE( e_ssplit );
 
@@ -855,6 +859,8 @@ void wc( char * data, uint64_t data_size, uint64_t chunk_size, wc_dictionary_red
         }( s );
     }
     cilk_sync;
+
+    dict.swap( wc_dict );
 
     TRACE( e_synced );
     // std::cout << "final hash table size=" << final_dict.bucket_count() << std::endl;
@@ -1087,8 +1093,8 @@ int main(int argc, char *argv[])
     nfiles = files.size();
     printf("number of files: %d\n", nfiles);
 
-    wc_dictionary_reducer total_dict(1<<16);
-    wc_dictionary_reducer * file_dict[nfiles];
+    wc_dictionary_reducer total_dict_red(1<<16);
+    wc_unordered_map file_dict[nfiles];
 
     char * fdata[files.size()];
 #ifndef NO_MMAP
@@ -1157,8 +1163,7 @@ int main(int argc, char *argv[])
 	{
 	    struct timespec begin_lock, end_lock;
 	    get_time (beginWC);
-	    file_dict[i] = cilk::aligned_new<wc_dictionary_reducer>(1<<16);
-	    wc_dictionary_reducer & wc_dict = *file_dict[i];
+	    wc_unordered_map & wc_dict = file_dict[i];
 	    wc(fdata[i], finfo.st_size, 1024*1024, wc_dict, i);
 
 #if 0
@@ -1183,12 +1188,15 @@ int main(int argc, char *argv[])
 	    // Copy-merge into total dictionary to count total number of
 	    // distinct words as well as number of files each word occurs in.
 	    for( auto I=wc_dict.begin(), E=wc_dict.end(); I != E; ++I ) {
-		total_dict[I->first] += (I->second > 0);
+		total_dict_red[I->first] += (I->second > 0);
 	    }
 	}
 
         TRACE( e_smerge );
     }
+
+    wc_unordered_map total_dict(1<<16);
+    total_dict_red.swap( total_dict );
 
     get_time (end);
     printf("total file size: %d\n", total_bytes.get_value());
@@ -1350,74 +1358,49 @@ int main(int argc, char *argv[])
 	    arff_data.maxval[i] = std::numeric_limits<real>::min();
 	}
     
-	// TODO: fileVector should be sparse vector, then this part would be
-	//       much more efficient
-	real * norm = new real[ndim];
-	// const size_t ** par = new const size_t *[ndim];
-// in progress:
 	std::vector<sparse_point<real>> spoints;
 	spoints.resize(num_points); // plan direct and parallel access
+	sparse_point<real> * spoints_p = spoints.data();
+	// memset( spoints_p, 0, sizeof(*spoints_p)*num_points );
 
-	size_t id=0;
-	for( auto I=total_dict.begin(), E=total_dict.end(); I != E; ++I, ++id ) {
-#if 0
-	    const size_t * v = &I->second.front();
-	    size_t fcount = __sec_reduce_add( is_nonzero(v[0:nfiles]) );
-	    norm[id] = log10(((double) nfiles + 1.0) / ((double) fcount + 1.0)); 
-
-	    // par[id] = v;
-#endif
-	    size_t fcount = I->second;
-	    norm[id] = log10(((double) nfiles + 1.0) / ((double) fcount + 1.0)); 
-
-	    // If sparse (fewer non-zeroes then points), then minimum value of
-	    // coordinate across points is 0. Setting now saves work later on.
-	    if( fcount < nfiles )
-		arff_data.minval[id] = 0;
-	}
-
-#if 0
-	size_t * fcount = new size_t[num_points]();
 	cilk_for( size_t i=0; i < num_points; ++i ) {
-	    // for( size_t id=0; id < num_dimensions; ++id ) {
-/*
-	    size_t id =0;
-	    for( auto I=file_dict[i].begin(), E=file_dict[i].end(); I != E; ++I, ++id ) {
-		if( I->second > 0 )
-		    ++fcount[i];
-		// if( par[id][i] ) ++fcount[i];
-		*/
-	    fcount[i] = file_dict[i].size();
-	}
-#endif
-
-	// TODO: make this sparse from the start. Already know sparse
-	//       vector length from previous pass
-	cilk_for( size_t i=0; i < num_points; ++i ) {
-	    size_t fcount = file_dict[i]->size();
+	    size_t fcount = file_dict[i].size();
+	    assert( fcount > 0 );
 	    real *v = new real[fcount];
 	    int  *c = new int[fcount];
 	    int   f = 0;
-	    // for( size_t id=0; id < ndim; ++id ) {
 	    size_t id = 0;
 	    for( auto I=total_dict.begin(), E=total_dict.end(); I != E; ++I, ++id ) {
-		size_t tf = (*file_dict[i])[I->first]; // hashed - use stored hash for speed?
-		// size_t tf = par[id][i];
-		if( tf ) {
+		size_t tcount = I->second;
+
+		// If sparse (fewer non-zeroes then points), then minimum value
+		// of coordinate across points is 0. Setting now saves work
+		// later on.
+		if( i == 0 && tcount < nfiles )
+		    arff_data.minval[id] = 0;
+
+		// size_t tf = (*file_dict[i])[I->first]; // hashed - use stored hash for speed?
+		wc_unordered_map::const_iterator FI
+		    = file_dict[i].find( I->first );
+		if( FI != file_dict[i].end() ) {
+		    size_t tf = FI->second;
+		    real norm = log10(((double) nfiles + 1.0) / ((double) tcount + 1.0)); 
 		    c[f] = id;
-		    v[f] = ((real)tf) * norm[id]; // tfidf
+		    v[f] = ((real)tf) * norm; // tfidf
 		    ++f;
 		}
 	    }
 	    assert( f == fcount );
 
-	    sparse_point<real> pt( c, v, f, -1 );
-	    spoints[i].swap( pt );
+	    spoints_p[i].v = v;
+	    spoints_p[i].c = c;
+	    spoints_p[i].nonzeros = fcount;
 	}
-	// delete[] fcount;
 
-	// delete[] par;
-	delete[] norm;
+        get_time (end);
+        print_time("construct points", begin, end);
+    
+        get_time (begin);
 
 	// TODO: iteration order is wrong (sparse accesses)
 	//       alternative: define and use a min/max point reducer,
@@ -1446,6 +1429,10 @@ int main(int argc, char *argv[])
 		}
 	    }
 	}
+        get_time (end);
+        print_time("normalize", begin, end);
+    
+        get_time (begin);
  
         std::cerr << "@relation: " << arff_data.relation << "\n";
         std::cerr << "@attributes: " << ndim << "\n";
@@ -1471,7 +1458,7 @@ int main(int argc, char *argv[])
         centres.normalize();
     
         get_time (end);
-        print_time("transform", begin, end);
+        print_time("kmeans initialize", begin, end);
     
         printf("KMeans: Calling MapReduce Scheduler\n");
     
@@ -1506,9 +1493,13 @@ int main(int argc, char *argv[])
         if( arff_data.sparse_data && !force_dense )
 	    centres.update_sum_sq();
 	fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &spoints[0] ) );
+
+	get_time (end);
+	print_time("final SSE", begin, end);
     
-#if 0
--- TODO
+	// Output data
+	get_time(begin);
+
 	FILE * outfp = fopen( outfile, "w" );
 	if( !outfp )
 	    CROAK( "cannot open output file for writing" );
@@ -1535,21 +1526,29 @@ int main(int argc, char *argv[])
 	    fprintf( outfp, "===========" );
         fprintf( outfp, "\n" );
     
-	auto I=dict.begin(), E=dict.end();
+	auto I=total_dict.begin(), E=total_dict.end();
         for( int i=0; i < num_dimensions; ++i, ++I ) {
 	    // assert( I != E );
 	    fprintf( outfp, "%-16s", I->first.data ); // arff_data.idx[i] );
 	    real s = 0;
+/*
 	    for( int j=0; j < num_points; ++j )
 	        s += points[j].d[i];
+*/
+	    for( int k=0; k < num_clusters; ++k )
+		s += centres[k].d[i];
+
 	    s /= (real)num_points;
 	    s = min_val[i] + s * (max_val[i] - min_val[i] + 1);
 	    fprintf( outfp, "%10.4lf", s );
 	    for( int k=0; k < num_clusters; ++k ) {
 	        real s = 0;
+/*
 	        for( int j=0; j < num_points; ++j )
-		    if( points[j].cluster == k )
-		        s += points[j].d[i];
+		    if( spoints[j].cluster == k )
+		        s += spoints[j].d[i];
+*/
+		s = centres[k].d[i];
 	        s /= (real)centres[k].cluster;
 	        s = min_val[i] + s * (max_val[i] - min_val[i] + 1);
 	        fprintf( outfp, "%11.4lf", s );
@@ -1557,7 +1556,9 @@ int main(int argc, char *argv[])
 	    fprintf( outfp, "\n" );
         }
 	fclose( outfp );
-#endif
+
+	get_time (end);
+	print_time("output", begin, end);
     
         //free memory
         // delete[] points; -- done in arff_file
