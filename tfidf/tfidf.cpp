@@ -387,6 +387,13 @@ struct wc_word_pred
     }
 };
 
+struct wc_word_cmp
+{
+    bool operator() ( const wc_word & a, const wc_word & b ) const {
+	return strcmp( a.data, b.data ) < 0;
+    }
+};
+
 struct wc_sort_pred_by_first
 {
     bool operator() ( const std::pair<wc_word, size_t> & a,
@@ -437,6 +444,11 @@ public:
 #ifdef P2_UNORDERED_MAP
 typedef std::p2_unordered_map<wc_word, size_t, wc_word_hash, wc_word_pred> wc_unordered_map;
 typedef std::p2_unordered_map<wc_word, fileVector, wc_word_hash, wc_word_pred> tfidf_unordered_map;
+#elif defined(STD_MAP)
+#include <map>
+typedef std::map<wc_word, size_t, wc_word_cmp> wc_unordered_map;
+typedef std::map<wc_word, std::pair<size_t, size_t>, wc_word_cmp> wc_unordered_pair_map;
+typedef std::map<wc_word, fileVector, wc_word_cmp> tfidf_unordered_map;
 #elif defined(STD_UNORDERED_MAP)
 #include <unordered_map>
 typedef std::unordered_map<wc_word, size_t, wc_word_hash, wc_word_pred> wc_unordered_map;
@@ -516,7 +528,11 @@ class dictionary_reducer {
 	}
 	static void identity( MapType * p ) {
 	    // Initialize to useful default size depending on chunk size
+#ifndef STD_MAP
 	    new (p) MapType(1<<16);
+#else
+	    new (p) MapType();
+#endif
 	}
 
     };
@@ -527,8 +543,10 @@ private:
 public:
     dictionary_reducer() : imp_() { }
     dictionary_reducer(size_t n) : imp_() {
+#ifndef STD_MAP
 	MapType init(n);
 	imp_.view().swap( init );
+#endif
     }
 
     void swap( MapType & c ) {
@@ -1209,7 +1227,11 @@ int main(int argc, char *argv[])
         TRACE( e_smerge );
     }
 
+#ifndef STD_MAP
     wc_unordered_pair_map total_dict(1<<16);
+#else
+    wc_unordered_pair_map total_dict;
+#endif
     total_dict_red.swap( total_dict );
 
     get_time (end);
@@ -1223,6 +1245,18 @@ int main(int argc, char *argv[])
     print_time("merge (files, work)", time_merge.get_value());
 
 #ifndef KMEANS
+    printf( "Transforming data for output and calculating TF-IDF\n" );
+    get_time (begin);
+
+    size_t ndim = total_dict.size();
+    arff_file arff_data;
+
+    num_dimensions = ndim; // arff_data.idx.size();
+    num_points = nfiles; // arff_data.points.size();
+
+    get_time (end);
+    print_time("construct points", begin, end);
+    
     printf( "writing output data and calculating TF-IDF\n" );
     get_time (begin);
 
@@ -1259,13 +1293,10 @@ int main(int argc, char *argv[])
     resFileTextArff << headerTextArff << "\n" << classTextArff << "\n";;
     resFileTextArff.flush();
 
-    for( auto I=dict.begin(), E=dict.end(); I != E; ++I ) {
+    for( auto I=total_dict.begin(), E=total_dict.end(); I != E; ++I ) {
         resFileTextArff << "\t";
         const string & str = I->first.data;
         resFileTextArff << loopStart << str << ' ' << typeStr << "\n";
-#ifdef KMEANS
-        arff_data.idx.push_back(str.c_str());
-#endif
     }
 
     resFileTextArff << "\n\n" << dataStr << "\n\n";
@@ -1275,74 +1306,46 @@ int main(int argc, char *argv[])
     // print the data
     //
 
-#ifdef KMEANS
-    // in-memory workflow setup
-    // int ndim = dict.size();
-    // real * coord = new real[ndim](); // zero init
-#endif
+    // Assign unique and successive IDs to each word
+    // IDEA: sparse vectors need not work with successive IDs but dense ones
+    //       do...
+    size_t id = 0;
+    for( auto I=total_dict.begin(), E=total_dict.end(); I != E; ++I, ++id ) {
+	I->second.second = id;
+    }
 
-    for (unsigned int i = 0;i < files.size();i++) {
-
-        const string & keyStr = files[i];
-
-	if( dict.empty() )
-	    continue;
-
+    // Build vectors
+    for( size_t i=0; i < num_points; ++i ) {
         resFileTextArff << "\t{";
+	size_t fcount = file_dict[i].size();
+	assert( fcount > 0 );
+	std::vector<std::pair<size_t, real> > data;
+	data.reserve(fcount);
+	int f = 0;
+	for( auto I=file_dict[i].begin(), E=file_dict[i].end();
+	     I != E; ++I, ++id ) {
+	    // Should always find the word!
+	    wc_unordered_pair_map::const_iterator TI
+		= total_dict.find( I->first );
+	    if( TI != total_dict.cend() ) {
+		size_t tcount = TI->second.first;
+		size_t id = TI->second.second;
 
-        // iterate over each word to collect total counts of each word in all files (reducedCount)
-        // OR the number of files that contain the work (existsInFilesCount)
-        long id=1;
-        for( auto I=dict.begin(), E=dict.end(); I != E; ++I, ++id ) {
+		size_t tf = I->second;
+		real norm = log10(((double) nfiles + 1.0) / ((double) tcount + 1.0)); 
+		real tfidf = ((real)tf) * norm; // tfidf
+		++f;
+                // resFileTextArff << id << ' ' << tfidf << ',';
+		data.push_back( std::make_pair( id+1, tfidf ) );
+	    }
+	}
+	std::sort( data.begin(), data.end() );
 
-                size_t tf = I->second[i];
-	        if (!tf) 
-		    continue;
+	for( auto I=data.begin(), E=data.end(); I != E; ++I ) {
+	    resFileTextArff << I->first << ' ' << I->second << ',';
+	}
 
-		struct timespec begin_tfidf, end_tfidf;
-		get_time(begin_tfidf);
-
-                // todo: workout how the best way to calculate and store each 
-                // word total once for all files
-#if 0
-	        cilk::reducer< cilk::op_add<size_t> > existsInFilesCount(0);
-	        cilk_for (int j = 0; j < I->second.size(); ++j) {
-		    // *reducedCount += I->second[j];  // Use this if we want to count every occurence
-		    if (I->second[j] > 0) *existsInFilesCount += 1;
-	        }
-	        size_t fcount = existsInFilesCount.get_value();
-#else
-	        const size_t * v = &I->second.front();
-	        // size_t len = I->second.size();
-	        size_t fcount = __sec_reduce_add( is_nonzero(v[0:nfiles]) );
-#endif
-
-                //     Calculate tfidf  ---   Alternative versions of tfidf:
-                // double tfidf = tf * log10(((double) files.size() + 1.0) / ((double) sumOccurencesOfWord + 1.0)); 
-                // double tfidf = tf * log10(((double) files.size() + 1.0) / ((double) numOfOtherDocsWithWord + 2.0)); 
-                // double tfidf = tf * log10(((double) files.size() + 1.0) / ((double) reducedCount.get_value() + 1.0)); 
-                // Sparks version;
-                double tfidf = (double) tf * log10(((double) files.size() + 1.0) / ((double) fcount + 1.0)); 
-/*
-#ifndef STD_UNORDERED_MAP
-                uint64_t id = I.getIndex();
-#else
-                uint64_t id = fn(I->first);
-#endif
-*/
-		get_time(end_tfidf);
-		time_tfidf += time_diff(end_tfidf, begin_tfidf);
-#ifdef KMEANS
-                // coord[id] = tfidf;
-                // arff_data.points.push_back( point( coord, -1 ) );
-#endif
-
-                // Note:
-                // If Weka etc doesn't care if there is an extra unnecessary comma at end
-                // of a each record then we'd rather avoid the branch test here, so leave comma in
-                resFileTextArff << id << ' ' << tfidf << ',';
-
-        }
+	assert( f == fcount );
         resFileTextArff << "}\n";
     }
     resFileTextArff.close();

@@ -1,7 +1,7 @@
 benchmark=kmeans_arff
 
 CXX=icpc
-CXXFLAGS+=-O3 -I..
+CXXFLAGS+=-O3 -I.. -std=c++11
 # CXXFLAGS+=-std=c++11
 LDFLAGS=-lrt
 
