@@ -1,0 +1,13 @@
+<workflow>
+    <ops>
+        <operator>
+            <input>"input.txt"</input>
+            <run maxiters="5" numclusters="4">tfidf</run>
+        </operator>
+        <operator>
+            <run numclusters="4">kmeans</run>
+            <output>"tfidf-kmeans.txt"</output>
+        </operator>
+
+    </ops>
+</workflow>
