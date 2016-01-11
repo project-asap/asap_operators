@@ -125,6 +125,19 @@ struct sparse_point {
     }
 };
 
+std::ostream & operator << ( std::ostream & os, const sparse_point & sp ) {
+    os << '{';
+    for( int i=0, e=num_dimensions, j=0; i != e; ++i ) {
+	real v = 0;
+	if( i == sp.c[j] ) v = sp.v[j++];
+	os << v;
+	if( i+1 < e )
+	    os << ", ";
+    }
+    os << '}';
+    return os;
+}
+
 struct point
 {
     real * d;
@@ -691,7 +704,7 @@ public:
 #endif
 			    // coord[i-1] = v;
 			    v[nonzeros] = vv;
-			    c[nonzeros] = i-1;
+			    c[nonzeros] = i; // -1;
 			    ++nonzeros;
 
 			    tcount[i-1]++;
@@ -870,9 +883,14 @@ int main(int argc, char **argv)
 #endif // SEQUENTIAL && PMC
     int niter = 1;
 
+    // for( size_t i=0; i < num_points; ++i )
+	// std::cout << points[i] << std::endl;
+
     while(kmeans_cluster(centres, points)) {
 	if( ++niter >= max_iters && max_iters > 0 )
 	    break;
+	centres.update_sum_sq();
+	fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &points[0] ) );
     }
 #if 0
     if( arff_data.sparse_data && !force_dense ) {
