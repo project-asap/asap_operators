@@ -909,7 +909,7 @@ void wc( char * data, uint64_t data_size, uint64_t chunk_size, wc_unordered_map 
 #endif
 }
 
-#define NO_MMAP
+// #define NO_MMAP
 
 // vim: ts=8 sw=4 sts=4 smarttab smartindent
 
@@ -1164,11 +1164,11 @@ int main(int argc, char *argv[])
 #ifdef MMAP_POPULATE
 	// Memory map the file
         fdata[i] = (char*)mmap(0, finfo.st_size + 1, 
-			       PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0);
+			       PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_POPULATE, fd, 0);
 #else
         // Memory map the file
         fdata[i] = (char*)mmap(0, finfo.st_size + 1, 
-			       PROT_READ, MAP_PRIVATE, fd, 0);
+			       PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
 #endif
 #else
         uint64_t r = 0;
