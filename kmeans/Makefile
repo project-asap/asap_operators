@@ -1,9 +1,11 @@
 benchmark=kmeans_arff
 
+OPT+=
+
 CXX=icpc
-CXXFLAGS+=-O3 -I.. -std=c++11
+CXXFLAGS+=-O3 $(OPT) -I.. -std=c++11
 # CXXFLAGS+=-std=c++11
-LDFLAGS=-lrt
+LDFLAGS=-lrt $(OPT)
 
 all: $(benchmark)
 
