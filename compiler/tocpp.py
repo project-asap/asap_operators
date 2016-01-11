@@ -95,6 +95,16 @@ def isInputOrOutput(elem):
         return True
     return False
 
+def isInput(elem):
+    if re.search('input', elem.tag):
+        return True
+    return False
+
+def isOutput(elem):
+    if re.search('output', elem.tag):
+        return True
+    return False
+
 """                              
         Beginning of main processing block
 
@@ -140,7 +150,7 @@ def main(argv):
     interFileIOParamQueue=deque([])
 
     """ 
-        Add the declarations for input and output childs of operator for child in operator:
+        Add the declarations for input and output 'childs' of operator 
     """
     tabPrint ("//  Variable Declarations holding input/output filenames  \n\n", tabcount, code)
     ctr=0
@@ -153,18 +163,20 @@ def main(argv):
             if declaration is not None :
                 var = child.tag+`ctr`
                 interFileIOParamQueue.append(var)
+                # print "After appending in ", child.tag, " var q has ", interFileIOParamQueue
                 declarationStr = operator_map[opName.text] \
                                      .declarations[child.tag] \
                                      .replace("VARIN", var).replace("VAROUT", child.text)
                 tabPrint (declarationStr, tabcount, code)
                 tabPrint ("\n", tabcount, code)
+                ctr += 1 
     tabPrint ("\n", tabcount, code)
     
     """
        Print declarations for ordinary variables (read from attributes in operator 'run' element)
     """ 
     tabPrint("//  Variable Declarations ## \n\n", tabcount, code)
-    ctr=0;
+    ctr=0; 
     for operator in root.findall('ops/operator'):
         opName = operator.find('run')
         for attributeTuple in opName.items():
@@ -196,7 +208,8 @@ def main(argv):
                                  interFileIOParamQueue, \
                                  operator_map[opName.text].paramQueue) \
                                  + '\n'
-                    interDataParamQueue.append("var"+`ctr`)
+                    if isOutput(child) is False:
+                        interDataParamQueue.append("var"+`ctr`)
                     tabPrint (statement, tabcount, code)
             ctr += 1
     tabcount -=1
