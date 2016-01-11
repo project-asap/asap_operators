@@ -149,6 +149,12 @@ def main(argv):
     interDataParamQueue=deque([])
     interFileIOParamQueue=deque([])
 
+
+    """ 
+        Keep track of IO files declared so we can merge variables names so we have 1 var for the same filename
+    """
+    declaredIOFiles={}
+
     """ 
         Add the declarations for input and output 'childs' of operator 
     """
@@ -162,13 +168,19 @@ def main(argv):
             declaration=operator_map[opName.text].declarations[child.tag]
             if declaration is not None :
                 var = child.tag+`ctr`
-                interFileIOParamQueue.append(var)
-                # print "After appending in ", child.tag, " var q has ", interFileIOParamQueue
-                declarationStr = operator_map[opName.text] \
+                # print "After appending in ", child.tag, " ", child.text, " var q has ", interFileIOParamQueue
+                ## Keep track of io files for condensing vars, if it already exists use existing var handle
+                if declaredIOFiles.has_key(child.text):
+                    prevVar = declaredIOFiles[child.text]
+                    var = prevVar
+                else:
+                    declaredIOFiles[child.text]=var
+                    declarationStr = operator_map[opName.text] \
                                      .declarations[child.tag] \
                                      .replace("VARIN", var).replace("VAROUT", child.text)
-                tabPrint (declarationStr, tabcount, code)
-                tabPrint ("\n", tabcount, code)
+                    tabPrint (declarationStr, tabcount, code)
+                    tabPrint ("\n", tabcount, code)
+                interFileIOParamQueue.append(var)
                 ctr += 1 
     tabPrint ("\n", tabcount, code)
     
