@@ -61,7 +61,8 @@ class tfidf:
     declarations = {'input': 'const char * VARIN = VAROUT;', 'output': 'const char * VARIN = VAROUT;',
                     'maxiters': 'const int VARIN = VAROUT;', 'numclusters': 'const int VARIN = VAROUT;' }
 
-    action_map = {'input':'readDir(FILE_PARAM1);', 'run': 'tfidf(DATA_PARAM1, OP_PARAM1, OP_PARAM2);','output':'output(DATA_PARAM1, FILE_PARAM1);'}
+    # action_map = {'input':'readDir(FILE_PARAM1);', 'run': 'tfidf(DATA_PARAM1, OP_PARAM1, OP_PARAM2);','output':'output(DATA_PARAM1, FILE_PARAM1);'}
+    action_map = {}
 
     # To queue operator parameters
     paramQueue=deque([])
@@ -71,7 +72,8 @@ class kmeans:
     declarations = {'input': 'const char * VARIN = VAROUT;', 'output': 'const char * VARIN = VAROUT;',
                     'numclusters': 'const int VARIN = VAROUT;'}
 
-    action_map = {'input':'readFile(FILE_PARAM1);', 'run': 'kmeans(DATA_PARAM1, OP_PARAM1);', 'output':'output(DATA_PARAM1, FILE_PARAM1);'}
+    # action_map = {'input':'readFile(FILE_PARAM1);', 'run': 'kmeans(DATA_PARAM1, OP_PARAM1);', 'output':'output(DATA_PARAM1, FILE_PARAM1);'}
+    action_map = {}
 
     # To queue operator parameters
     paramQueue=deque([])
@@ -82,6 +84,25 @@ class kmeans:
         map from xml element name to python library/templace code class above
 """
 operator_map = {'tfidf': tfidf, 'kmeans': kmeans}
+
+"""
+    The template details of what an operator (including input and output) call 
+    looks like for each of the operators is defined in an operators library xml file.
+    This function reads in this file and sets the operator->call_template within
+    each operators map member variable 'action_map'
+
+"""
+def setActionMappings(tree):
+    root = tree.getroot()
+    for operator in root.findall('ops/operator'):
+        opName = operator.find('name')
+        print "opName is ", opName.text
+        for template in operator.findall('template'):
+            key=template.find('key').text
+            value=template.find('value').text
+            print "key is ", key, " value is ", value
+            eval(opName.text).action_map[key]=value
+
 
 
 """
@@ -112,13 +133,14 @@ def isOutput(elem):
 def main(argv):
     workflowfile = ''
     codefile = ''
+    oplibfile = ''
 
     """  Read arguments """
     try:
-        opts, args = getopt.getopt(argv,"hi:o:",["ifile=","ofile="])
+        opts, args = getopt.getopt(argv,"hi:o:l:",["ifile=","ofile=","lfile="])
 
     except getopt.GetoptError:
-        print 'tocpp.py -i <workflowfile> -o <codefile>'
+        print 'tocpp.py -i <workflowfile> -l <operatorlibraryfile> -o <codefile>'
         sys.exit(2)
     for opt, arg in opts:
         if opt == '-h':
@@ -126,8 +148,15 @@ def main(argv):
             sys.exit()
         elif opt in ("-i", "--ifile"):
             workflowfile = arg
+        elif opt in ("-l", "--lfile"):
+            oplibfile = arg
         elif opt in ("-o", "--ofile"):
             codefile = arg
+
+    """" Parse the operators library file to gather info for op call templates """
+    oplib  = open(oplibfile, "r")
+    oplibtree=ET.parse(oplibfile)
+    setActionMappings(oplibtree)
 
     """  Parse workflow description from XML file """
     workflow = open(workflowfile, "r")
@@ -139,8 +168,15 @@ def main(argv):
     tabcount=0
     
     """ print start of main block """
-    tabPrint("int main() {\n\n", tabcount, code)
+    # tabPrint("int main() {\n\n", tabcount, code)
     tabcount=1
+
+    """ print header and main_declarations template sections of code """
+
+    with open('templates/header.template', 'r') as myfile:
+        data=myfile.read()
+
+    tabPrint(data, 0, code)
 
     """ 
         Initialise queue for inter-op data parameters and inter op IO file parameters
@@ -168,6 +204,7 @@ def main(argv):
             declaration=operator_map[opName.text].declarations[child.tag]
             if declaration is not None :
                 var = child.tag+`ctr`
+
                 # print "After appending in ", child.tag, " ", child.text, " var q has ", interFileIOParamQueue
                 ## Keep track of io files for condensing vars, if it already exists use existing var handle
                 if declaredIOFiles.has_key(child.text):
