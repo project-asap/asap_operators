@@ -114,17 +114,6 @@ int main(int argc, char **argv) {
 	// std::cerr << ": " << catalog[i].size() << " words\n";
 	// Reading from std::vector rather than std::map should be faster...
 	// Validated: about 10% on word count, 20% on TF/IDF, 16 threads
-
-	// TODO: reduction through merge of vectors into vector would be
-	//       faster: O(M+N) vs O(M logN)
-	//       However, TF/IDF step is served better with map (although we
-	//       could also do binary search in vector for lookups...)
-	//       So options are:
-	//        A. convert to map before TF/IDF. Since sorted, O(N)
-	//        B. binary search in TF/IDF in vector
-	//           If we did binary search in vector, we would not need to
-	//           pre-compute unique IDs for the words but we could infer
-	//           them while searching!
 	allwords.count_presence( catalog[i] );
     }
     get_time (end);
