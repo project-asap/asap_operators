@@ -22,6 +22,7 @@
 
 char const * indir = nullptr;
 char const * outfile = nullptr;
+bool by_words = false;
 
 static void help(char *progname) {
     std::cout << "Usage: " << progname << " -i <indir> -o <outfile>\n";
@@ -31,13 +32,16 @@ static void parse_args(int argc, char **argv) {
     int c;
     extern char *optarg;
     
-    while ((c = getopt(argc, argv, "i:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "i:o:w")) != EOF) {
         switch (c) {
 	case 'i':
 	    indir = optarg;
 	    break;
 	case 'o':
 	    outfile = optarg;
+	    break;
+	case 'w':
+	    by_words = true;
 	    break;
 	case '?':
 	    help(argv[0]);
@@ -52,6 +56,7 @@ static void parse_args(int argc, char **argv) {
     
     std::cerr << "Input directory = " << indir << '\n';
     std::cerr << "Output file = " << outfile << '\n';
+    std::cerr << "TF/IDF by words = " << ( by_words ? "true\n" : "false\n" );
 }
 
 int main(int argc, char **argv) {
@@ -158,20 +163,35 @@ int main(int argc, char **argv) {
     print_time("convert to list", begin, end);
 
     get_time( begin );
-    data_set_type tfidf
-	= asap::tfidf<vector_type, std::vector<word_list_type>::const_iterator,
-		      word_list_type2>(
-			  catalog.cbegin(), catalog.cend(), allwords_ptr );
+    data_set_type tfidf;
+    if( by_words ) {
+	tfidf = asap::tfidf_by_words<vector_type>(
+	    catalog.cbegin(), catalog.cend(), allwords_ptr );
+    } else {
+	tfidf = asap::tfidf<vector_type>(
+	    catalog.cbegin(), catalog.cend(), allwords_ptr );
+    }
     get_time (end);
     print_time("TF/IDF", begin, end);
 
     get_time( begin );
     std::ofstream of( outfile, std::ios_base::out );
 
-    size_t i=0;
-    for( auto I=tfidf.vector_cbegin(), E=tfidf.vector_cend(); I != E; ++I, ++i ){
-	of << dir_list[i] << ": " << *I << std::endl;
+    if( by_words ) {
+	auto WI = allwords_ptr->begin();
+	for( auto I=tfidf.vector_cbegin(), E=tfidf.vector_cend();
+	     I != E; ++I, ++WI ){
+	    of << WI->first << ": " << *I << std::endl;
+	}
+    } else {
+	size_t i=0;
+	auto WI = dir_list.begin();
+	for( auto I=tfidf.vector_cbegin(), E=tfidf.vector_cend();
+	     I != E; ++I, ++WI ){
+	    of << *WI << ": " << *I << std::endl;
+	}
     }
+
     of.close();
     get_time (end);
     print_time("output", begin, end);
