@@ -60,10 +60,10 @@ public:
 
     // This is much faster with C stdio
     void output( std::ostream & os ) {
-	os << "                             Cluster#\n"
-	   << "       Attribute Full Data";
+	os << "                                 Cluster#\n"
+	   << "       Attribute     Full Data";
 	for( size_t i=0; i < num_clusters(); ++i )
-	    os << std::setw(11) << i;
+	    os << std::setw(15) << i;
 	os << "\n";
 
 	size_t npoints = 0;
@@ -72,24 +72,24 @@ public:
 
 	char buf[32];
 	snprintf( buf, sizeof(buf), "(%d)", npoints );
-	os << std::setw(26) << buf;
+	os << std::setw(30) << buf;
 	for( size_t i=0; i < num_clusters(); ++i ) {
 	    snprintf( buf, sizeof(buf), "(%d)", centres()[i].get_count() );
-	    os << std::setw(11) << buf; 
+	    os << std::setw(15) << buf; 
 	}
 	os << "\n";
 
 	{
-	    const char lnbuf[] = "==========================";
+	    const char lnbuf[] = "==============================";
 	    const size_t lnlen = sizeof(lnbuf)-1;
 
-	    os << &lnbuf[lnlen-26];
+	    os << &lnbuf[lnlen-30];
 	    for( size_t i=0; i < num_clusters(); ++i )
-		os << &lnbuf[lnlen-11];
+		os << &lnbuf[lnlen-15];
 	    os << '\n';
 	}
 
-	std::streamsize old_prec = os.precision(4);
+	std::streamsize old_prec = os.precision(8);
 	os << std::fixed;
 	size_t ndim = base_type::get_dimensions();
 	size_t ncentres = num_clusters();
@@ -101,9 +101,9 @@ public:
 	    for( size_t k=0; k < ncentres; ++k )
 		s += centres_[k][i] * centres_[k].get_count();
 	    s /= (value_type)npoints;
-	    os << std::setw(10) << s;
+	    os << std::setw(14) << s;
 	    for( size_t k=0; k < ncentres; ++k )
-		os << std::setw(11) << centres_[k][i];
+		os << std::setw(15) << centres_[k][i];
 	    os << '\n';
 	}
 	os.precision(old_prec);
@@ -308,7 +308,7 @@ kmeans( const DataSetTy & data_set, size_t num_clusters,
     typedef typename data_set_type::vector_list_type vector_list_type;
 
     std::shared_ptr<kmeans_vector_set> centres
-	= std::make_shared<kmeans_vector_set>( op.centres() );
+	= std::make_shared<kmeans_vector_set>( std::move(op.centres()) );
 
     return data_set_type( op.within_sse(), op.num_iterations(), "kmeans",
 			  data_set.get_index_ptr(), centres );

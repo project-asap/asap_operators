@@ -14,6 +14,61 @@
 
 namespace asap {
 
+namespace internal {
+
+template<typename IndexTy, typename ValueTy>
+struct sparse_vector_sorter {
+    typedef IndexTy index_type;
+    typedef ValueTy value_type;
+    typedef index_type * iterator;
+
+    struct Compare {
+	index_type * m_index;
+	Compare( index_type * index ) : m_index( index ) { }
+
+	bool operator() ( index_type l, index_type r ) const {
+	    return m_index[l] < m_index[r];
+	}
+    };
+
+    value_type * m_value;
+    index_type * m_index;
+    index_type * m_remap;
+    index_type   m_nonzeros;
+
+    sparse_vector_sorter(
+	value_type * value, index_type * index, index_type nonzeros )
+	: m_value( value ), m_index( index ), m_nonzeros( nonzeros ) {
+	m_remap = new index_type[m_nonzeros];
+	for( index_type i=0; i < m_nonzeros; ++i )
+	    m_remap[i] = i;
+    }
+    ~sparse_vector_sorter() { delete[] m_remap; }
+
+    iterator begin() { return &m_remap[0]; }
+    iterator end() { return &m_remap[m_nonzeros]; }
+    
+    Compare cmp() const { return Compare(m_index); }
+
+    void apply() {
+	for( index_type i=0; i < m_nonzeros; ++i ) {
+	    if( m_remap[i] == ~index_type(0) )
+		continue;
+	    index_type cur = i;
+	    while( m_remap[cur] != i ) {
+		const index_type where = m_remap[cur];
+		std::swap( m_value[cur], m_value[where] );
+		std::swap( m_index[cur], m_index[where] );
+		m_remap[cur] = ~index_type(0); // done
+		cur = where;
+	    }
+	    m_remap[cur] = ~index_type(0); // done
+	}
+    }
+};
+
+} // namespace internal
+
 template<typename VectorTy>
 class sparse_vector_set;
 
@@ -125,7 +180,12 @@ public:
 	    fn( m_coord[i], m_value[i] );
     }
     
-
+    void sort_by_index() {
+	internal::sparse_vector_sorter<index_type,value_type>
+	    sorter( m_value, m_coord, m_nonzeros );
+	std::sort( sorter.begin(), sorter.end(), sorter.cmp() );
+	sorter.apply();
+    }
 
 #if 0
     value_type & operator[]( index_type idx ) {

@@ -45,7 +45,7 @@ struct has_reserve<T,true>
 
 namespace text {
 
-struct hash {
+struct charp_hash {
     // FNV-1a hash for 64 bits
     size_t operator()( char const * key ) const {
         size_t v = 14695981039346656037ULL;
@@ -76,6 +76,12 @@ struct IsUpper {
 struct charp_cmp {
     bool operator () ( const char * lhs, const char * rhs ) const {
 	return strcmp( lhs, rhs ) < 0;
+    }
+};
+
+struct charp_eql {
+    bool operator () ( const char * lhs, const char * rhs ) const {
+	return strcmp( lhs, rhs ) == 0;
     }
 };
 
@@ -343,7 +349,8 @@ struct ii_pair {
 template<typename VectorTy, typename InputIterator, typename WordContainerTy>
 data_set<VectorTy, WordContainerTy>
 tfidf( InputIterator I, InputIterator E,
-       std::shared_ptr<WordContainerTy> & joint_word_map_ptr ) {
+       std::shared_ptr<WordContainerTy> & joint_word_map_ptr,
+       bool is_sorted = true ) {
     typedef data_set<VectorTy, WordContainerTy> data_set_type;
     typedef typename data_set_type::vector_list_type vector_list_type;
     typedef typename data_set_type::index_list_type index_list_type;
@@ -443,6 +450,11 @@ tfidf( InputIterator I, InputIterator E,
 	    ++f;
 	}
 	assert( f == fcount );
+
+	// In case of unordered collections, we need to now sort the
+	// sparse vectors!
+	if( !is_sorted ) // Should infer this from the index_list_type
+	    vectors[i].sort_by_index();
     }
 
     delete[] vec_start;

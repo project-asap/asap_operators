@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <deque>
+#include <unordered_map>
 
 #include <cilk/cilk.h>
 #include <cilk/reducer.h>
@@ -15,23 +16,27 @@
 #include "asap/word_count.h"
 #include "asap/normalize.h"
 #include "asap/io.h"
+#include "asap/kmeans.h"
 
 #include <stddefines.h>
 
 #define DEF_NUM_MEANS 8
 
+size_t num_clusters = DEF_NUM_MEANS;
+size_t max_iters = 0;
 char const * indir = nullptr;
 char const * outfile = nullptr;
 
 static void help(char *progname) {
-    std::cout << "Usage: " << progname << " -i <indir> -o <outfile>\n";
+    std::cout << "Usage: " << progname
+	      << " -i <indir> -o <outfile> -c <numclusters> [-m <maxiters>]\n";
 }
 
 static void parse_args(int argc, char **argv) {
     int c;
     extern char *optarg;
     
-    while ((c = getopt(argc, argv, "i:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "i:o:c:m:")) != EOF) {
         switch (c) {
 	case 'i':
 	    indir = optarg;
@@ -39,17 +44,27 @@ static void parse_args(int argc, char **argv) {
 	case 'o':
 	    outfile = optarg;
 	    break;
+	case 'm':
+	    max_iters = atoi(optarg);
+	    break;
+	case 'c':
+	    num_clusters = atoi(optarg);
+	    break;
 	case '?':
 	    help(argv[0]);
 	    exit(1);
         }
     }
     
+    if( num_clusters <= 0 )
+	fatal( "Number of clusters must be larger than 0." );
     if( !indir )
 	fatal( "Input directory must be supplied." );
     if( !outfile )
 	fatal( "Output file must be supplied." );
     
+    std::cerr << "Number of clusters = " << num_clusters << '\n';
+    std::cerr << "Maximum iterations = " << max_iters << '\n';
     std::cerr << "Input directory = " << indir << '\n';
     std::cerr << "Output file = " << outfile << '\n';
 }
@@ -61,7 +76,7 @@ int main(int argc, char **argv) {
     srand( time(NULL) );
 
     get_time( begin );
-    get_time( veryStart );
+    veryStart = begin;
 
     // read args
     parse_args(argc,argv);
@@ -82,16 +97,16 @@ int main(int argc, char **argv) {
 
     // word count
     get_time( begin );
-    typedef asap::word_map<std::map<const char *, size_t, asap::text::charp_cmp>, asap::word_bank_pre_alloc> word_map_type;
+    typedef asap::word_map<std::unordered_map<const char *, size_t, asap::text::charp_hash, asap::text::charp_eql>, asap::word_bank_pre_alloc> word_map_type;
     typedef asap::word_list<std::vector<std::pair<const char * const, size_t>>, asap::word_bank_pre_alloc> word_list_type;
 
     typedef asap::sparse_vector<size_t, float, false,
 				asap::mm_no_ownership_policy>
 	vector_type;
-    typedef asap::word_map<std::map<const char *,
+    typedef asap::word_map<std::unordered_map<const char *,
 				    asap::appear_count<size_t,
 						       typename vector_type::index_type>,
-				    asap::text::charp_cmp>,
+				    asap::text::charp_hash, asap::text::charp_eql>,
 			   asap::word_bank_pre_alloc> word_map_type2;
     size_t num_files = dir_list.size();
     std::vector<word_list_type> catalog;
@@ -130,22 +145,44 @@ int main(int argc, char **argv) {
 	= std::make_shared<word_map_type2>();
     allwords_ptr->swap( allwords.get_value() );
 
-    data_set_type tfidf
+    data_set_type data_set
 	= asap::tfidf<vector_type, std::vector<word_list_type>::const_iterator,
 		      word_map_type2>(
-			  catalog.cbegin(), catalog.cend(), allwords_ptr );
-    get_time (end);
+			  catalog.cbegin(), catalog.cend(), allwords_ptr,
+			  false ); // catalogs are not sorted!
+    get_time( end );
     print_time("TF/IDF", begin, end);
+    std::cerr << "TF/IDF number of words: " << data_set.get_dimensions()
+	      << "\nTF/IDF number of files: " << data_set.get_num_points()
+	      << std::endl;
+
+    // Normalize data for improved clustering results
+    get_time( begin );
+    std::vector<std::pair<float, float>> extrema
+	= asap::normalize( data_set );
+    get_time( end );
+    print_time("normalize", begin, end);
+
+    // K-means clustering
+    get_time( begin );
+    auto kmeans_op = asap::kmeans( data_set, num_clusters, max_iters );
+    get_time( end );
+    print_time("K-Means", begin, end);
+    std::cerr << "K-Means iterations: " << kmeans_op.num_iterations()
+	      << "\nK-Means within-cluster SSE: " << kmeans_op.within_sse()
+	      << std::endl;
+
+    // Unscale data
+    get_time( begin );
+    asap::denormalize( extrema, data_set );
+    get_time( end );        
+    print_time("denormalize", begin, end);
 
     get_time( begin );
     std::ofstream of( outfile, std::ios_base::out );
-
-    size_t i=0;
-    for( auto I=tfidf.vector_cbegin(), E=tfidf.vector_cend(); I != E; ++I, ++i ){
-	of << dir_list[i] << ": " << *I << std::endl;
-    }
+    kmeans_op.output( of );
     of.close();
-    get_time (end);
+    get_time( end );
     print_time("output", begin, end);
 
     print_time("complete time", veryStart, end);

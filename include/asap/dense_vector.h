@@ -163,6 +163,10 @@ public:
 	}
 	return *this;
     }
+
+    template<typename OtherVectorTy>
+    typename std::enable_if<is_dense_vector<OtherVectorTy>::value>::type
+    copy_attributes( const OtherVectorTy & pt ) { }
 };
 
 
@@ -217,6 +221,8 @@ public:
 			   dvs.m_vectors ? dvs.m_vectors[0].length() : 0) {
 	std::cerr << "DVS copy construct\n";
 	assert( m_aligned_length == dvs.m_aligned_length );
+	for( size_t i=0; i < m_number; ++i )
+	    m_vectors[i].copy_attributes( dvs.m_vectors[i] );
 	std::copy( &dvs.m_alloc[0], &dvs.m_alloc[m_number*m_aligned_length],
 		   &m_alloc[0] );
     }

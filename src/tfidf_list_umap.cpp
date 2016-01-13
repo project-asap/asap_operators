@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <deque>
+#include <unordered_map>
 
 #include <cilk/cilk.h>
 #include <cilk/reducer.h>
@@ -82,16 +83,16 @@ int main(int argc, char **argv) {
 
     // word count
     get_time( begin );
-    typedef asap::word_map<std::map<const char *, size_t, asap::text::charp_cmp>, asap::word_bank_pre_alloc> word_map_type;
+    typedef asap::word_map<std::unordered_map<const char *, size_t, asap::text::charp_hash, asap::text::charp_eql>, asap::word_bank_pre_alloc> word_map_type;
     typedef asap::word_list<std::vector<std::pair<const char * const, size_t>>, asap::word_bank_pre_alloc> word_list_type;
 
     typedef asap::sparse_vector<size_t, float, false,
 				asap::mm_no_ownership_policy>
 	vector_type;
-    typedef asap::word_map<std::map<const char *,
+    typedef asap::word_map<std::unordered_map<const char *,
 				    asap::appear_count<size_t,
 						       typename vector_type::index_type>,
-				    asap::text::charp_cmp>,
+				    asap::text::charp_hash, asap::text::charp_eql>,
 			   asap::word_bank_pre_alloc> word_map_type2;
     size_t num_files = dir_list.size();
     std::vector<word_list_type> catalog;
@@ -133,7 +134,8 @@ int main(int argc, char **argv) {
     data_set_type tfidf
 	= asap::tfidf<vector_type, std::vector<word_list_type>::const_iterator,
 		      word_map_type2>(
-			  catalog.cbegin(), catalog.cend(), allwords_ptr );
+			  catalog.cbegin(), catalog.cend(), allwords_ptr,
+			  false ); // catalogs are not sorted!
     get_time (end);
     print_time("TF/IDF", begin, end);
 
