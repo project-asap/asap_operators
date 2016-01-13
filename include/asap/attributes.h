@@ -36,12 +36,30 @@ public:
 		 MMT::has_ownership>::type>
     vector_with_sqnorm_cache(index_type length_)
 	: vector_type(length_), m_sqnorm(0) { }
-    vector_with_sqnorm_cache(value_type *value_, index_type length_)
-	: vector_type(value_, length_), m_sqnorm(0) { }
+    vector_with_sqnorm_cache(value_type *value_, index_type length_,
+			     value_type sqnorm = 0)
+	: vector_type(value_, length_), m_sqnorm(sqnorm) { }
+
+    template<typename OtherVectorTy>
+    vector_with_sqnorm_cache(
+	const OtherVectorTy &pt,
+	typename std::enable_if<
+	is_vector_with_sqnorm_cache<OtherVectorTy>::value>::type * = nullptr)
+	: vector_type(pt), m_sqnorm(pt.m_sqnorm) { }
+
+    template<typename OtherVectorTy>
+    vector_with_sqnorm_cache(
+	OtherVectorTy &&pt,
+	typename std::enable_if<
+	is_vector_with_sqnorm_cache<OtherVectorTy>::value>::type * = nullptr)
+	: vector_type(std::move(pt)), m_sqnorm(std::move(pt.m_sqnorm)) { }
+
+/*
     vector_with_sqnorm_cache(const vector_with_sqnorm_cache &pt)
 	: vector_type(pt), m_sqnorm(pt.m_sqnorm) { }
     vector_with_sqnorm_cache(vector_with_sqnorm_cache &&pt)
 	: vector_type(std::move(pt)), m_sqnorm(std::move(pt.m_sqnorm)) { }
+*/
     ~vector_with_sqnorm_cache() { }
 
     void update_sqnorm() {
@@ -50,6 +68,22 @@ public:
 	m_sqnorm = vector_type::sq_dist( *this );
     }
     value_type get_sqnorm() const { return m_sqnorm; }
+
+    template<typename OtherVectorTy>
+    const typename std::enable_if<is_vector_with_sqnorm_cache<OtherVectorTy>::value, vector_with_sqnorm_cache>::type &
+    operator = ( const OtherVectorTy & pt ) {
+	m_sqnorm = pt.m_sqnorm;
+	vector_type::operator = ( pt );
+	return *this;
+    }
+
+    template<typename OtherVectorTy>
+    typename std::enable_if<is_vector_with_sqnorm_cache<OtherVectorTy>::value>::type
+    copy_attributes( const OtherVectorTy & pt ) {
+	m_sqnorm = pt.m_sqnorm;
+	vector_type::copy_attributes( pt );
+    }
+
 };
 
 // Extend a vector (sparse or dense) with an additive counter. The counter
@@ -80,12 +114,24 @@ public:
 		 MMT::has_ownership>::type>
     vector_with_add_counter(index_type length_)
 	: vector_type(length_), m_count(0) { }
-    vector_with_add_counter(value_type *value_, index_type length_)
-	: vector_type(value_, length_), m_count(0) { }
-    vector_with_add_counter(const vector_with_add_counter &pt)
+    vector_with_add_counter(value_type *value_, index_type length_,
+			    counter_type count = 0)
+	: vector_type(value_, length_), m_count(count) { }
+
+    template<typename OtherVectorTy>
+    vector_with_add_counter(
+	const OtherVectorTy &pt,
+	typename std::enable_if<
+	is_vector_with_add_counter<OtherVectorTy>::value>::type * = nullptr )
 	: vector_type(pt), m_count(pt.m_count) { }
-    vector_with_add_counter(vector_with_add_counter &&pt)
+
+    template<typename OtherVectorTy>
+    vector_with_add_counter(
+	OtherVectorTy &&pt,
+	typename std::enable_if<
+	is_vector_with_add_counter<OtherVectorTy>::value>::type * = nullptr )
 	: vector_type(std::move(pt)), m_count(std::move(pt.m_count)) { }
+
     ~vector_with_add_counter() { }
 
     void clear() {
@@ -115,6 +161,21 @@ public:
 	this->vector_type::operator += ( v );
 	m_count += v.m_count;
 	return *this;
+    }
+
+    template<typename OtherVectorTy>
+    const typename std::enable_if<is_vector_with_add_counter<OtherVectorTy>::value, vector_with_add_counter>::type &
+    operator = ( const OtherVectorTy & pt ) {
+	m_count = pt.m_count;
+	vector_type::operator = ( pt );
+	return *this;
+    }
+
+    template<typename OtherVectorTy>
+    typename std::enable_if<is_vector_with_sqnorm_cache<OtherVectorTy>::value>::type
+    copy_attributes( const OtherVectorTy & pt ) {
+	m_count = pt.m_count;
+	vector_type::copy_attributes( pt );
     }
 };
 
