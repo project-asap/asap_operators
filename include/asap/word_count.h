@@ -75,6 +75,12 @@ struct IsUpper {
     }
 };
 
+struct IsUpperOrQuote {
+    bool operator() ( char c ) const {
+	return std::isupper( c ) || c == '\'';
+    }
+};
+
 struct charp_cmp {
     bool operator () ( const char * lhs, const char * rhs ) const {
 	return strcmp( lhs, rhs ) < 0;
@@ -225,25 +231,41 @@ void word_catalog( char * data, size_t data_size,
 	// Split the data at the chunk_size.
         char * end = std::min(split + chunk_size, data_end);
 	// Adjust the split to word boundaries.
-	end = std::find_if_not( end, data_end, IsSpace() );
+	// end = std::find_if( end, data_end, IsSpace() );
+	while( end != data_end && 
+	       *end != ' ' && *end != '\t' &&
+	       *end != '\r' && *end != '\n' )
+	    ++end;
 	if( end != data_end )
 	    *end = '\0';
 
 	// Process the chunk from split to end
-	/*cilk_spawn*/ [&] ( char * split, char * end ) {
+	cilk_spawn [&] ( char * split, char * end ) {
 	    // TODO: is it better for locality to move toupper() into the
 	    //       inner loop, transforming while checking?
 	    // Or better: use a word_bank with self-allocated storage and
 	    // replace_copy_if words (need to pay attention to allocation of
 	    // word_bank).
-	    std::for_each( split, end, ToUpper() );
+	    // std::for_each( split, end, ToUpper() );
+	    for( char *I=split; I != end; ++I ) {
+		// TODO: check performance with std::for_each and std::find
+		// but with optimized codes in functors.
+		// *I = std::toupper( *I );
+		if( *I >= 'a' && *I <= 'z' )
+		    *I = ( *I - 'a' ) + 'A';
+	    }
 
 	    while( split != end ) {
 		// Skip non-upper characters
-		split = std::find_if( split, end, IsUpper() );
+		// split = std::find_if( split, end, IsUpper() );
+		while( split != end && !(*split >= 'A' && *split <= 'Z') )
+		    ++split;
 		// Pass over word
 		char * w = split;
-		split = std::find_if_not( split, end, IsUpper() );
+		// split = std::find_if_not( split, end, IsUpperOrQuote() );
+		while( split != end
+		       && ((*split >= 'A' && *split <= 'Z') || *split == '\'') )
+		    ++split;
 		*split = '\0'; // terminate
 
 		if( split != w )
@@ -566,44 +588,6 @@ tfidf_by_words( InputIterator I, InputIterator E,
     // Note: sort vectors if needed, as we have stored them concurrently.
     cilk_for( size_t i=0; i < num_points; ++i )
 	vectors[i].sort_by_index();
-
-#if 0
-    // Calculate TF/IDF scores
-    size_t pstep = 2048;
-    cilk_for( size_t ii=0; ii < num_points; ii += pstep ) {
-	// Get word to operate on
-	auto PI = std::next( joint_word_map.begin(), ii );
-	size_t imax = std::min( ii+pstep, num_points );
-	for( size_t i=ii; i < imax; ++i, ++PI ) {
-	    size_t tcount = PI->second.first; // Number of files involved in.
-	    value_type norm
-		= log10(value_type(num_points + 1) / value_type(tcount + 1)); 
-
-	    value_type *v = &vectors.get_alloc_v()[vec_start[i]];
-	    index_type *c = &vectors.get_alloc_i()[vec_start[i]];
-	    size_t f = 0;
-	    // Locate the files containing this word. ID (dimension number)
-	    // follows order in iteration range.
-	    decltype(PI->second.second) id = 0;
-	    for( auto MI=I; MI != E; ++MI, ++id ) {
-		// Check if word is contained within this file/map
-		auto F = is_sorted
-		    ? MI->binary_search( PI->first )
-		    : MI->find( PI->first );
-		if( F != MI->cend() ) {
-		    size_t tf = F->second;
-		    c[f] = id;
-		    v[f] = value_type(tf) * norm; // tfidf
-		    ++f;
-		}
-	    }
-	    assert( f == tcount );
-
-	    // Note: no need to sort vectors, as we have assigned IDs
-	    // in the order we iterated over the files.
-	}
-    }
-#endif
 
     delete[] vec_start;
     delete[] word_ctr;

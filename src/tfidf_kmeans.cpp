@@ -134,14 +134,14 @@ int main(int argc, char **argv) {
 	    // Convert file's catalog to a (sorted) list of pairs
 	    catalog[i].reserve( wmap.size() );    // avoid re-allocations
 	    catalog[i].insert( std::move(wmap) ); // move out wmap contents
-
-	    // The list of pairs is sorted if word_map_type is based on std::map
-	    // but it is not sorted if based on std::unordered_map
-	    if( do_sort )
-		std::sort( catalog[i].begin(), catalog[i].end(),
-			   asap::pair_cmp<word_map_type::value_type,
-			   word_map_type::value_type>() );
 	} // delete wmap
+
+	// The list of pairs is sorted if word_map_type is based on std::map
+	// but it is not sorted if based on std::unordered_map
+	if( do_sort )
+	    std::sort( catalog[i].begin(), catalog[i].end(),
+		       asap::pair_cmp<word_map_type::value_type,
+		       word_map_type::value_type>() );
 
 	// std::cerr << ": " << catalog[i].size() << " words\n";
 	// Reading from std::vector rather than std::map should be faster...
