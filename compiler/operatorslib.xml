@@ -1,0 +1,52 @@
+<library>
+    <ops>
+        <operator>
+            <name>tfidf</name>
+            <template>
+                <key>run</key>
+                <value>tfidf(DATA_PARAM1, OP_PARAM1, OP_PARAM2);</value>
+            </template>
+            <template>
+                <key>input</key>
+                <value>get_dir_listing(FILE_PARAM1, dir_list);</value>
+            </template>
+            <template>
+                <key>output</key>
+                <value>output(DATA_PARAM1, FILE_PARAM1);</value>
+            </template>
+            <datastructure>
+                <type>word_map_type</type>
+                <!-- <type>word_list_type</type> -->
+            </datastructure>
+        </operator>
+        <operator>
+            <name>kmeans</name>
+            <template>
+                <key>run</key>
+                <value>kmeans(DATA_PARAM1, OP_PARAM1);</value>
+            </template>
+            <template>
+                <key>input</key>
+                <value>readFile(FILE_PARAM1);</value>
+            </template>
+            <template>
+                <key>output</key>
+                <value>output(DATA_PARAM1, FILE_PARAM1);</value>
+            </template>
+            <datastructure>
+                <!-- <type>word_map_type</type> -->
+                <type>word_list_type</type>
+            </datastructure>
+        </operator>
+
+    </ops>
+</library>
+
+<!-- 
+For reference, TODELETE:
+action_map = {'input':'readDir(FILE_PARAM1);', 'run': 'tfidf(DATA_PARAM1, OP_PARAM1, OP_PARAM2);','output':'output(DATA_PARAM1, FILE_PARAM1);'}
+
+action_map = {'input':'readFile(FILE_PARAM1);', 'run': 'kmeans(DATA_PARAM1, OP_PARAM1);', 'output':'output(DATA_PARAM1, FILE_PARAM1);'}
+
+-->
+
