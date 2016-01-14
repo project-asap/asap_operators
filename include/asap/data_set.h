@@ -61,7 +61,7 @@ private:
     std::shared_ptr<vector_list_type>	  m_vectors;
 
 public:
-    // data_set( char * relation ) : m_relation( relation ) { }
+    data_set() : m_relation( nullptr ) { }
     data_set( const char * relation,
 	      const std::shared_ptr<index_list_type> & idx_names,
 	      const std::shared_ptr<vector_list_type> & vectors )

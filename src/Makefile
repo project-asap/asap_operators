@@ -15,10 +15,14 @@ LDFLAGS+=-g -std=c++11 -lrt $(OPT)
 
 all: $(tests)
 
-%: %.o
+#kmeans: kmeans.o
+#tfidf_list_list: tfidf_list_list.o
 
 %.o: %.cpp $(INCLUDE)
 
+%: %.o
+
+.PHONY: clean
 clean:
 	rm -f $(tests) $(OBJ)
 

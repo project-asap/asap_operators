@@ -320,8 +320,13 @@ public:
     void resize( size_t sz ) { this->m_words.resize( sz ); }
     void reserve( size_t sz ) { this->m_words.reserve( sz ); }
 
-    // Retrieve n-th word
-    const char * operator[] ( size_t n ) const { return this->m_words[n]; }
+    // Retrieve n-th word.
+    // Depends on pure list (like in directory list - single word)
+    // or used as associative container (key-value pairs).
+    // Need to differentiate word_list from word_value_list...
+    auto operator[] ( size_t n ) const -> decltype(this->m_words[n]) {
+	return this->m_words[n];
+    }
 
     iterator begin() { return this->m_words.begin(); }
     iterator end() { return this->m_words.end(); }
@@ -330,7 +335,18 @@ public:
     const_iterator cend() const { return this->m_words.cend(); }
 
     const_iterator find( const char * w ) const {
-	value_type val = std::make_pair( w, typename value_type::second_type() );
+	value_type val
+	    = std::make_pair( w, typename value_type::second_type() );
+	pair_cmp<value_type,value_type> cmp;
+	for( const_iterator I=cbegin(), E=cend(); I != E; ++I )
+	    if( !cmp( *I, val ) && !cmp( val, *I ) )
+		return I;
+	return cend();
+    }
+
+    const_iterator binary_search( const char * w ) const {
+	value_type val
+	    = std::make_pair( w, typename value_type::second_type() );
 	// val.first = w; // only if std::pair
 	std::pair<const_iterator,bool> ret
 	    = binary_search( cbegin(), cend(), this->size(), val,
@@ -543,6 +559,13 @@ public:
     }
     const_iterator find( const char * w ) const {
 	return this->m_words.find( w );
+    }
+    // For reference and ease of substituting types in templates
+    iterator binary_search( const char * w ) {
+	return find( w );
+    }
+    const_iterator binary_search( const char * w ) const {
+	return find( w );
     }
 
     template<typename OtherIndexTy, typename OtherWordBankTy>

@@ -9,6 +9,8 @@
 #include <cctype>
 #include <map>
 #include <cmath>
+#include <type_traits>
+#include <iterator>
 #include <cilk/cilk.h>
 #include <cilk/reducer.h>
 
@@ -346,6 +348,27 @@ struct ii_pair {
     }
 };
 
+namespace internal {
+
+template<typename Iterator>
+void assign_ids( Iterator I, Iterator E ) {
+    decltype(I->second.second) uniq_id = 0;
+    for( Iterator JI=I; JI != E; ++JI )
+	JI->second.second = uniq_id++;
+}
+
+template<typename Iterator,
+	 typename = typename std::enable_if<
+	     std::is_same<typename std::iterator_traits<Iterator>::iterator_tag,
+			  std::random_access_iterator_tag>::value>::type>
+void assign_ids( Iterator I, Iterator E ) {
+    decltype(I->second.second) uniq_id = 0;
+    cilk_for( Iterator JI=I; JI != E; ++JI )
+	JI->second.second = uniq_id++;
+}
+
+} // internal
+
 template<typename VectorTy, typename InputIterator, typename WordContainerTy>
 data_set<VectorTy, WordContainerTy>
 tfidf( InputIterator I, InputIterator E,
@@ -386,12 +409,7 @@ tfidf( InputIterator I, InputIterator E,
 
     // Assign unique IDs to each word
 #if 1
-    {
-	index_type uniq_id = 0;
-	for( typename index_list_type::iterator JI=joint_word_map.begin(),
-		 JE=joint_word_map.end(); JI != JE; ++JI )
-	    JI->second.second = uniq_id++;
-    }
+    internal::assign_ids( joint_word_map.begin(), joint_word_map.end() );
 #else
     // Parallelize by explicitly identifying chunks, iteration range is IDs!
     // and std::next from begin once per chunk, then iterate step by step
@@ -418,13 +436,6 @@ tfidf( InputIterator I, InputIterator E,
 #endif
 	
     // Calculate TF/IDF scores
-    // TODO: consider inplace version where TF/IDF scores are overwriting
-    //       the word count fields instead of creating new vectors
-    //       This should be better when doing, e.g., output next
-    //       because
-    //       (i) no new storage required
-    //       (ii) seq loop over maps for preparing vectors is avoided
-    //       (iii) seq loop over joint_word_map setting IDs is avoided
     cilk_for( size_t i=0; i < num_points; ++i ) {
 	auto PI = std::next( I, i ); // Get word map to operate on
 	size_t fcount = PI->size();
@@ -435,8 +446,9 @@ tfidf( InputIterator I, InputIterator E,
 	for( typename its_const_type<InputIterator>::const_iterator
 		 MI=PI->cbegin(), ME=PI->cend(); MI != ME; ++MI ) {
 	    // Should always find the word!
-	    typename index_list_type::const_iterator F
-		= joint_word_map.find( MI->first );
+	    typename index_list_type::const_iterator F = is_sorted
+		? joint_word_map.binary_search( MI->first )
+		: joint_word_map.find( MI->first );
 	    assert( F != joint_word_map.cend() );
 
 	    size_t tcount = F->second.first;
@@ -460,6 +472,143 @@ tfidf( InputIterator I, InputIterator E,
     delete[] vec_start;
 
     const char * name = "tfidf";
+    return data_set_type( name, joint_word_map_ptr, vectors_ptr );
+}
+
+/*
+ * tfidf_by_words: construct TF/IDF scores and structure output as one vector
+ *                 per word.
+ *
+ * Pre-requisite: every input map (iterated over by InputIterator) must be
+ * searchable with find(), so they must be sorted for binary search to work.
+ */
+template<typename VectorTy, typename InputIterator, typename WordContainerTy>
+data_set<VectorTy, WordContainerTy>
+tfidf_by_words( InputIterator I, InputIterator E,
+		std::shared_ptr<WordContainerTy> & joint_word_map_ptr,
+		bool is_sorted = true ) {
+    typedef data_set<VectorTy, WordContainerTy> data_set_type;
+    typedef typename data_set_type::vector_list_type vector_list_type;
+    typedef typename data_set_type::index_list_type index_list_type;
+    typedef typename vector_list_type::value_type value_type;
+    typedef typename vector_list_type::index_type index_type;
+
+    // Reference to work with
+    index_list_type & joint_word_map = *joint_word_map_ptr;
+
+    // Get statistics on input word maps
+    size_t num_dimensions = std::distance( I, E );
+    size_t num_points = joint_word_map.size();
+    size_t nonzeros = std::for_each( I, E, SizeCounter<decltype(*I)>() ).size;
+
+    // Construct set of vectors, either dense or sparse
+    static_assert( is_sparse_vector<VectorTy>::value, "must be sparse - constructor" );
+    std::shared_ptr<vector_list_type> vectors_ptr
+	= std::make_shared<vector_list_type>( num_points, nonzeros );
+    vector_list_type & vectors = *vectors_ptr;
+
+    // Prepare for parallel access. Vectors are by word, so we need to know
+    // the number of files each word occurs in.
+    // As we are iterating over all word in this version of TF/IDF, assign
+    // unique IDs to each word in the process.
+    size_t * vec_start = new size_t[num_points];
+    size_t inc_nonzeros = 0;
+    size_t i=0;
+    decltype(joint_word_map.begin()->second.second) uniq_id = 0;
+    for( typename index_list_type::iterator JI=joint_word_map.begin(),
+	     JE=joint_word_map.end(); JI != JE; ++JI, ++i ) {
+	size_t fcount = JI->second.first; // number of documents containing word
+	vec_start[i] = inc_nonzeros;
+	inc_nonzeros += fcount;
+
+	vectors.emplace_back( num_dimensions, fcount );
+
+	JI->second.second = uniq_id++; // set unique ID for the word
+    }
+    assert( nonzeros == inc_nonzeros );
+
+    // Counters for concurrent access
+    size_t * word_ctr = new size_t [num_points];
+    std::fill( &word_ctr[0], &word_ctr[num_points], 0 );
+
+    // Calculate word-to-file mapping
+    // For each file
+    cilk_for( size_t i=0; i < num_dimensions; ++i ) {
+	// The i-th file
+	auto PI = std::next( I, i );
+
+	// For each word in the file
+	for( typename its_const_type<InputIterator>::const_iterator
+		 MI=PI->cbegin(), ME=PI->cend(); MI != ME; ++MI ) {
+	    // Should always find the word!
+	    typename index_list_type::const_iterator F = is_sorted
+		? joint_word_map.binary_search( MI->first )
+		: joint_word_map.find( MI->first );
+	    assert( F != joint_word_map.cend() );
+
+	    size_t fcount = F->second.first; // Number of files involved in.
+	    value_type norm
+		= log10(value_type(num_points + 1) / value_type(fcount + 1)); 
+	    size_t id = F->second.second; // Word ID
+	
+	    size_t pos = __sync_fetch_and_add( &word_ctr[id], 1 );
+	    assert( pos < fcount );
+
+	    value_type *v = &vectors.get_alloc_v()[vec_start[id]];
+	    index_type *c = &vectors.get_alloc_i()[vec_start[id]];
+
+	    size_t tf = MI->second; // Term frequency
+	    v[pos] = value_type(tf) * norm; // tfidf
+	    c[pos] = i;
+	}
+    }
+
+    // Note: sort vectors if needed, as we have stored them concurrently.
+    cilk_for( size_t i=0; i < num_points; ++i )
+	vectors[i].sort_by_index();
+
+#if 0
+    // Calculate TF/IDF scores
+    size_t pstep = 2048;
+    cilk_for( size_t ii=0; ii < num_points; ii += pstep ) {
+	// Get word to operate on
+	auto PI = std::next( joint_word_map.begin(), ii );
+	size_t imax = std::min( ii+pstep, num_points );
+	for( size_t i=ii; i < imax; ++i, ++PI ) {
+	    size_t tcount = PI->second.first; // Number of files involved in.
+	    value_type norm
+		= log10(value_type(num_points + 1) / value_type(tcount + 1)); 
+
+	    value_type *v = &vectors.get_alloc_v()[vec_start[i]];
+	    index_type *c = &vectors.get_alloc_i()[vec_start[i]];
+	    size_t f = 0;
+	    // Locate the files containing this word. ID (dimension number)
+	    // follows order in iteration range.
+	    decltype(PI->second.second) id = 0;
+	    for( auto MI=I; MI != E; ++MI, ++id ) {
+		// Check if word is contained within this file/map
+		auto F = is_sorted
+		    ? MI->binary_search( PI->first )
+		    : MI->find( PI->first );
+		if( F != MI->cend() ) {
+		    size_t tf = F->second;
+		    c[f] = id;
+		    v[f] = value_type(tf) * norm; // tfidf
+		    ++f;
+		}
+	    }
+	    assert( f == tcount );
+
+	    // Note: no need to sort vectors, as we have assigned IDs
+	    // in the order we iterated over the files.
+	}
+    }
+#endif
+
+    delete[] vec_start;
+    delete[] word_ctr;
+
+    const char * name = "tfidf-by-words";
     return data_set_type( name, joint_word_map_ptr, vectors_ptr );
 }
 

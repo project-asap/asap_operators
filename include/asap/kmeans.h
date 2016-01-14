@@ -58,8 +58,23 @@ public:
 
     const vector_list_type & centres() const { return base_type::get_vectors(); }
 
+/*
+char buf[] = "data: 0000000000\r\n";
+for (int i = 0; i < 100; i++) {
+    // int portion starts at position 6
+    itoa(getData(i), &buf[6], 10);
+
+    // The -1 is because we don't want to write the nul character.
+    fwrite(buf, 1, sizeof(buf) - 1, stdout);
+}
+ */
+
     // This is much faster with C stdio
     void output( std::ostream & os ) {
+	// No flushing
+	os << std::nounitbuf;
+	os.tie(0);
+
 	os << "                                 Cluster#\n"
 	   << "       Attribute     Full Data";
 	for( size_t i=0; i < num_clusters(); ++i )
@@ -94,8 +109,11 @@ public:
 	size_t ndim = base_type::get_dimensions();
 	size_t ncentres = num_clusters();
 	auto centres_ =  &centres()[0];
-	for( index_type i=0; i < ndim; ++i ) {
-	    os << std::setw(16) << std::left << base_type::get_index(i)
+	// Use iterator for efficiency (in case lookup is slow), but need
+	// additional modelling of word_bank in case container stores tripples
+	// auto WI = base_type::index_cbegin();
+	for( index_type i=0; i < ndim; ++i ){ // , ++WI ) {
+	    os << std::setw(16) << std::left << base_type::get_index(i) //  *WI 
 	       << std::right;
 	    value_type s = 0;
 	    for( size_t k=0; k < ncentres; ++k )
@@ -107,6 +125,9 @@ public:
 	    os << '\n';
 	}
 	os.precision(old_prec);
+	
+	// Flushing
+	os << std::unitbuf;
     }
 };
 

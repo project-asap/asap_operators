@@ -26,17 +26,19 @@ size_t num_clusters = DEF_NUM_MEANS;
 size_t max_iters = 0;
 char const * indir = nullptr;
 char const * outfile = nullptr;
+bool by_words = false;
+bool do_sort = false;
 
 static void help(char *progname) {
     std::cout << "Usage: " << progname
-	      << " -i <indir> -o <outfile> -c <numclusters> [-m <maxiters>]\n";
+	      << " -i <indir> -o <outfile> -c <numclusters> [-m <maxiters>] [-w] [-s]\n";
 }
 
 static void parse_args(int argc, char **argv) {
     int c;
     extern char *optarg;
     
-    while ((c = getopt(argc, argv, "i:o:c:m:")) != EOF) {
+    while ((c = getopt(argc, argv, "i:o:c:m:ws")) != EOF) {
         switch (c) {
 	case 'i':
 	    indir = optarg;
@@ -49,6 +51,12 @@ static void parse_args(int argc, char **argv) {
 	    break;
 	case 'c':
 	    num_clusters = atoi(optarg);
+	    break;
+	case 'w':
+	    by_words = true;
+	    break;
+	case 's':
+	    do_sort = true;
 	    break;
 	case '?':
 	    help(argv[0]);
@@ -63,10 +71,12 @@ static void parse_args(int argc, char **argv) {
     if( !outfile )
 	fatal( "Output file must be supplied." );
     
-    std::cerr << "Number of clusters = " << num_clusters << '\n';
-    std::cerr << "Maximum iterations = " << max_iters << '\n';
     std::cerr << "Input directory = " << indir << '\n';
     std::cerr << "Output file = " << outfile << '\n';
+    std::cerr << "TF/IDF by words = " << ( by_words ? "true\n" : "false\n" );
+    std::cerr << "TF/IDF by words = " << ( by_words ? "true\n" : "false\n" );
+    std::cerr << "K-Means number of clusters = " << num_clusters << '\n';
+    std::cerr << "K-Means maximum iterations = " << max_iters << '\n';
 }
 
 int main(int argc, char **argv) {
@@ -124,6 +134,13 @@ int main(int argc, char **argv) {
 	    // Convert file's catalog to a (sorted) list of pairs
 	    catalog[i].reserve( wmap.size() );    // avoid re-allocations
 	    catalog[i].insert( std::move(wmap) ); // move out wmap contents
+
+	    // The list of pairs is sorted if word_map_type is based on std::map
+	    // but it is not sorted if based on std::unordered_map
+	    if( do_sort )
+		std::sort( catalog[i].begin(), catalog[i].end(),
+			   asap::pair_cmp<word_map_type::value_type,
+			   word_map_type::value_type>() );
 	} // delete wmap
 
 	// std::cerr << ": " << catalog[i].size() << " words\n";
@@ -145,11 +162,16 @@ int main(int argc, char **argv) {
 	= std::make_shared<word_map_type2>();
     allwords_ptr->swap( allwords.get_value() );
 
-    data_set_type data_set
-	= asap::tfidf<vector_type, std::vector<word_list_type>::const_iterator,
-		      word_map_type2>(
-			  catalog.cbegin(), catalog.cend(), allwords_ptr,
-			  false ); // catalogs are not sorted!
+    data_set_type data_set;
+    if( by_words ) {
+	data_set = asap::tfidf_by_words<vector_type>(
+	    catalog.cbegin(), catalog.cend(), allwords_ptr,
+	    do_sort ); // whether catalogs are sorted
+    } else {
+	data_set = asap::tfidf<vector_type>(
+	    catalog.cbegin(), catalog.cend(), allwords_ptr,
+	    do_sort ); // whether catalogs are sorted
+    }
     get_time( end );
     print_time("TF/IDF", begin, end);
     std::cerr << "TF/IDF number of words: " << data_set.get_dimensions()

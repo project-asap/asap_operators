@@ -23,22 +23,30 @@
 
 char const * indir = nullptr;
 char const * outfile = nullptr;
+bool by_words = false;
+bool do_sort = false;
 
 static void help(char *progname) {
-    std::cout << "Usage: " << progname << " -i <indir> -o <outfile>\n";
+    std::cout << "Usage: " << progname << " -i <indir> -o <outfile> [-w] [-s]\n";
 }
 
 static void parse_args(int argc, char **argv) {
     int c;
     extern char *optarg;
     
-    while ((c = getopt(argc, argv, "i:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "i:o:ws")) != EOF) {
         switch (c) {
 	case 'i':
 	    indir = optarg;
 	    break;
 	case 'o':
 	    outfile = optarg;
+	    break;
+	case 'w':
+	    by_words = true;
+	    break;
+	case 's':
+	    do_sort = true;
 	    break;
 	case '?':
 	    help(argv[0]);
@@ -53,6 +61,8 @@ static void parse_args(int argc, char **argv) {
     
     std::cerr << "Input directory = " << indir << '\n';
     std::cerr << "Output file = " << outfile << '\n';
+    std::cerr << "TF/IDF by words = " << ( by_words ? "true\n" : "false\n" );
+    std::cerr << "TF/IDF list sorted = " << ( do_sort ? "true\n" : "false\n" );
 }
 
 int main(int argc, char **argv) {
@@ -107,9 +117,16 @@ int main(int argc, char **argv) {
 	    word_map_type wmap;
 	    asap::word_catalog( std::string(*std::next(dir_list.cbegin(),i)),
 				wmap ); // catalog[i] );
-	    // Convert file's catalog to a (sorted) list of pairs
+	    // Convert file's catalog to a list of pairs
 	    catalog[i].reserve( wmap.size() );    // avoid re-allocations
 	    catalog[i].insert( std::move(wmap) ); // move out wmap contents
+
+	    // The list of pairs is sorted if word_map_type is based on std::map
+	    // but it is not sorted if based on std::unordered_map
+	    if( do_sort )
+		std::sort( catalog[i].begin(), catalog[i].end(),
+			   asap::pair_cmp<word_map_type::value_type,
+			   word_map_type::value_type>() );
 	} // delete wmap
 
 	// std::cerr << ": " << catalog[i].size() << " words\n";
@@ -131,21 +148,38 @@ int main(int argc, char **argv) {
 	= std::make_shared<word_map_type2>();
     allwords_ptr->swap( allwords.get_value() );
 
-    data_set_type tfidf
-	= asap::tfidf<vector_type, std::vector<word_list_type>::const_iterator,
-		      word_map_type2>(
-			  catalog.cbegin(), catalog.cend(), allwords_ptr,
-			  false ); // catalogs are not sorted!
+    data_set_type tfidf;
+    if( by_words ) {
+	tfidf = asap::tfidf_by_words<vector_type>(
+	    catalog.cbegin(), catalog.cend(), allwords_ptr,
+	    do_sort ); // whether catalogs are sorted
+    } else {
+	tfidf = asap::tfidf<vector_type>(
+	    catalog.cbegin(), catalog.cend(), allwords_ptr,
+	    do_sort ); // whether catalogs are sorted
+    }
+
     get_time (end);
     print_time("TF/IDF", begin, end);
 
     get_time( begin );
     std::ofstream of( outfile, std::ios_base::out );
 
-    size_t i=0;
-    for( auto I=tfidf.vector_cbegin(), E=tfidf.vector_cend(); I != E; ++I, ++i ){
-	of << dir_list[i] << ": " << *I << std::endl;
+    if( by_words ) {
+	auto WI = allwords_ptr->begin();
+	for( auto I=tfidf.vector_cbegin(), E=tfidf.vector_cend();
+	     I != E; ++I, ++WI ){
+	    of << WI->first << ": " << *I << std::endl;
+	}
+    } else {
+	size_t i=0;
+	auto WI = dir_list.begin();
+	for( auto I=tfidf.vector_cbegin(), E=tfidf.vector_cend();
+	     I != E; ++I, ++WI ){
+	    of << *WI << ": " << *I << std::endl;
+	}
     }
+
     of.close();
     get_time (end);
     print_time("output", begin, end);
