@@ -11,7 +11,7 @@ PRE-REQUISITES (optional)
 
 RUNNING 
 
-   ./tocpp.py -i workflow.xml -o workflow.cpp 
+   ./tocpp.py -i workflow.xml -l operatorslib.xml -o workflow.cpp 
 
 Where :
     workflow.xml is the proposed/imagined output format of Unige's workflow description.
