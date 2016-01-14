@@ -1,7 +1,7 @@
 <workflow>
     <ops>
         <operator>
-            <input>"input.txt"</input>
+            <input>"myInputDirectory"</input>
             <run maxiters="5" numclusters="4">tfidf</run>
         </operator>
         <operator>

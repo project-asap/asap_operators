@@ -64,6 +64,15 @@ class tfidf:
     # action_map = {'input':'readDir(FILE_PARAM1);', 'run': 'tfidf(DATA_PARAM1, OP_PARAM1, OP_PARAM2);','output':'output(DATA_PARAM1, FILE_PARAM1);'}
     action_map = {}
 
+
+    # set default data structure type in case none is specified in operator library
+    dataStructType='word_map_type'
+
+    # func for setting data structure type
+    # @staticmethod
+    def setDataStructType(self, dst):
+        self.dataStructType=dst
+        
     # To queue operator parameters
     paramQueue=deque([])
 
@@ -75,10 +84,26 @@ class kmeans:
     # action_map = {'input':'readFile(FILE_PARAM1);', 'run': 'kmeans(DATA_PARAM1, OP_PARAM1);', 'output':'output(DATA_PARAM1, FILE_PARAM1);'}
     action_map = {}
 
+    # set default data structure type in case none is specified in operator library
+    dataStructType='word_map_type'
+
+    # func for setting data structure type
+    # @staticmethod
+    def setDataStructType(self, dst):
+        self.dataStructType=dst
+        
+
     # To queue operator parameters
     paramQueue=deque([])
 
-
+"""
+    Declare global instances of operator class instances so we can set/get member vars
+    Note: not the best way.  If we ever need an operator more than once in workflow?
+    these need to be made local to main and passesd as args to functions such as 
+    setActionMappings etc
+"""
+g_tfidf = tfidf()
+g_kmeans = kmeans()
 
 """
         map from xml element name to python library/templace code class above
@@ -96,12 +121,13 @@ def setActionMappings(tree):
     root = tree.getroot()
     for operator in root.findall('ops/operator'):
         opName = operator.find('name')
-        print "opName is ", opName.text
         for template in operator.findall('template'):
             key=template.find('key').text
             value=template.find('value').text
-            print "key is ", key, " value is ", value
-            eval(opName.text).action_map[key]=value
+            eval('g_'+opName.text).action_map[key]=value
+        dataStructType = operator.find('datastructure/type')
+        eval('g_'+opName.text).setDataStructType(dataStructType.text)
+        # print opName.text, " imm after setting, struct type is ", eval('g_'+opName.text).dataStructType
 
 
 
@@ -171,11 +197,16 @@ def main(argv):
     # tabPrint("int main() {\n\n", tabcount, code)
     tabcount=1
 
-    """ print header and main_declarations template sections of code """
+    """" START OF SECTION PRINTING TEMPLATE FILES """
 
+    """ print header and main_declarations template sections of code """
     with open('templates/header.template', 'r') as myfile:
         data=myfile.read()
+    tabPrint(data, 0, code)
 
+    """ declarations within main """
+    with open('templates/maindeclarations.template', 'r') as myfile:
+        data=myfile.read()
     tabPrint(data, 0, code)
 
     """ 
@@ -185,14 +216,13 @@ def main(argv):
     interDataParamQueue=deque([])
     interFileIOParamQueue=deque([])
 
-
     """ 
         Keep track of IO files declared so we can merge variables names so we have 1 var for the same filename
     """
     declaredIOFiles={}
 
     """ 
-        Add the declarations for input and output 'childs' of operator 
+        Add the declarations for input and output 'child's of operator 
     """
     tabPrint ("//  Variable Declarations holding input/output filenames  \n\n", tabcount, code)
     ctr=0
@@ -224,7 +254,7 @@ def main(argv):
     """
        Print declarations for ordinary variables (read from attributes in operator 'run' element)
     """ 
-    tabPrint("//  Variable Declarations ## \n\n", tabcount, code)
+    tabPrint("//  Variable Declarations \n\n", tabcount, code)
     ctr=0; 
     for operator in root.findall('ops/operator'):
         opName = operator.find('run')
@@ -240,10 +270,44 @@ def main(argv):
                 tabPrint (declarationStr, tabcount, code)
         ctr += 1
     tabPrint ("\n", tabcount, code)
-    
+
+
+    """ operators calling sequence 
+        first read the catalog_build replacement code from the appropriate file
+    """
+
+    tabPrint ("//  Calls to Operator functions  \n\n", tabcount, code)
+    ctr=0
+    for runoperator in root.findall('ops/operator/run'):
+        opName = runoperator.text
+
+        """ operator input section """
+        with open('templates/'+opName+'input.template', 'r') as myfile:
+            data=myfile.read().replace('FILE_PARAM1',interFileIOParamQueue.popleft())
+        tabPrint(data, 0, code)
+
+        with open('templates/'+opName+'_'+'callsequence.template', 'r') as myfile:
+            
+            data=myfile.read().replace('WORD_TYPE',eval('g_'+opName).dataStructType)
+            if 'CATALOG_BUILD_CODE' in data:
+                with open('templates/'+opName+'_'+eval('g_'+opName).dataStructType+'_catalogbuild.template', 'r') as myfile:
+                    catalogBuildCode=myfile.read()
+                data=data.replace('CATALOG_BUILD_CODE',catalogBuildCode)
+            # data=myfile.read().replace('WORD_TYPE','TEST').replace('CATALOG_BUILD_CODE',catalogBuildCode)
+        tabPrint(data, 0, code)
+
+        """ output section """
+        with open('templates/'+opName+'output.template', 'r') as myfile:
+            data=myfile.read().replace('OUTFILE',interFileIOParamQueue.popleft())
+        tabPrint(data, 0, code)
+
+    """ output close of main section """
+    with open('templates/mainclose.template', 'r') as myfile:
+        data=myfile.read()
+    tabPrint(data, 0, code)
+
     """ 
        Print calls to the actual operator core functions
-    """
     tabPrint ("//  Calls to Operator functions  \n\n", tabcount, code)
     ctr=0
     for operator in root.findall('ops/operator'):
@@ -263,6 +327,7 @@ def main(argv):
             ctr += 1
     tabcount -=1
     tabPrint ("\n}", tabcount, code)
+    """
     
 
 """
