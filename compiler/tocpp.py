@@ -58,8 +58,8 @@ def func_call(tag, signature, data_op_queue, fileio_op_queue, op_queue):
 """
 class tfidf:
     """ Represents options and declaration templates for tfidf """
-    declarations = {'input': 'const char * VARIN = VAROUT;', 'output': 'const char * VARIN = VAROUT;',
-                    'maxiters': 'const int VARIN = VAROUT;', 'numclusters': 'const int VARIN = VAROUT;' }
+    declarations = {'input': 'char const * VARIN = VAROUT;', 'output': 'char const * VARIN = VAROUT;'}
+                    # 'max_iters': 'const int VARIN = VAROUT;', 'num_clusters': 'const int VARIN = VAROUT;' }
 
     # action_map = {'input':'readDir(FILE_PARAM1);', 'run': 'tfidf(DATA_PARAM1, OP_PARAM1, OP_PARAM2);','output':'output(DATA_PARAM1, FILE_PARAM1);'}
     action_map = {}
@@ -78,8 +78,9 @@ class tfidf:
 
 class kmeans:
     """ Represents options and declaration templates for kmeans """
-    declarations = {'input': 'const char * VARIN = VAROUT;', 'output': 'const char * VARIN = VAROUT;',
-                    'numclusters': 'const int VARIN = VAROUT;'}
+    declarations = {'input': 'char const * VARIN = VAROUT;', 'output': 'char const * VARIN = VAROUT;',
+                    'num_clusters': 'const int VARIN = VAROUT;', 'max_iters': 'const int VARIN = VAROUT;',
+                    'force_dense': 'const bool VARIN = VAROUT;'}
 
     # action_map = {'input':'readFile(FILE_PARAM1);', 'run': 'kmeans(DATA_PARAM1, OP_PARAM1);', 'output':'output(DATA_PARAM1, FILE_PARAM1);'}
     action_map = {}
@@ -182,12 +183,14 @@ def main(argv):
     """" Parse the operators library file to gather info for op call templates """
     oplib  = open(oplibfile, "r")
     oplibtree=ET.parse(oplibfile)
+    oplib.close()
     setActionMappings(oplibtree)
 
     """  Parse workflow description from XML file """
     workflow = open(workflowfile, "r")
     code = open(codefile, "w")
     wftree=ET.parse(workflowfile)
+    workflow.close()
     root = wftree.getroot()
     
     """ Set tab level for generated code """
@@ -196,18 +199,6 @@ def main(argv):
     """ print start of main block """
     # tabPrint("int main() {\n\n", tabcount, code)
     tabcount=1
-
-    """" START OF SECTION PRINTING TEMPLATE FILES """
-
-    """ print header and main_declarations template sections of code """
-    with open('templates/header.template', 'r') as myfile:
-        data=myfile.read()
-    tabPrint(data, 0, code)
-
-    """ declarations within main """
-    with open('templates/maindeclarations.template', 'r') as myfile:
-        data=myfile.read()
-    tabPrint(data, 0, code)
 
     """ 
         Initialise queue for inter-op data parameters and inter op IO file parameters
@@ -221,92 +212,133 @@ def main(argv):
     """
     declaredIOFiles={}
 
-    """ 
-        Add the declarations for input and output 'child's of operator 
-    """
-    tabPrint ("//  Variable Declarations holding input/output filenames  \n\n", tabcount, code)
-    ctr=0
-    for operator in root.findall('ops/operator'):
-        opName = operator.find('run')
-        for child in operator:
-            if isInputOrOutput(child) is not True:
-                continue
-            declaration=operator_map[opName.text].declarations[child.tag]
-            if declaration is not None :
-                var = child.tag+`ctr`
 
-                # print "After appending in ", child.tag, " ", child.text, " var q has ", interFileIOParamQueue
-                ## Keep track of io files for condensing vars, if it already exists use existing var handle
-                if declaredIOFiles.has_key(child.text):
-                    prevVar = declaredIOFiles[child.text]
-                    var = prevVar
-                else:
-                    declaredIOFiles[child.text]=var
-                    declarationStr = operator_map[opName.text] \
-                                     .declarations[child.tag] \
-                                     .replace("VARIN", var).replace("VAROUT", child.text)
-                    tabPrint (declarationStr, tabcount, code)
-                    tabPrint ("\n", tabcount, code)
-                interFileIOParamQueue.append(var)
-                ctr += 1 
-    tabPrint ("\n", tabcount, code)
-    
-    """
-       Print declarations for ordinary variables (read from attributes in operator 'run' element)
-    """ 
-    tabPrint("//  Variable Declarations \n\n", tabcount, code)
-    ctr=0; 
-    for operator in root.findall('ops/operator'):
-        opName = operator.find('run')
-        for attributeTuple in opName.items():
-            declaration=operator_map[opName.text].declarations[attributeTuple[0]]
-            if declaration is not None :
-                var = attributeTuple[0]+`ctr`
-                operator_map[opName.text].paramQueue.append(var)
-                declarationStr = operator_map[opName.text] \
-                                     .declarations[attributeTuple[0]] \
-                                     .replace("VARIN", var).replace("VAROUT", attributeTuple[1]) \
-                                     + '\n'
-                tabPrint (declarationStr, tabcount, code)
-        ctr += 1
-    tabPrint ("\n", tabcount, code)
+    """" START OF SECTION PRINTING TEMPLATE FILES """
 
-
-    """ operators calling sequence 
-        first read the catalog_build replacement code from the appropriate file
+    """   
+        Loop here so we get each operators version of header and main declaration sections
     """
 
-    tabPrint ("//  Calls to Operator functions  \n\n", tabcount, code)
-    ctr=0
-    for runoperator in root.findall('ops/operator/run'):
-        opName = runoperator.text
-
-        """ operator input section """
-        with open('templates/'+opName+'input.template', 'r') as myfile:
-            data=myfile.read().replace('FILE_PARAM1',interFileIOParamQueue.popleft())
-        tabPrint(data, 0, code)
-
-        with open('templates/'+opName+'_'+'callsequence.template', 'r') as myfile:
-            
-            data=myfile.read().replace('WORD_TYPE',eval('g_'+opName).dataStructType)
-            if 'CATALOG_BUILD_CODE' in data:
-                with open('templates/'+opName+'_'+eval('g_'+opName).dataStructType+'_catalogbuild.template', 'r') as myfile:
-                    catalogBuildCode=myfile.read()
-                data=data.replace('CATALOG_BUILD_CODE',catalogBuildCode)
-            # data=myfile.read().replace('WORD_TYPE','TEST').replace('CATALOG_BUILD_CODE',catalogBuildCode)
-        tabPrint(data, 0, code)
-
-        """ output section """
-        with open('templates/'+opName+'output.template', 'r') as myfile:
-            data=myfile.read().replace('OUTFILE',interFileIOParamQueue.popleft())
-        tabPrint(data, 0, code)
-
-    """ output close of main section """
-    with open('templates/mainclose.template', 'r') as myfile:
+    """ print header and main_declarations template sections of code """
+    with open('templates/header.template', 'r') as myfile:
         data=myfile.read()
+    myfile.close()
     tabPrint(data, 0, code)
 
-    """ 
+    for operator in root.findall('ops/operator'):
+        outterOpName = operator.find('run').text
+    
+        """ 
+            Add the declarations for input and output 'child's of operator 
+        """
+        tabPrint ("//  Variable Declarations holding input/output filenames  \n\n", 0, code)
+        ctr=0
+        for operator in root.findall('ops/operator'):
+            opName = operator.find('run')
+            for child in operator:
+                if isInputOrOutput(child) is not True:
+                    continue
+                declaration=operator_map[opName.text].declarations[child.tag]
+                if declaration is not None :
+                    var = child.tag+`ctr`
+
+                    # print "After appending in ", child.tag, " ", child.text, " var q has ", interFileIOParamQueue
+                    ## Keep track of io files for condensing vars, if it already exists use existing var handle
+                    if declaredIOFiles.has_key(child.text):
+                        prevVar = declaredIOFiles[child.text]
+                        var = prevVar
+                    else:
+                        declaredIOFiles[child.text]=var
+                        declarationStr = operator_map[opName.text] \
+                                         .declarations[child.tag] \
+                                         .replace("VARIN", var).replace("VAROUT", child.text)
+                        tabPrint (declarationStr, 0, code)
+                        tabPrint ("\n", 0, code)
+                    interFileIOParamQueue.append(var)
+                    ctr += 1 
+        tabPrint ("\n", 0, code)
+        
+        """
+           Print declarations for ordinary variables (read from attributes in operator 'run' element)
+        """ 
+        tabPrint("//  Variable Declarations \n\n", 0, code)
+        # ctr=0; 
+        for operator in root.findall('ops/operator'):
+            opName = operator.find('run')
+            for attributeTuple in opName.items():
+                declaration=operator_map[opName.text].declarations[attributeTuple[0]]
+                if declaration is not None :
+                    # var = attributeTuple[0]+`ctr`
+                    var = attributeTuple[0]
+                    operator_map[opName.text].paramQueue.append(var)
+                    declarationStr = operator_map[opName.text] \
+                                         .declarations[attributeTuple[0]] \
+                                         .replace("VARIN", var).replace("VAROUT", attributeTuple[1]) \
+                                         + '\n'
+                    tabPrint (declarationStr, 0, code)
+            # ctr += 1
+        tabPrint ("\n", 0, code)
+
+        """ 
+            output parse params codes for operator 
+            Actually NO, these come from workflow & operator library for now
+
+        with open('templates/'+outterOpName+'parseparams.template', 'r') as myfile:
+            data=myfile.read()
+        myfile.close
+        tabPrint(data, 0, code)
+        """
+
+
+        tabPrint ("//  Calls to Operator functions  \n\n", tabcount, code)
+        ctr=0
+        for runoperator in root.findall('ops/operator/run'):
+            opName = runoperator.text
+
+            """ 
+                output start of main section 
+            """
+            with open('templates/'+opName+'maindeclarations.template', 'r') as myfile:
+                data=myfile.read()
+            myfile.close
+            tabPrint(data, 0, code)
+
+            """ operator input section """
+            with open('templates/'+opName+'input.template', 'r') as myfile:
+                data=myfile.read().replace('FILE_PARAM1',interFileIOParamQueue.popleft())
+            myfile.close()
+            tabPrint(data, 0, code)
+
+            """ operators calling sequence 
+                first read the catalog_build replacement code from the appropriate file
+            """
+            with open('templates/'+opName+'_'+'callsequence.template', 'r') as myfile:
+                
+                data=myfile.read().replace('WORD_TYPE',eval('g_'+opName).dataStructType)
+                myfile.close()
+                if 'CATALOG_BUILD_CODE' in data:
+                    with open('templates/'+opName+'_'+eval('g_'+opName).dataStructType+'_catalogbuild.template', 'r') as myfile:
+                        catalogBuildCode=myfile.read()
+                        myfile.close()
+                    data=data.replace('CATALOG_BUILD_CODE',catalogBuildCode)
+                # data=myfile.read().replace('WORD_TYPE','TEST').replace('CATALOG_BUILD_CODE',catalogBuildCode)
+            tabPrint(data, 0, code)
+
+            """ output section """
+            with open('templates/'+opName+'output.template', 'r') as myfile:
+                data=myfile.read().replace('OUTFILE',interFileIOParamQueue.popleft())
+                myfile.close()
+            tabPrint(data, 0, code)
+
+        """ output close of main section """
+        with open('templates/'+outterOpName+'mainclose.template', 'r') as myfile:
+            data=myfile.read()
+            myfile.close()
+        tabPrint(data, 0, code)
+
+    code.close()
+
+    """  TODELETE, 
        Print calls to the actual operator core functions
     tabPrint ("//  Calls to Operator functions  \n\n", tabcount, code)
     ctr=0
