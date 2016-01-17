@@ -281,7 +281,7 @@ struct pair_nonzero_reducer {
 
 // IndexTy is sequential container such std::vector, std::deque, std::list
 // Assumed is that IndexTy::value_type is const char *
-template<typename IndexTy, typename WordBankTy, typename = void>
+template<typename IndexTy, typename WordBankTy>
 class word_list : public word_container<IndexTy,WordBankTy> {
     typedef word_container<IndexTy,WordBankTy> base_type;
 public:
@@ -294,6 +294,18 @@ public:
     typedef typename index_type::iterator	iterator;
 
     static const bool is_managed = word_bank_type::is_managed;
+
+private:
+    template<typename OtherIndexTy>
+    struct is_compatible
+	: std::integral_constant<
+	bool,
+	std::is_same<typename OtherIndexTy::key_type,
+		     typename value_type::first_type>::value
+	&&
+	std::is_same<typename OtherIndexTy::mapped_type,
+		     typename value_type::second_type>::value> {
+    };
 
 public:
     word_list() { }
@@ -354,6 +366,7 @@ public:
 	return ret.second ? ret.first : cend();
     }
 
+#if 0
     // TODO: this is imprecise:
     // + Not clear if range [I,E) is all of wb, or only part of it
     // + As such, copying over all of wb may be too much
@@ -368,16 +381,14 @@ public:
     }
     template<typename OtherIndexTy, typename OtherWordBankTy>
     typename
-    std::enable_if<std::is_same<typename OtherIndexTy::value_type,
-				typename index_type::value_type>::value>::type
+    std::enable_if<is_compatible<OtherIndexTy>::value>::type
     insert( const word_map<OtherIndexTy,OtherWordBankTy> & wc ) {
 	this->m_words.insert( this->m_words.end(), wc.cbegin(), wc.cend() );
 	this->m_storage.copy( wc.storage() );
     }
     template<typename OtherIndexTy, typename OtherWordBankTy>
     typename
-    std::enable_if<std::is_same<typename OtherIndexTy::value_type,
-				typename index_type::value_type>::value>::type
+    std::enable_if<is_compatible<OtherIndexTy>::value>::type
     insert( word_map<OtherIndexTy,OtherWordBankTy> && wc ) {
 	this->m_words.insert( this->m_words.end(),
 			      std::make_move_iterator(wc.begin()),
@@ -385,24 +396,7 @@ public:
 	this->m_storage.copy( std::move(wc.storage()) );
 	wc.clear();
     }
-
-    template<typename OtherIndexTy, typename OtherWordBankTy>
-    void count_presence( const word_map<OtherIndexTy,OtherWordBankTy> & rhs ) {
-	typedef typename word_map<OtherIndexTy,OtherWordBankTy>::value_type
-	    other_value_type;
-	core_reduce( rhs.cbegin(), rhs.cend(), rhs.storage(),
-		     pair_nonzero_reducer<value_type,other_value_type>() );
-    }
-
-    template<typename OtherIndexTy, typename OtherWordBankTy>
-    void count_presence( const word_list<OtherIndexTy,OtherWordBankTy> & rhs ) {
-	typedef typename word_list<OtherIndexTy,OtherWordBankTy>::value_type
-	    ::second_type other_value_type;
-	core_reduce( rhs.cbegin(), rhs.cend(), rhs.size(), rhs.storage(),
-		     pair_cmp<value_type,value_type>(),
-		     pair_nonzero_reducer<value_type,other_value_type>() );
-    }
-
+#endif
 
     // Add in all contents from rhs into lhs (*this) and clear rhs
     // Assumes both *this and rhs are sorted by key (whatever sorting function
@@ -478,6 +472,214 @@ private:
 	    return std::make_pair( M, true );
     }
 };
+
+// IndexTy is sequential container such std::vector, std::deque, std::list
+// Assumed is that IndexTy::value_type is const char *
+template<typename IndexTy, typename WordBankTy>
+class kv_list : public word_container<IndexTy,WordBankTy> {
+    typedef word_container<IndexTy,WordBankTy> base_type;
+public:
+    typedef IndexTy	  index_type;
+    typedef WordBankTy	  word_bank_type;
+
+    typedef typename index_type::value_type	value_type;
+    typedef typename value_type::first_type	key_type;
+    typedef typename value_type::second_type	mapped_type;
+
+    typedef typename index_type::const_iterator	const_iterator;
+    typedef typename index_type::iterator	iterator;
+
+    static const bool is_managed = word_bank_type::is_managed;
+
+private:
+    template<typename OtherIndexTy>
+    struct is_compatible
+	: std::integral_constant<
+	bool,
+	std::is_same<typename OtherIndexTy::key_type, key_type>::value
+	&&
+	std::is_same<typename OtherIndexTy::mapped_type, mapped_type>::value> {
+    };
+
+public:
+    kv_list() { }
+    template<typename... Args>
+    kv_list( Args... args ) : base_type( args... ) { }
+
+    // Memorize the word, but do not store it in the word list
+    const char * memorize( char * p, size_t len ) {
+	return this->m_storage.store( p, len );
+    }
+
+    // Memorize the word and store it in the word list as well
+    const char * index( char * p, size_t len ) {
+	const char * w = this->m_storage.store( p, len );
+	this->m_words.push_back( w );
+	return w;
+    }
+
+    // Only store in index
+    void index_only( const char * w ) {
+	this->m_words.push_back( w );
+    }
+
+    void resize( size_t sz ) { this->m_words.resize( sz ); }
+    void reserve( size_t sz ) { this->m_words.reserve( sz ); }
+
+    // Retrieve n-th word item in the container.
+    const value_type & operator[] ( size_t n ) const {
+	return this->m_words[n];
+    }
+
+    iterator begin() { return this->m_words.begin(); }
+    iterator end() { return this->m_words.end(); }
+
+    const_iterator cbegin() const { return this->m_words.cbegin(); }
+    const_iterator cend() const { return this->m_words.cend(); }
+
+    const_iterator find( const char * w ) const {
+	value_type val
+	    = std::make_pair( w, typename value_type::second_type() );
+	pair_cmp<value_type,value_type> cmp;
+	for( const_iterator I=cbegin(), E=cend(); I != E; ++I )
+	    if( !cmp( *I, val ) && !cmp( val, *I ) )
+		return I;
+	return cend();
+    }
+
+    const_iterator binary_search( const char * w ) const {
+	value_type val
+	    = std::make_pair( w, typename value_type::second_type() );
+	// val.first = w; // only if std::pair
+	std::pair<const_iterator,bool> ret
+	    = binary_search( cbegin(), cend(), this->size(), val,
+			     pair_cmp<value_type,value_type>() );
+	return ret.second ? ret.first : cend();
+    }
+
+    // TODO: this is imprecise:
+    // + Not clear if range [I,E) is all of wb, or only part of it
+    // + As such, copying over all of wb may be too much
+    // + Ideally want to translate all strings into existing word bank
+    // At the moment, this is used only with *this initially empty, so this
+    // is ok.
+    template<typename InputIterator>
+    void insert( InputIterator I, InputIterator E, const word_bank_base & wb ) {
+	std::for_each( I, E, [&]( typename index_type::value_type & val ) { this->m_words.push_back( val ); } );
+	// this->m_words.insert( I, E );
+	this->m_storage.copy( wb );
+    }
+    template<typename OtherIndexTy, typename OtherWordBankTy>
+    typename
+    std::enable_if<is_compatible<OtherIndexTy>::value>::type
+    insert( const word_map<OtherIndexTy,OtherWordBankTy> & wc ) {
+	this->m_words.insert( this->m_words.end(), wc.cbegin(), wc.cend() );
+	this->m_storage.copy( wc.storage() );
+    }
+    template<typename OtherIndexTy, typename OtherWordBankTy>
+    typename
+    std::enable_if<is_compatible<OtherIndexTy>::value>::type
+    insert( word_map<OtherIndexTy,OtherWordBankTy> && wc ) {
+	this->m_words.insert( this->m_words.end(),
+			      std::make_move_iterator(wc.begin()),
+			      std::make_move_iterator(wc.end()) );
+	this->m_storage.copy( std::move(wc.storage()) );
+	wc.clear();
+    }
+
+    template<typename OtherIndexTy, typename OtherWordBankTy>
+    void count_presence( const word_map<OtherIndexTy,OtherWordBankTy> & rhs ) {
+	typedef typename word_map<OtherIndexTy,OtherWordBankTy>::value_type
+	    other_value_type;
+	core_reduce( rhs.cbegin(), rhs.cend(), rhs.storage(),
+		     pair_nonzero_reducer<value_type,other_value_type>() );
+    }
+
+    template<typename OtherIndexTy, typename OtherWordBankTy>
+    void count_presence( const kv_list<OtherIndexTy,OtherWordBankTy> & rhs ) {
+	typedef typename kv_list<OtherIndexTy,OtherWordBankTy>::value_type
+	    ::second_type other_value_type;
+	core_reduce( rhs.cbegin(), rhs.cend(), rhs.size(), rhs.storage(),
+		     pair_cmp<value_type,value_type>(),
+		     pair_nonzero_reducer<value_type,other_value_type>() );
+    }
+
+
+    // Add in all contents from rhs into lhs (*this) and clear rhs
+    // Assumes both *this and rhs are sorted by key (whatever sorting function
+    // is used ...)
+    void reduce( kv_list & rhs ) {
+	// TODO: consider parallel merge (std::experimental::parallel_merge)
+	// TODO: Better with move iterators?
+	core_reduce( rhs.begin(), rhs.end(), rhs.size(), rhs.storage(),
+		     pair_cmp<value_type,value_type>(),
+		     pair_add_reducer<value_type,value_type>() );
+	rhs.clear();
+    }
+
+private:
+    template<class InputIt, class Compare, class Reduce>
+    void core_reduce(InputIt first2, InputIt last2, size_t size2,
+		     const word_bank_base & storage,
+		     Compare cmp, Reduce reduce) {
+	index_type joint;
+	joint.reserve( this->size() + size2 ); // worst case
+	core_merge( this->begin(), this->end(), 
+		    first2, last2, std::back_inserter(joint),
+		    pair_cmp<value_type,value_type>(),
+		    pair_add_reducer<value_type,value_type>() );
+	this->m_words.swap( joint );
+	this->m_storage.copy( std::move(storage) );
+    }
+    template<class InputIt, class OutputIt, class Compare, class Reduce>
+    OutputIt core_merge(iterator first1, iterator last1,
+			 InputIt first2, InputIt last2,
+			 OutputIt d_first, Compare cmp, Reduce reduce) {
+	for (; first1 != last1; ++d_first) {
+	    if (first2 == last2) {
+		return std::copy(first1, last1, d_first);
+	    }
+	    if( !cmp(*first1, *first2) ) {
+		if( !cmp(*first2, *first1) ) { // equal
+		    auto val = *first1;
+		    reduce( val, *first2 );
+		    *d_first = val;
+		    ++first1;
+		} else {
+		    *d_first = *first2;
+		}
+		++first2;
+	    } else {
+		*d_first = *first1;
+		++first1;
+	    }
+	}
+	return std::copy(first2, last2, d_first);
+    }
+
+    // iterator is a RandomAccess iterator
+    // n == std::distance( I, E );
+    template<typename InputIt, typename Compare>
+    std::pair<InputIt,bool>
+    binary_search( InputIt I, InputIt E, size_t n, const value_type & val,
+		   Compare cmp ) const {
+	if( n == 0 )
+	    return std::make_pair( E, false );
+	else if( n == 1 )
+	    return std::make_pair( I, !cmp( *I, val ) && !cmp( val, *I ) );
+
+	size_t l = n/2;
+	InputIt M = std::next( I, l );
+
+	if( cmp( *M, val ) ) // *M < val, search right sub-range
+	    return binary_search( M, E, n-l, val, cmp );
+	else if( cmp( val, *M ) ) // val < *M search left sub-range
+	    return binary_search( I, M, l, val, cmp );
+	else // val == *M
+	    return std::make_pair( M, true );
+    }
+};
+
 
 template<typename ValueTyL, typename ValueTyR>
 struct mapped_add_reducer {
@@ -577,7 +779,7 @@ public:
     }
 
     template<typename OtherIndexTy, typename OtherWordBankTy>
-    void count_presence( const word_list<OtherIndexTy,OtherWordBankTy> & rhs ) {
+    void count_presence( const kv_list<OtherIndexTy,OtherWordBankTy> & rhs ) {
 	typedef typename word_list<OtherIndexTy,OtherWordBankTy>::value_type
 	    ::second_type other_mapped_type;
 	core_reduce( rhs.cbegin(), rhs.cend(), rhs.storage(),
@@ -735,7 +937,7 @@ public:
 	imp_.view().count_presence( rhs );
     }
     template<typename OtherIndexTy, typename OtherWordBankTy>
-    void count_presence( const word_list<OtherIndexTy,OtherWordBankTy> & rhs ) {
+    void count_presence( const kv_list<OtherIndexTy,OtherWordBankTy> & rhs ) {
 	imp_.view().count_presence( rhs );
     }
 

@@ -88,12 +88,12 @@ int main(int argc, char **argv) {
     // word count
     get_time( begin );
     typedef asap::word_map<std::map<const char *, size_t, asap::text::charp_cmp>, asap::word_bank_pre_alloc> word_map_type;
-    typedef asap::word_list<std::vector<std::pair<const char * const, size_t>>, asap::word_bank_pre_alloc> word_list_type;
+    typedef asap::kv_list<std::vector<std::pair<const char *, size_t>>, asap::word_bank_pre_alloc> word_list_type;
 
     typedef asap::sparse_vector<size_t, float, false,
 				asap::mm_no_ownership_policy>
 	vector_type;
-    typedef asap::word_list<std::vector<std::pair<const char * const,
+    typedef asap::kv_list<std::vector<std::pair<const char *,
 	asap::appear_count<size_t,
 			   typename vector_type::index_type>>>,
 			    asap::word_bank_pre_alloc> word_list_type2;
