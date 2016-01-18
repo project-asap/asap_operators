@@ -21,53 +21,29 @@
 
 namespace asap {
 
-template<typename VectorTy, typename WordContTy,
+template<typename VectorTy, typename WordContTy, typename VectorNameTy = void,
 	 typename = typename std::enable_if<std::is_same<typename VectorTy::memory_mgmt_type,
 							 mm_no_ownership_policy>::value>::type>
-class kmeans_data_set : public data_set<VectorTy,WordContTy> {
+class kmeans_data_set : public data_set<VectorTy,WordContTy,VectorNameTy> {
     typedef data_set<VectorTy,WordContTy> base_type;
-public:
-    typedef typename base_type::vector_type vector_type;
-    typedef typename base_type::word_container_type word_container_type;
-    typedef typename base_type::index_type index_type;
-    typedef typename base_type::value_type value_type;
-    typedef typename base_type::memory_mgmt_type memory_mgmt_type;
-    typedef typename base_type::allocator_type allocator_type;
-
-    typedef typename base_type::index_list_type index_list_type;
-    typedef typename base_type::vector_list_type vector_list_type;
-    typedef typename base_type::const_index_iterator const_index_iterator;
-    typedef typename base_type::const_vector_iterator const_vector_iterator;
-    typedef typename base_type::vector_iterator vector_iterator;
 
 private:
-    value_type	m_sse;
-    size_t	m_num_iters;
+    typename base_type::value_type	m_sse;
+    size_t				m_num_iters;
 
 public:
-    kmeans_data_set( value_type sse, size_t num_iters, 
+    kmeans_data_set( typename base_type::value_type sse, size_t num_iters, 
 		     const char * relation,
-		     const std::shared_ptr<index_list_type> & idx_names,
-		     const std::shared_ptr<vector_list_type> & vectors )
+		     const std::shared_ptr<typename base_type::index_list_type> & idx_names,
+		     const std::shared_ptr<typename base_type::vector_list_type> & vectors )
 	: base_type( relation, idx_names, vectors ),
 	  m_sse( sse ), m_num_iters( num_iters ) { }
 
     size_t num_iterations() const { return m_num_iters; }
     size_t num_clusters() const { return centres().size(); }
-    value_type within_sse() const { return m_sse; }
+    typename base_type::value_type within_sse() const { return m_sse; }
 
-    const vector_list_type & centres() const { return base_type::get_vectors(); }
-
-/*
-char buf[] = "data: 0000000000\r\n";
-for (int i = 0; i < 100; i++) {
-    // int portion starts at position 6
-    itoa(getData(i), &buf[6], 10);
-
-    // The -1 is because we don't want to write the nul character.
-    fwrite(buf, 1, sizeof(buf) - 1, stdout);
-}
- */
+    const typename base_type::vector_list_type & centres() const { return base_type::get_vectors(); }
 
     // This is much faster with C stdio
     void output( std::ostream & os ) {
@@ -112,13 +88,13 @@ for (int i = 0; i < 100; i++) {
 	// Use iterator for efficiency (in case lookup is slow), but need
 	// additional modelling of word_bank in case container stores tripples
 	// auto WI = base_type::index_cbegin();
-	for( index_type i=0; i < ndim; ++i ){ // , ++WI ) {
+	for( typename base_type::index_type i=0; i < ndim; ++i ){ // , ++WI ) {
 	    os << std::setw(16) << std::left << base_type::get_index(i) //  *WI 
 	       << std::right;
-	    value_type s = 0;
+	    typename base_type::value_type s = 0;
 	    for( size_t k=0; k < ncentres; ++k )
 		s += centres_[k][i] * centres_[k].get_count();
-	    s /= (value_type)npoints;
+	    s /= (typename base_type::value_type)npoints;
 	    os << std::setw(14) << s;
 	    for( size_t k=0; k < ncentres; ++k )
 		os << std::setw(15) << centres_[k][i];

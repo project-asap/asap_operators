@@ -496,7 +496,8 @@ tfidf( InputIterator I, InputIterator E,
     delete[] vec_start;
 
     const char * name = "tfidf";
-    return data_set_type( name, joint_word_map_ptr, vec_names_ptr, vectors_ptr );
+    return data_set_type( name, joint_word_map_ptr, vec_names_ptr, vectors_ptr,
+			  true );
 }
 
 /*
@@ -597,7 +598,8 @@ tfidf_by_words( InputIterator I, InputIterator E,
     delete[] word_ctr;
 
     const char * name = "tfidf-by-words";
-    return data_set_type( name, joint_word_map_ptr, vec_names_ptr, vectors_ptr );
+    return data_set_type( name, joint_word_map_ptr, vec_names_ptr, vectors_ptr,
+			  false );
 }
 
 template<typename VectorTy, typename InputIterator, typename WordContainerTy,
