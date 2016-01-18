@@ -129,8 +129,7 @@ int main(int argc, char **argv) {
 	{
 	    // Build up catalog for each file using a map
 	    word_map_type wmap;
-	    asap::word_catalog( std::string(*std::next(dir_list.cbegin(),i)),
-				wmap ); // catalog[i] );
+	    asap::word_catalog( filename, wmap );
 	    // Convert file's catalog to a (sorted) list of pairs
 	    catalog[i].reserve( wmap.size() );    // avoid re-allocations
 	    catalog[i].insert( std::move(wmap) ); // move out wmap contents
@@ -152,7 +151,7 @@ int main(int argc, char **argv) {
     print_time("word count", begin, end);
 
     get_time( begin );
-    typedef asap::data_set<vector_type, word_map_type2> data_set_type;
+    typedef asap::data_set<vector_type, word_map_type2, directory_listing_type> data_set_type;
     // TODO: consider linearising the word_map to a word_list with exchanged
     //       word_bank in order to avoid storing the ID? Problem: lookup
     //       during TF/IDF computation
@@ -162,14 +161,18 @@ int main(int argc, char **argv) {
 	= std::make_shared<word_map_type2>();
     allwords_ptr->swap( allwords.get_value() );
 
+    std::shared_ptr<directory_listing_type> dir_list_ptr
+	= std::make_shared<directory_listing_type>();
+    dir_list_ptr->swap( dir_list );
+
     data_set_type data_set;
     if( by_words ) {
 	data_set = asap::tfidf_by_words<vector_type>(
-	    catalog.cbegin(), catalog.cend(), allwords_ptr,
+	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr,
 	    do_sort ); // whether catalogs are sorted
     } else {
 	data_set = asap::tfidf<vector_type>(
-	    catalog.cbegin(), catalog.cend(), allwords_ptr,
+	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr,
 	    do_sort ); // whether catalogs are sorted
     }
     get_time( end );

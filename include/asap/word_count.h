@@ -391,12 +391,14 @@ void assign_ids( Iterator I, Iterator E ) {
 
 } // internal
 
-template<typename VectorTy, typename InputIterator, typename WordContainerTy>
-data_set<VectorTy, WordContainerTy>
+template<typename VectorTy, typename InputIterator, typename WordContainerTy,
+	 typename VectorNameTy>
+data_set<VectorTy, WordContainerTy, VectorNameTy>
 tfidf( InputIterator I, InputIterator E,
        std::shared_ptr<WordContainerTy> & joint_word_map_ptr,
+       std::shared_ptr<VectorNameTy> & vec_names_ptr,
        bool is_sorted = true ) {
-    typedef data_set<VectorTy, WordContainerTy> data_set_type;
+    typedef data_set<VectorTy, WordContainerTy, VectorNameTy> data_set_type;
     typedef typename data_set_type::vector_list_type vector_list_type;
     typedef typename data_set_type::index_list_type index_list_type;
     typedef typename vector_list_type::value_type value_type;
@@ -494,7 +496,7 @@ tfidf( InputIterator I, InputIterator E,
     delete[] vec_start;
 
     const char * name = "tfidf";
-    return data_set_type( name, joint_word_map_ptr, vectors_ptr );
+    return data_set_type( name, joint_word_map_ptr, vec_names_ptr, vectors_ptr );
 }
 
 /*
@@ -504,12 +506,14 @@ tfidf( InputIterator I, InputIterator E,
  * Pre-requisite: every input map (iterated over by InputIterator) must be
  * searchable with find(), so they must be sorted for binary search to work.
  */
-template<typename VectorTy, typename InputIterator, typename WordContainerTy>
-data_set<VectorTy, WordContainerTy>
+template<typename VectorTy, typename InputIterator, typename WordContainerTy,
+	 typename VectorNameTy>
+data_set<VectorTy, WordContainerTy, VectorNameTy>
 tfidf_by_words( InputIterator I, InputIterator E,
 		std::shared_ptr<WordContainerTy> & joint_word_map_ptr,
+		std::shared_ptr<VectorNameTy> & vec_names_ptr,
 		bool is_sorted = true ) {
-    typedef data_set<VectorTy, WordContainerTy> data_set_type;
+    typedef data_set<VectorTy, WordContainerTy, VectorNameTy> data_set_type;
     typedef typename data_set_type::vector_list_type vector_list_type;
     typedef typename data_set_type::index_list_type index_list_type;
     typedef typename vector_list_type::value_type value_type;
@@ -593,12 +597,15 @@ tfidf_by_words( InputIterator I, InputIterator E,
     delete[] word_ctr;
 
     const char * name = "tfidf-by-words";
-    return data_set_type( name, joint_word_map_ptr, vectors_ptr );
+    return data_set_type( name, joint_word_map_ptr, vec_names_ptr, vectors_ptr );
 }
 
-template<typename VectorTy, typename InputIterator, typename WordContainerTy>
-data_set<VectorTy, WordContainerTy>
-tfidf( InputIterator I, InputIterator E ) {
+template<typename VectorTy, typename InputIterator, typename WordContainerTy,
+	 typename VectorNameTy>
+data_set<VectorTy, WordContainerTy, VectorNameTy>
+tfidf( InputIterator I, InputIterator E,
+       std::shared_ptr<VectorNameTy> & vec_names_ptr,
+       bool is_sorted = true ) {
     typedef data_set<VectorTy, WordContainerTy> data_set_type;
     typedef typename data_set_type::vector_list_type vector_list_type;
     typedef typename data_set_type::index_list_type index_list_type;
@@ -613,7 +620,7 @@ tfidf( InputIterator I, InputIterator E ) {
 	joint_word_map.copy( *II );
     }
 
-    return tfidf<VectorTy, InputIterator, WordContainerTy>( I, E, joint_word_map_ptr );
+    return tfidf<VectorTy>( I, E, joint_word_map_ptr, vec_names_ptr, is_sorted );
 }
 
 template<typename ValueTy, typename InputIterator, typename WordContainerTy>

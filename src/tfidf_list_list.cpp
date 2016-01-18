@@ -150,7 +150,7 @@ int main(int argc, char **argv) {
     //       Most efficient on unordered_map as it simplifies the hash?
 
     get_time( begin );
-    typedef asap::data_set<vector_type, word_list_type2> data_set_type;
+    typedef asap::data_set<vector_type, word_list_type2, directory_listing_type> data_set_type;
     // TODO: consider linearising the word_map to a word_list with exchanged
     //       word_bank in order to avoid storing the ID? Problem: lookup
     //       during TF/IDF computation
@@ -159,6 +159,11 @@ int main(int argc, char **argv) {
     std::shared_ptr<word_list_type2> allwords_ptr
 	= std::make_shared<word_list_type2>();
     allwords_ptr->insert( allwords.get_value() );
+
+    std::shared_ptr<directory_listing_type> dir_list_ptr
+	= std::make_shared<directory_listing_type>();
+    dir_list_ptr->swap( dir_list );
+
     get_time (end);
     print_time("convert to list", begin, end);
 
@@ -166,10 +171,10 @@ int main(int argc, char **argv) {
     data_set_type tfidf;
     if( by_words ) {
 	tfidf = asap::tfidf_by_words<vector_type>(
-	    catalog.cbegin(), catalog.cend(), allwords_ptr );
+	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr );
     } else {
 	tfidf = asap::tfidf<vector_type>(
-	    catalog.cbegin(), catalog.cend(), allwords_ptr );
+	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr );
     }
     get_time (end);
     print_time("TF/IDF", begin, end);

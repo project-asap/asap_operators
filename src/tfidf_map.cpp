@@ -113,7 +113,7 @@ int main(int argc, char **argv) {
     print_time("word count", begin, end);
 
     get_time( begin );
-    typedef asap::data_set<vector_type, word_map_type2> data_set_type;
+    typedef asap::data_set<vector_type, word_map_type2, directory_listing_type> data_set_type;
     // TODO: consider linearising the word_map to a word_list with exchanged
     //       word_bank in order to avoid storing the ID? Problem: lookup
     //       during TF/IDF computation
@@ -123,10 +123,13 @@ int main(int argc, char **argv) {
 	= std::make_shared<word_map_type2>();
     allwords_ptr->swap( allwords.get_value() );
 
+    std::shared_ptr<directory_listing_type> dir_list_ptr
+	= std::make_shared<directory_listing_type>();
+    dir_list_ptr->swap( dir_list );
+
     data_set_type tfidf
-	= asap::tfidf<vector_type, std::vector<word_map_type>::const_iterator,
-		      word_map_type2>(
-			  catalog.cbegin(), catalog.cend(), allwords_ptr );
+	= asap::tfidf<vector_type>(
+	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr );
     get_time (end);
     print_time("TF/IDF", begin, end);
 
