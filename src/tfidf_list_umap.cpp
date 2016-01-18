@@ -167,24 +167,7 @@ int main(int argc, char **argv) {
     print_time("TF/IDF", begin, end);
 
     get_time( begin );
-    std::ofstream of( outfile, std::ios_base::out );
-
-    if( by_words ) {
-	auto WI = allwords_ptr->begin();
-	for( auto I=tfidf.vector_cbegin(), E=tfidf.vector_cend();
-	     I != E; ++I, ++WI ){
-	    of << WI->first << ": " << *I << std::endl;
-	}
-    } else {
-	size_t i=0;
-	auto WI = dir_list.begin();
-	for( auto I=tfidf.vector_cbegin(), E=tfidf.vector_cend();
-	     I != E; ++I, ++WI ){
-	    of << *WI << ": " << *I << std::endl;
-	}
-    }
-
-    of.close();
+    asap::arff_write( outfile, tfidf );
     get_time (end);
     print_time("output", begin, end);
 

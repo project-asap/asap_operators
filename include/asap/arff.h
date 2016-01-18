@@ -276,37 +276,6 @@ size_t count_nonzeros( const char * p, const char * end ) {
     return nvalues;
 }
 
-#if 0
-std::pair<size_t,size_t> count_values( char * p ) {
-    size_t npoints = 0;
-    size_t nvalues = 0;
-    while( *p ) {
-	bool seen = false;
-	if( *p == '{' )
-	    ++p; // skip opening {
-	while( *p != '}' && *p != '\n' ) {
-	    if( *p == '\0' )
-		return std::make_pair( 0, 0 );
-	    if( !std::isspace(*p) ) {
-		if( seen && *p == ',' ) {
-		    ++nvalues;
-		    seen = false;
-		} else
-		    seen = true;
-	    }
-	    ++p;
-	}
-	while( *p != '\n' && *p )
-	    ++p;
-	// a comma between every two values, provided one seen since last comma
-	nvalues += seen;
-	++npoints;
-
-	arff::skip_blank_lines( p );
-    }
-    return std::make_pair( npoints, nvalues );
-}
-#else
 std::pair<size_t,size_t> count_values( const char * p, const char * end ) {
     size_t npoints = 0;
     size_t nvalues = 0;
@@ -327,8 +296,6 @@ std::pair<size_t,size_t> count_values( const char * p, const char * end ) {
 
     return std::make_pair( npoints, nvalues );
 }
-#endif
-
 
 template<typename VectorTy, typename Container>
 typename std::enable_if<is_dense_vector<VectorTy>::value>::type
@@ -519,6 +486,58 @@ END_OF_FILE:
     is_stored_sparse = is_sparse;
     return data_set_type( relation, idx, std::make_shared<vector_set_type>( 0, 0 ) );
 }
+
+namespace arff {
+
+template<typename Type>
+const char * as_word( const Type & val ) {
+    return val;
+}
+
+template<typename Type1, typename Type2>
+const char * as_word( const std::pair<Type1,Type2> & val ) {
+    return val.first;
+}
+
+template<typename VectorIter, typename ColNameIter, typename RowNameIter>
+void arff_write( const std::string & filename,
+		 const char * const relation_name,
+		 VectorIter vI, VectorIter vE,
+		 ColNameIter cI, ColNameIter cE,
+		 RowNameIter rI, RowNameIter rE ) {
+    std::ofstream of( filename, std::ios_base::out );
+
+    of << "@relation " << relation_name;
+
+    for( auto I=cI; I != cE; ++I )
+	of << "\n\t@attribute " << as_word(*I) << " numeric";
+
+    of << "\n\n@data";
+
+    for( auto I=vI; I != vE; ++I, ++rI )
+	of << "\n\t" << *I << " % " << as_word(*rI);
+
+    of << std::endl;
+    of.close();
+}
+
+};
+
+template<typename DataSetTy>
+void arff_write( const std::string & filename,
+		 const DataSetTy & data_set ) {
+    if( data_set.transpose() ) {
+	arff::arff_write( filename, data_set.get_relation(),
+			  data_set.vector_cbegin(), data_set.vector_cend(), 
+			  data_set.index2_cbegin(), data_set.index2_cend(),
+			  data_set.index_cbegin(), data_set.index_cend() );
+    } else {
+	arff::arff_write( filename, data_set.get_relation(),
+			  data_set.vector_cbegin(), data_set.vector_cend(), 
+			  data_set.index_cbegin(), data_set.index_cend(),
+			  data_set.index2_cbegin(), data_set.index2_cend() );
+    }
+};
 
 }
 
