@@ -56,13 +56,74 @@ static void parse_args(int argc, char **argv) {
     
     if( !indir )
 	fatal( "Input directory must be supplied." );
-    if( !outfile )
-	fatal( "Output file must be supplied." );
     
     std::cerr << "Input directory = " << indir << '\n';
-    std::cerr << "Output file = " << outfile << '\n';
+    if( !outfile )
+	std::cerr << "Output stage skipped\n";
+    else if( !strcmp( outfile, "-" ) )
+	std::cerr << "Output file = standard output\n";
+    else
+	std::cerr << "Output file = " << outfile << '\n';
     std::cerr << "TF/IDF by words = " << ( by_words ? "true\n" : "false\n" );
     std::cerr << "TF/IDF list sorted = " << ( do_sort ? "true\n" : "false\n" );
+}
+
+template<typename directory_listing_type, typename intl_map_type, typename intm_map_type, typename agg_map_type, typename data_set_type>
+data_set_type tfidf_driver( directory_listing_type & dir_list ) {
+    struct timespec begin, end;
+
+    // word count
+    get_time( begin );
+
+    size_t num_files = dir_list.size();
+    std::vector<intm_map_type> catalog;
+    catalog.resize( num_files );
+
+    asap::word_container_reducer<agg_map_type> allwords;
+    cilk_for( size_t i=0; i < num_files; ++i ) {
+	// File to read
+	std::string filename = *std::next(dir_list.cbegin(),i);
+	// Internally use the type intl_map_type, then merge into the catalog[i]
+	asap::word_catalog<intl_map_type>( std::string(filename), catalog[i] );
+	// The list of pairs is sorted if intl_map_type is based on std::map
+	// but it is not sorted if based on std::unordered_map
+	if( do_sort )
+	    std::sort( catalog[i].begin(), catalog[i].end(),
+		       asap::pair_cmp<typename intl_map_type::value_type,
+		       typename intl_map_type::value_type>() );
+
+	// std::cerr << ": " << catalog[i].size() << " words\n";
+	// Reading from std::vector rather than std::map should be faster...
+	// Validated: about 10% on word count, 20% on TF/IDF, 16 threads
+	allwords.count_presence( catalog[i] );
+    }
+    get_time (end);
+    print_time("word count", begin, end);
+
+    get_time( begin );
+    std::shared_ptr<agg_map_type> allwords_ptr
+	= std::make_shared<agg_map_type>();
+    allwords_ptr->swap( allwords.get_value() );
+
+    std::shared_ptr<directory_listing_type> dir_list_ptr
+	= std::make_shared<directory_listing_type>();
+    dir_list_ptr->swap( dir_list );
+
+    data_set_type tfidf;
+    if( by_words ) {
+	tfidf = asap::tfidf_by_words<typename data_set_type::vector_type>(
+	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr,
+	    do_sort ); // whether catalogs are sorted
+    } else {
+	tfidf = asap::tfidf<typename data_set_type::vector_type>(
+	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr,
+	    do_sort ); // whether catalogs are sorted
+    }
+
+    get_time (end);
+    print_time("TF/IDF", begin, end);
+
+    return tfidf;
 }
 
 int main(int argc, char **argv) {
@@ -91,83 +152,41 @@ int main(int argc, char **argv) {
     get_time (end);
     print_time("directory listing", begin, end);
 
-    // word count
-    get_time( begin );
-    typedef asap::word_map<std::unordered_map<const char *, size_t, asap::text::charp_hash, asap::text::charp_eql>, asap::word_bank_pre_alloc> word_map_type;
-    typedef asap::kv_list<std::vector<std::pair<const char *, size_t>>, asap::word_bank_pre_alloc> word_list_type;
+    typedef size_t index_type;
+    typedef asap::word_bank_pre_alloc word_bank_type;
 
-    typedef asap::sparse_vector<size_t, float, false,
+    typedef asap::sparse_vector<index_type, float, false,
 				asap::mm_no_ownership_policy>
 	vector_type;
-    typedef asap::word_map<std::unordered_map<const char *,
-				    asap::appear_count<size_t,
-						       typename vector_type::index_type>,
-				    asap::text::charp_hash, asap::text::charp_eql>,
-			   asap::word_bank_pre_alloc> word_map_type2;
-    size_t num_files = dir_list.size();
-    std::vector<word_list_type> catalog;
-    catalog.resize( num_files );
 
-    asap::word_container_reducer<word_map_type2> allwords;
-    cilk_for( size_t i=0; i < num_files; ++i ) {
-	std::string filename = *std::next(dir_list.cbegin(),i);
-	// std::cerr << "Read file " << filename;
-	{
-	    // Build up catalog for each file using a map
-	    word_map_type wmap;
-	    asap::word_catalog( std::string(*std::next(dir_list.cbegin(),i)),
-				wmap ); // catalog[i] );
-	    // Convert file's catalog to a list of pairs
-	    catalog[i].reserve( wmap.size() );    // avoid re-allocations
-	    catalog[i].insert( std::move(wmap) ); // move out wmap contents
+    typedef asap::word_map<
+	std::unordered_map<const char *, size_t, asap::text::charp_hash,
+			   asap::text::charp_eql>,
+	word_bank_type> internal_map_type;
 
-	    // The list of pairs is sorted if word_map_type is based on std::map
-	    // but it is not sorted if based on std::unordered_map
-	    if( do_sort )
-		std::sort( catalog[i].begin(), catalog[i].end(),
-			   asap::pair_cmp<word_map_type::value_type,
-			   word_map_type::value_type>() );
-	} // delete wmap
+    typedef asap::kv_list<std::vector<std::pair<const char *, size_t>>,
+			  word_bank_type> intermediate_map_type;
 
-	// std::cerr << ": " << catalog[i].size() << " words\n";
-	// Reading from std::vector rather than std::map should be faster...
-	// Validated: about 10% on word count, 20% on TF/IDF, 16 threads
-	allwords.count_presence( catalog[i] );
-    }
-    get_time (end);
-    print_time("word count", begin, end);
+    typedef asap::word_map<
+	std::unordered_map<const char *,
+			   asap::appear_count<size_t, index_type>,
+			   asap::text::charp_hash, asap::text::charp_eql>,
+	word_bank_type> aggregate_map_type;
+    typedef asap::data_set<vector_type, aggregate_map_type,
+			   directory_listing_type> data_set_type;
+
+    data_set_type tfidf
+	= tfidf_driver<directory_listing_type, internal_map_type,
+		       intermediate_map_type, aggregate_map_type,
+		       data_set_type>( dir_list );
 
     get_time( begin );
-    typedef asap::data_set<vector_type, word_map_type2, directory_listing_type> data_set_type;
-    // TODO: consider linearising the word_map to a word_list with exchanged
-    //       word_bank in order to avoid storing the ID? Problem: lookup
-    //       during TF/IDF computation
-    // TODO: infer word_map_type2 from word_map_type* in template definition?
-    // TODO: construct aggregate word_map_type2 during wc loop above
-    std::shared_ptr<word_map_type2> allwords_ptr
-	= std::make_shared<word_map_type2>();
-    allwords_ptr->swap( allwords.get_value() );
-
-    std::shared_ptr<directory_listing_type> dir_list_ptr
-	= std::make_shared<directory_listing_type>();
-    dir_list_ptr->swap( dir_list );
-
-    data_set_type tfidf;
-    if( by_words ) {
-	tfidf = asap::tfidf_by_words<vector_type>(
-	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr,
-	    do_sort ); // whether catalogs are sorted
-    } else {
-	tfidf = asap::tfidf<vector_type>(
-	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr,
-	    do_sort ); // whether catalogs are sorted
-    }
-
-    get_time (end);
-    print_time("TF/IDF", begin, end);
-
-    get_time( begin );
-    asap::arff_write( outfile, tfidf );
+    if( !outfile )
+	; // skip output
+    else if( !strcmp( outfile, "-" ) )
+	asap::arff_write( std::cout, tfidf );
+    else
+	asap::arff_write( outfile, tfidf );
     get_time (end);
     print_time("output", begin, end);
 

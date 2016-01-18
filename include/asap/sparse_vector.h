@@ -247,13 +247,14 @@ protected:
     index_type  *m_alloc_i;
     size_t m_number;
     size_t m_capacity;
+    size_t m_length;
     size_t m_total_length;
 
 public:
     // Constructor intended only for use by reducers
     sparse_vector_set() : m_vectors(nullptr), m_alloc_v(nullptr),
 			  m_alloc_i(nullptr), m_number(0), m_capacity(0),
-			  m_total_length(0) {
+			  m_length(0), m_total_length(0) {
 	static_assert( is_sparse_vector<VectorTy>::value,
 		       "vector_type must be sparse" );
 	static_assert( !memory_mgmt_type::has_ownership,
@@ -261,8 +262,8 @@ public:
     }
 
     // Proper constructor
-    sparse_vector_set(size_t capacity, size_t total_length)
-	: m_number(0), m_capacity(capacity) {
+    sparse_vector_set(size_t capacity, size_t length, size_t total_length)
+	: m_number(0), m_capacity(capacity), m_length(length) {
 	m_total_length = total_length; // TODO: round up to vector length
 	m_alloc_v = value_allocator_type().allocate( m_total_length );
 	m_alloc_i = index_allocator_type().allocate( m_total_length );
@@ -280,7 +281,7 @@ public:
 */
     }
     sparse_vector_set(const sparse_vector_set & dvs)
-	: sparse_vector_set(dvs.m_capacity, dvs.m_total_length) {
+	: sparse_vector_set(dvs.m_capacity, dvs.m_length, dvs.m_total_length) {
 	std::cerr << "SVS copy construct\n";
 	assert( m_total_length == dvs.m_total_length );
 	m_number = dvs.m_number;
@@ -303,7 +304,7 @@ public:
     sparse_vector_set(sparse_vector_set && dvs)
 	: m_vectors(dvs.m_vectors), m_alloc(dvs.m_alloc),
 	  m_number(dvs.m_number), m_capacity(dvs.m_capacity),
-	  m_total_length(dvs.m_total_length) {
+	  m_length(dvs.m_length), m_total_length(dvs.m_total_length) {
 	std::cerr << "SVS move construct\n";
 	dvs.m_vectors = 0;
 	dvs.m_alloc = 0;
@@ -341,6 +342,7 @@ public:
 
     size_t number() const { return m_number; }
     size_t size() const { return m_number; }
+    size_t length() const { return m_length; }
     void   trim_number( size_t n ) { if( n < m_number ) m_number = n; }
 
     void fill( value_type val ) {

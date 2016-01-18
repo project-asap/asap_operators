@@ -237,6 +237,7 @@ public:
     const word_bank_type & storage() const { return m_storage; }
 
     size_t size() const		{ return m_words.size(); }
+    bool empty() const		{ return m_words.empty(); }
 
     void clear()		{ m_words.clear(); m_storage.clear(); } 
     void swap( word_container & wb ) {
@@ -718,6 +719,16 @@ public:
     template<typename OtherIndexTy, typename OtherWordBankTy>
     friend class word_map;
 
+private:
+    template<typename OtherIndexTy>
+    struct is_compatible
+	: std::integral_constant<
+	bool,
+	std::is_same<typename OtherIndexTy::key_type, key_type>::value
+	&&
+	std::is_same<typename OtherIndexTy::mapped_type, mapped_type>::value> {
+    };
+
 public:
     word_map() { }
     word_map( const word_map & wm )
@@ -785,6 +796,25 @@ public:
 	core_reduce( rhs.cbegin(), rhs.cend(), rhs.storage(),
 		     mapped_nonzero_reducer<mapped_type,other_mapped_type>() );
     }
+
+    template<typename OtherIndexTy, typename OtherWordBankTy>
+    typename
+    std::enable_if<is_compatible<OtherIndexTy>::value>::type
+    insert( const word_map<OtherIndexTy,OtherWordBankTy> & wc ) {
+	this->m_words.insert( this->m_words.end(), wc.cbegin(), wc.cend() );
+	this->m_storage.copy( wc.storage() );
+    }
+    template<typename OtherIndexTy, typename OtherWordBankTy>
+    typename
+    std::enable_if<is_compatible<OtherIndexTy>::value>::type
+    insert( word_map<OtherIndexTy,OtherWordBankTy> && wc ) {
+	this->m_words.insert( this->m_words.end(),
+			      std::make_move_iterator(wc.begin()),
+			      std::make_move_iterator(wc.end()) );
+	this->m_storage.copy( std::move(wc.storage()) );
+	wc.clear();
+    }
+
 
     // Add in all contents from rhs into lhs and clear rhs
     void reduce( word_map & rhs ) {

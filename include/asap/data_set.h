@@ -148,13 +148,21 @@ private:
 private:
     void check() {
 	// Data sets must have the appropriate number of elements
+/*
+	std::cerr << "idx1 size=" << m_idx_names->size()
+		  << " idx2 size=" << m_idx_names2->size()
+		  << " vectors number=" << m_vectors->number()
+		  << " vectors length=" << m_vectors->length()
+		  << " transpose=" << m_transpose
+		  << "\n";
+*/
 	assert( !m_idx_names2
 		|| ( m_transpose
-		     && m_idx_names2->size() == m_vectors->number() ) 
+		     && m_idx_names2->size() == m_vectors->length() ) 
 		|| ( !m_transpose
-		     && m_idx_names->size() == m_vectors->number() ) );
-	assert( ( !m_transpose && m_idx_names->size() == m_vectors->number() )
-		|| ( m_transpose && m_idx_names2->size() == m_vectors->number() ) );
+		     && m_idx_names2->size() == m_vectors->number() ) );
+	assert( ( !m_transpose && m_idx_names->size() == m_vectors->length() )
+		|| ( m_transpose && m_idx_names->size() == m_vectors->number() ) );
     }
 public:
     data_set() : m_relation( nullptr ), m_transpose( false ) { }

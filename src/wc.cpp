@@ -95,15 +95,7 @@ int main(int argc, char **argv) {
     typedef asap::kv_list<std::vector<std::pair<const char *, size_t>>, asap::word_bank_pre_alloc> word_list_type;
 
     word_list_type catalog;
-
-    {
-	// Build up catalog for each file using a map
-	word_map_type wmap;
-	asap::word_catalog( std::string(infile), wmap );
-	// Convert file's catalog to a list of pairs
-	catalog.reserve( wmap.size() );    // avoid re-allocations
-	catalog.insert( std::move(wmap) ); // move out wmap contents
-    } // delete wmap
+    asap::word_catalog<word_map_type>( std::string(infile), catalog );
     get_time( end );
     print_time("word count", begin, end);
 

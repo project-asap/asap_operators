@@ -190,12 +190,12 @@ protected:
     vector_type *m_vectors;
     value_type  *m_alloc;
     size_t m_number;
-    size_t m_aligned_length;
+    size_t m_length;
 
 public:
     // Constructor intended only for use by reducers
     dense_vector_set() : m_vectors(nullptr), m_alloc(nullptr),
-			 m_number(0), m_aligned_length(0) {
+			 m_number(0), m_length(0) {
 	static_assert( is_dense_vector<VectorTy>::value,
 		       "vector_type must be dense" );
 	static_assert( !memory_mgmt_type::has_ownership,
@@ -203,37 +203,39 @@ public:
     }
 
     // Proper constructor
-    dense_vector_set(size_t number, size_t length) : m_number(number) {
-	m_aligned_length = length; // TODO: round up to SIMD vector length
-	                           // and guarantee alignment
-	m_alloc = allocator_type().allocate( m_number*m_aligned_length );
+    dense_vector_set(size_t number, size_t length)
+	: m_number(number), m_length( length ) {
+	size_t aligned_length = length; // TODO: round up to SIMD vector length
+	                                // and guarantee alignment
+	m_alloc = allocator_type().allocate( m_number*aligned_length );
 	typename allocator_type::template rebind<vector_type>::
 	    other dv_alloc;
 	m_vectors = dv_alloc.allocate( m_number );
 	value_type *p = m_alloc;
 	for( size_t i=0; i < m_number; ++i ) {
 	    dv_alloc.construct( &m_vectors[i], p, length );
-	    p += m_aligned_length;
+	    p += aligned_length;
 	}
     }
     dense_vector_set(const dense_vector_set & dvs)
 	: dense_vector_set(dvs.m_number,
 			   dvs.m_vectors ? dvs.m_vectors[0].length() : 0) {
 	std::cerr << "DVS copy construct\n";
-	assert( m_aligned_length == dvs.m_aligned_length );
+	assert( m_length == dvs.m_length );
 	for( size_t i=0; i < m_number; ++i )
 	    m_vectors[i].copy_attributes( dvs.m_vectors[i] );
-	std::copy( &dvs.m_alloc[0], &dvs.m_alloc[m_number*m_aligned_length],
+	size_t aligned_length = m_length; // TODO
+	std::copy( &dvs.m_alloc[0], &dvs.m_alloc[m_number*aligned_length],
 		   &m_alloc[0] );
     }
     dense_vector_set(dense_vector_set && dvs)
 	: m_vectors(dvs.m_vectors), m_alloc(dvs.m_alloc),
-	  m_number(dvs.m_number), m_aligned_length(dvs.m_aligned_length) {
+	  m_number(dvs.m_number), m_length(dvs.m_length) {
 	std::cerr << "DVS move construct\n";
 	dvs.m_vectors = 0;
 	dvs.m_alloc = 0;
 	dvs.m_number = 0;
-	dvs.m_aligned_length = 0;
+	dvs.m_length = 0;
     }
     ~dense_vector_set() {
 	typename allocator_type::template rebind<vector_type>::
@@ -241,7 +243,8 @@ public:
 	for( size_t i=0; i < m_number; ++i )
 	    dv_alloc.destroy( &m_vectors[i] );
 	dv_alloc.deallocate( m_vectors, m_number );
-	allocator_type().deallocate( m_alloc, m_number*m_aligned_length );
+	size_t aligned_length = m_length; // TODO
+	allocator_type().deallocate( m_alloc, m_number*aligned_length );
     }
 
     bool check_init( size_t number, size_t length ) {
@@ -256,19 +259,22 @@ public:
 	std::swap( m_vectors, dvs.m_vectors );
 	std::swap( m_alloc, dvs.m_alloc );
 	std::swap( m_number, dvs.m_number );
-	std::swap( m_aligned_length, dvs.m_aligned_length );
+	std::swap( m_length, dvs.m_length );
     }
 
     size_t number() const { return m_number; }
     size_t size() const { return m_number; }
+    size_t length() const { return m_length; }
     void   trim_number( size_t n ) { if( n < m_number ) m_number = n; }
 
     void fill( value_type val ) {
-	std::fill( &m_alloc[0], &m_alloc[m_number*m_aligned_length], val );
+	size_t aligned_length = m_length; // TODO
+	std::fill( &m_alloc[0], &m_alloc[m_number*aligned_length], val );
     }
     void clear() {
+	size_t aligned_length = m_length; // TODO
 	// TODO: vectorize
-	std::fill( &m_alloc[0], &m_alloc[m_number*m_aligned_length],
+	std::fill( &m_alloc[0], &m_alloc[m_number*aligned_length],
 		   value_type(0) );
 	for( size_t i=0; i < m_number; ++i )
 	    m_vectors[i].clear_attributes();
@@ -288,7 +294,7 @@ public:
 
     dense_vector_set & operator += ( const dense_vector_set & dvs ) {
 	assert( m_number == dvs.m_number );
-	assert( m_aligned_length == dvs.m_aligned_length );
+	assert( m_length == dvs.m_length );
 	for( size_t i=0; i < m_number; ++i )
 	    m_vectors[i] += dvs.m_vectors[i];
 	return *this;

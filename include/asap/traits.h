@@ -119,6 +119,51 @@ struct has_attributes
     : internal::is_asap_class_with_any_tags<T, tag_sqnorm_cache,
 					    tag_add_counter> { };
 
-}
+namespace internal {
+
+// This code checks whether the type T is a class with a member
+// public: void reserve(size_t);
+template<class T>
+struct class_is_sizeable {
+    template<void (T::*)()> struct tester;
+
+    template<typename U>
+    static small_type has_matching_member( tester<&U::reserve>*);
+    template<typename U>
+    static large_type has_matching_member(...);
+
+    static const bool value =
+	sizeof(has_matching_member<T>(0))==sizeof(small_type);
+};
+    
+// Default case is no match (struct has bool value member = false).
+template<typename T,bool is_class_type=std::is_class<T>::value>
+struct is_sizeable : std::false_type { };
+
+// Case for structs where type matching with class_has_asap_decl succeeds
+template<typename T>
+struct is_sizeable<T,true>
+    : std::integral_constant<bool, class_is_sizeable<T>::value> { };
+
+} // namespace internal
+
+// Check if type T has a reserve() method
+template<typename T>
+struct is_sizeable : internal::is_sizeable<T> { };
+
+// Call the reserve(size_t) method on a class, if it has one
+template<typename T, bool = internal::is_sizeable<T>::value>
+struct sizeable_methods {
+    static void resize( T &, size_t )		{ }
+    static void reserve( T &, size_t )		{ }
+};
+
+template<typename T>
+struct sizeable_methods<T,true> {
+    static void resize( T & obj , size_t sz )	{ obj.resize( sz ); }
+    static void reserve( T & obj , size_t sz )	{ obj.reserve( sz ); }
+};
+
+} // namespace asap
 
 #endif // INCLUDED_ASAP_TRAITS_H

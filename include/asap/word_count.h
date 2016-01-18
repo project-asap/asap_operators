@@ -282,6 +282,27 @@ void word_catalog( char * data, size_t data_size,
 
 } // namespace text
 
+namespace internal {
+
+template<typename To, typename From>
+void move_word_container( To & to, From && from ) {
+    sizeable_methods<To>::reserve( to, to.size() + from.size() );
+    to.insert( std::move(from) );
+}
+
+template<typename To, typename From,
+	 typename = typename std::enable_if<std::is_same<To,From>::value>::type>
+void move_word_container( To & to, From && from ) {
+    if( to.empty() ) {
+	to.swap( from );
+    } else {
+	sizeable_methods<To>::reserve( to, to.size() + from.size() );
+	to.insert( std::move(from) );
+    }
+}
+
+} // namespace internal
+
 template<typename WordContainerTy>
 void word_catalog( const std::string & filename,
 		   WordContainerTy & word_container,
@@ -292,6 +313,22 @@ void word_catalog( const std::string & filename,
     text::word_catalog( builder.get_buffer(),
 			builder.get_buffer_end()-builder.get_buffer(),
 			builder.get_word_list(), chunk_size );
+}
+
+template<typename InternalContainerTy,
+	 typename WordContainerTy = InternalContainerTy>
+void word_catalog( const std::string & filename,
+		   WordContainerTy & word_container,
+		   size_t chunk_size = size_t(1)<<20 ) {
+    typedef InternalContainerTy word_container_type;
+    word_container_type intl_container;
+    word_container_file_builder<word_container_type>
+	builder( filename, intl_container );
+    text::word_catalog( builder.get_buffer(),
+			builder.get_buffer_end()-builder.get_buffer(),
+			builder.get_word_list(), chunk_size );
+
+    internal::move_word_container( word_container, intl_container );
 }
 
 template<typename MapTy>
@@ -415,7 +452,7 @@ tfidf( InputIterator I, InputIterator E,
     // Construct set of vectors, either dense or sparse
     static_assert( is_sparse_vector<VectorTy>::value, "must be sparse - constructor" );
     std::shared_ptr<vector_list_type> vectors_ptr
-	= std::make_shared<vector_list_type>( num_points, nonzeros );
+	= std::make_shared<vector_list_type>( num_points, num_dimensions, nonzeros );
     vector_list_type & vectors = *vectors_ptr;
 
     // Prepare for parallel access
@@ -531,7 +568,7 @@ tfidf_by_words( InputIterator I, InputIterator E,
     // Construct set of vectors, either dense or sparse
     static_assert( is_sparse_vector<VectorTy>::value, "must be sparse - constructor" );
     std::shared_ptr<vector_list_type> vectors_ptr
-	= std::make_shared<vector_list_type>( num_points, nonzeros );
+	= std::make_shared<vector_list_type>( num_points, num_dimensions, nonzeros );
     vector_list_type & vectors = *vectors_ptr;
 
     // Prepare for parallel access. Vectors are by word, so we need to know

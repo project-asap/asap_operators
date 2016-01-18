@@ -500,13 +500,11 @@ const char * as_word( const std::pair<Type1,Type2> & val ) {
 }
 
 template<typename VectorIter, typename ColNameIter, typename RowNameIter>
-void arff_write( const std::string & filename,
+void arff_write( std::ostream & of,
 		 const char * const relation_name,
 		 VectorIter vI, VectorIter vE,
 		 ColNameIter cI, ColNameIter cE,
 		 RowNameIter rI, RowNameIter rE ) {
-    std::ofstream of( filename, std::ios_base::out );
-
     of << "@relation " << relation_name;
 
     for( auto I=cI; I != cE; ++I )
@@ -518,26 +516,33 @@ void arff_write( const std::string & filename,
 	of << "\n\t" << *I << " % " << as_word(*rI);
 
     of << std::endl;
-    of.close();
 }
 
 };
 
 template<typename DataSetTy>
-void arff_write( const std::string & filename,
+void arff_write( std::ostream & os,
 		 const DataSetTy & data_set ) {
     if( data_set.transpose() ) {
-	arff::arff_write( filename, data_set.get_relation(),
+	arff::arff_write( os, data_set.get_relation(),
 			  data_set.vector_cbegin(), data_set.vector_cend(), 
 			  data_set.index2_cbegin(), data_set.index2_cend(),
 			  data_set.index_cbegin(), data_set.index_cend() );
     } else {
-	arff::arff_write( filename, data_set.get_relation(),
+	arff::arff_write( os, data_set.get_relation(),
 			  data_set.vector_cbegin(), data_set.vector_cend(), 
 			  data_set.index_cbegin(), data_set.index_cend(),
 			  data_set.index2_cbegin(), data_set.index2_cend() );
     }
-};
+}
+
+template<typename DataSetTy>
+void arff_write( const std::string & filename,
+		 const DataSetTy & data_set ) {
+    std::ofstream of( filename, std::ios_base::out );
+    arff_write( of, data_set );
+    of.close();
+}
 
 }
 
