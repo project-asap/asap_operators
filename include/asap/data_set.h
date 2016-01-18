@@ -218,7 +218,7 @@ public:
 
     ~data_set() { }
 
-    size_t get_dimensions() const	{ return m_idx_names->size(); }
+    size_t get_dimensions() const	{ return m_vectors->cbegin()->length();}
     size_t get_num_points() const	{ return m_vectors->size(); }
     const char * get_relation() const	{ return m_relation; }
     bool transpose() const		{ return m_transpose; }

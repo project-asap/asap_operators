@@ -123,6 +123,9 @@ data_set_type tfidf_driver( directory_listing_type & dir_list ) {
     get_time (end);
     print_time("TF/IDF", begin, end);
 
+    std::cerr << "TF/IDF vectors: " << tfidf.get_num_points() << '\n';
+    std::cerr << "TF/IDF dimensions: " << tfidf.get_dimensions() << '\n';
+
     return tfidf;
 }
 
