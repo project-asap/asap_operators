@@ -95,6 +95,7 @@ data_set_type tfidf_driver( directory_listing_type & dir_list ) {
 	// std::cerr << ": " << catalog[i].size() << " words\n";
 	// Reading from std::vector rather than std::map should be faster...
 	// Validated: about 10% on word count, 20% on TF/IDF, 16 threads
+	// TODO: replace by post-processing parallel multi-way merge?
 	allwords.count_presence( catalog[i] );
     }
     get_time (end);

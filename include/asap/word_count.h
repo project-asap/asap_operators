@@ -463,7 +463,7 @@ tfidf( InputIterator I, InputIterator E,
 	size_t fcount = II->size();
 	vec_start[i] = inc_nonzeros;
 	inc_nonzeros += fcount;
-
+	
 	vectors.emplace_back( num_dimensions, fcount );
     }
     assert( nonzeros == inc_nonzeros );
@@ -495,7 +495,7 @@ tfidf( InputIterator I, InputIterator E,
 	}
     }
 #endif
-	
+
     // Calculate TF/IDF scores
     cilk_for( size_t i=0; i < num_points; ++i ) {
 	auto PI = std::next( I, i ); // Get word map to operate on
@@ -526,7 +526,7 @@ tfidf( InputIterator I, InputIterator E,
 
 	// In case of unordered collections, we need to now sort the
 	// sparse vectors!
-	if( !is_sorted ) // Should infer this from the index_list_type
+	if( !is_sorted )
 	    vectors[i].sort_by_index();
     }
 

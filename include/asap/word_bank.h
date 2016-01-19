@@ -142,10 +142,14 @@ public:
 	// Doesn't deal with fragmentation
 	if( m_avail < len+1 ) {
 	    char * was_next = m_next;
-	    push_chunk( std::max( was_next-start+len+1, m_chunk ) );
+	    push_chunk( std::max( start ? was_next-start+len+1 : len+1,
+				  m_chunk ) );
 	    // copy what we had so we can extend it
-	    if( start )
+	    if( start ) {
 		start = store( start, was_next - start );
+		--m_next;
+		++m_avail;
+	    }
 	}
 
 	// Store the string but return original pointer, unless if it is the
@@ -566,6 +570,7 @@ public:
     // is ok.
     template<typename InputIterator>
     void insert( InputIterator I, InputIterator E, const word_bank_base & wb ) {
+	assert( this->m_words.empty() );
 	std::for_each( I, E, [&]( typename index_type::value_type & val ) { this->m_words.push_back( val ); } );
 	// this->m_words.insert( I, E );
 	this->m_storage.copy( wb );
@@ -574,6 +579,7 @@ public:
     typename
     std::enable_if<is_compatible<OtherIndexTy>::value>::type
     insert( const word_map<OtherIndexTy,OtherWordBankTy> & wc ) {
+	assert( this->m_words.empty() );
 	this->m_words.insert( this->m_words.end(), wc.cbegin(), wc.cend() );
 	this->m_storage.copy( wc.storage() );
     }
@@ -581,6 +587,7 @@ public:
     typename
     std::enable_if<is_compatible<OtherIndexTy>::value>::type
     insert( word_map<OtherIndexTy,OtherWordBankTy> && wc ) {
+	assert( this->m_words.empty() );
 	this->m_words.insert( this->m_words.end(),
 			      std::make_move_iterator(wc.begin()),
 			      std::make_move_iterator(wc.end()) );

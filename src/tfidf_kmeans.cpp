@@ -28,17 +28,18 @@ char const * indir = nullptr;
 char const * outfile = nullptr;
 bool by_words = false;
 bool do_sort = false;
+unsigned int rnd_init = 1;
 
 static void help(char *progname) {
     std::cout << "Usage: " << progname
-	      << " -i <indir> -o <outfile> -c <numclusters> [-m <maxiters>] [-w] [-s]\n";
+	      << " -i <indir> -o <outfile> -c <numclusters> [-m <maxiters>] [-w] [-s] [-r <rnd-init>]\n";
 }
 
 static void parse_args(int argc, char **argv) {
     int c;
     extern char *optarg;
     
-    while ((c = getopt(argc, argv, "i:o:c:m:ws")) != EOF) {
+    while ((c = getopt(argc, argv, "i:o:c:m:wsr:")) != EOF) {
         switch (c) {
 	case 'i':
 	    indir = optarg;
@@ -51,6 +52,9 @@ static void parse_args(int argc, char **argv) {
 	    break;
 	case 'c':
 	    num_clusters = atoi(optarg);
+	    break;
+	case 'r':
+	    rnd_init = atoi(optarg);
 	    break;
 	case 'w':
 	    by_words = true;
@@ -68,13 +72,17 @@ static void parse_args(int argc, char **argv) {
 	fatal( "Number of clusters must be larger than 0." );
     if( !indir )
 	fatal( "Input directory must be supplied." );
-    if( !outfile )
-	fatal( "Output file must be supplied." );
     
     std::cerr << "Input directory = " << indir << '\n';
-    std::cerr << "Output file = " << outfile << '\n';
+    if( !outfile )
+	std::cerr << "Output stage skipped\n";
+    else if( !strcmp( outfile, "-" ) )
+	std::cerr << "Output file = standard output\n";
+    else
+	std::cerr << "Output file = " << outfile << '\n';
+    std::cerr << "srand(" << rnd_init << ")\n";
     std::cerr << "TF/IDF by words = " << ( by_words ? "true\n" : "false\n" );
-    std::cerr << "TF/IDF by words = " << ( by_words ? "true\n" : "false\n" );
+    std::cerr << "TF/IDF sort = " << ( do_sort ? "true\n" : "false\n" );
     std::cerr << "K-Means number of clusters = " << num_clusters << '\n';
     std::cerr << "K-Means maximum iterations = " << max_iters << '\n';
 }
@@ -83,7 +91,7 @@ int main(int argc, char **argv) {
     struct timespec begin, end;
     struct timespec veryStart;
 
-    srand( time(NULL) );
+    srand( rnd_init == 0 ? time(NULL) : rnd_init );
 
     get_time( begin );
     veryStart = begin;
@@ -104,20 +112,34 @@ int main(int argc, char **argv) {
     asap::get_directory_listing( indir, dir_list );
     get_time (end);
     print_time("directory listing", begin, end);
+    std::cerr << "Found " << dir_list.size() << " files\n";
 
     // word count
     get_time( begin );
+#if 0
     typedef asap::word_map<std::unordered_map<const char *, size_t, asap::text::charp_hash, asap::text::charp_eql>, asap::word_bank_pre_alloc> word_map_type;
+#else
+    typedef asap::word_map<std::map<const char *, size_t, asap::text::charp_cmp>, asap::word_bank_pre_alloc> word_map_type;
+#endif
     typedef asap::kv_list<std::vector<std::pair<const char *, size_t>>, asap::word_bank_pre_alloc> word_list_type;
 
     typedef asap::sparse_vector<size_t, float, false,
 				asap::mm_no_ownership_policy>
 	vector_type;
+#if 1
     typedef asap::word_map<std::unordered_map<const char *,
 				    asap::appear_count<size_t,
 						       typename vector_type::index_type>,
 				    asap::text::charp_hash, asap::text::charp_eql>,
 			   asap::word_bank_pre_alloc> word_map_type2;
+#else
+    typedef asap::word_map<std::map<const char *,
+				    asap::appear_count<size_t,
+						       typename vector_type::index_type>,
+				    asap::text::charp_cmp>,
+			   asap::word_bank_pre_alloc> word_map_type2;
+#endif
+
     size_t num_files = dir_list.size();
     std::vector<word_list_type> catalog;
     catalog.resize( num_files );
@@ -204,9 +226,15 @@ int main(int argc, char **argv) {
     print_time("denormalize", begin, end);
 
     get_time( begin );
-    std::ofstream of( outfile, std::ios_base::out );
-    kmeans_op.output( of );
-    of.close();
+    if( !outfile )
+	; // skip output
+    else if( !strcmp( outfile, "-" ) ) {
+	kmeans_op.output( std::cout );
+    } else {
+	std::ofstream of( outfile, std::ios_base::out );
+	kmeans_op.output( of );
+	of.close();
+    }
     get_time( end );
     print_time("output", begin, end);
 
