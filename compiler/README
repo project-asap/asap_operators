@@ -11,9 +11,11 @@ PRE-REQUISITES (optional)
 
 RUNNING 
 
-   ./tocpp.py -i workflow.xml -l operatorslib.xml -o workflow.cpp 
    ./tocpp.py -i tfidf.xml -l operatorslib.xml -o tfidf.cpp 
    ./tocpp.py -i kmeans.xml -l operatorslib.xml -o kmeans.cpp 
+   ./tocpp.py -i tfidf-kmeans.xml -l operatorslib.xml -o tfidfkmeans.cpp 
+
+   ./tocpp.py -i workflow.xml -l operatorslib.xml -o workflow.cpp 
 
 Where :
     workflow.xml is the proposed/imagined output format of Unige's workflow description.

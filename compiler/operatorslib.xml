@@ -38,6 +38,29 @@
                 <type>word_list_type</type>
             </datastructure>
         </operator>
+        <operator>
+            <name>tfidfkmeans</name>
+            <template>
+                <!-- Node: 'run' elements now have limited purpose as we no longer build 
+                     calls to operators directly, but instead include code sections from 
+                     templates so effectively the 'run' signature is ignored
+                     'run' however is still used as a search anchor -->
+                <key>run</key>
+                <value>tfidfkmeans(DATA_PARAM1, OP_PARAM1, OP_PARAM2);</value> 
+            </template>
+            <template>
+                <key>input</key>
+                <value>get_dir_listing(FILE_PARAM1, dir_list);</value>
+            </template>
+            <template>
+                <key>output</key>
+                <value>output(DATA_PARAM1, FILE_PARAM1);</value>
+            </template>
+            <datastructure>
+                <!-- <type>word_map_type</type> -->
+                <type>word_list_type</type>
+            </datastructure>
+        </operator>
 
     </ops>
 </library>

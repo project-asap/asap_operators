@@ -61,7 +61,7 @@ class tfidf:
     declarations = {'input': 'char const * VARIN = VAROUT;', 'output': 'char const * VARIN = VAROUT;'}
                     # 'max_iters': 'const int VARIN = VAROUT;', 'num_clusters': 'const int VARIN = VAROUT;' }
 
-    # action_map = {'input':'readDir(FILE_PARAM1);', 'run': 'tfidf(DATA_PARAM1, OP_PARAM1, OP_PARAM2);','output':'output(DATA_PARAM1, FILE_PARAM1);'}
+    # records function signatures from operator library
     action_map = {}
 
 
@@ -80,9 +80,10 @@ class kmeans:
     """ Represents options and declaration templates for kmeans """
     declarations = {'input': 'char const * VARIN = VAROUT;', 'output': 'char const * VARIN = VAROUT;',
                     'num_clusters': 'const int VARIN = VAROUT;', 'max_iters': 'const int VARIN = VAROUT;',
-                    'force_dense': 'const bool VARIN = VAROUT;'}
+                    'force_dense': 'const bool VARIN = VAROUT;',
+                    'by_words': 'const bool VARIN = VAROUT;', 'do_sort': 'const bool VARIN = VAROUT;'}
 
-    # action_map = {'input':'readFile(FILE_PARAM1);', 'run': 'kmeans(DATA_PARAM1, OP_PARAM1);', 'output':'output(DATA_PARAM1, FILE_PARAM1);'}
+    # records function signatures from operator library
     action_map = {}
 
     # set default data structure type in case none is specified in operator library
@@ -97,19 +98,43 @@ class kmeans:
     # To queue operator parameters
     paramQueue=deque([])
 
+class tfidfkmeans:
+    """ Represents options and declaration templates for tfidfkmeans """
+    declarations = {'input': 'char const * VARIN = VAROUT;', 'output': 'char const * VARIN = VAROUT;',
+                    'num_clusters': 'const int VARIN = VAROUT;', 'max_iters': 'const int VARIN = VAROUT;',
+                    'force_dense': 'const bool VARIN = VAROUT;',
+                    'by_words': 'const bool VARIN = VAROUT;', 'do_sort': 'const bool VARIN = VAROUT;'}
+
+    # records function signatures from operator library
+    action_map = {}
+
+
+    # set default data structure type in case none is specified in operator library
+    dataStructType='word_list_type'
+
+    # func for setting data structure type
+    # @staticmethod
+    def setDataStructType(self, dst):
+        self.dataStructType=dst
+
+    # To queue operator parameters
+    paramQueue=deque([])
+
+
 """
-    Declare global instances of operator class instances so we can set/get member vars
+    Declare global instances of operator classes so we can set/get member vars
     Note: not the best way.  If we ever need an operator more than once in workflow?
-    these need to be made local to main and passesd as args to functions such as 
+    these need to be made local to main and passed as arguments to functions such as 
     setActionMappings etc
 """
 g_tfidf = tfidf()
 g_kmeans = kmeans()
+g_tfidfkmeans = kmeans()
 
 """
-        map from xml element name to python library/templace code class above
+        map from xml element name to python library/template code class above
 """
-operator_map = {'tfidf': tfidf, 'kmeans': kmeans}
+operator_map = {'tfidf': tfidf, 'kmeans': kmeans, 'tfidfkmeans': tfidfkmeans}
 
 """
     The template details of what an operator (including input and output) call 
@@ -215,9 +240,6 @@ def main(argv):
 
     """" START OF SECTION PRINTING TEMPLATE FILES """
 
-    """   
-        Loop here so we get each operators version of header and main declaration sections
-    """
 
     """ print header and main_declarations template sections of code """
     with open('templates/header.template', 'r') as myfile:
@@ -225,10 +247,14 @@ def main(argv):
     myfile.close()
     tabPrint(data, 0, code)
 
+    """   
+        Outter Loop here so we get each operators version of code section template files 
+    """
     for operator in root.findall('ops/operator'):
         outterOpName = operator.find('run').text
     
         """ 
+            Inner loop 1
             Add the declarations for input and output 'child's of operator 
         """
         tabPrint ("//  Variable Declarations holding input/output filenames  \n\n", 0, code)
@@ -259,6 +285,7 @@ def main(argv):
         tabPrint ("\n", 0, code)
         
         """
+           Inner loop 2
            Print declarations for ordinary variables (read from attributes in operator 'run' element)
         """ 
         tabPrint("//  Variable Declarations \n\n", 0, code)
@@ -290,6 +317,10 @@ def main(argv):
         """
 
 
+        """
+           Inner loop 3
+           Print calls to Operator functions according to 'run' element from workflow
+        """ 
         tabPrint ("//  Calls to Operator functions  \n\n", tabcount, code)
         ctr=0
         for runoperator in root.findall('ops/operator/run'):
@@ -337,30 +368,6 @@ def main(argv):
         tabPrint(data, 0, code)
 
     code.close()
-
-    """  TODELETE, 
-       Print calls to the actual operator core functions
-    tabPrint ("//  Calls to Operator functions  \n\n", tabcount, code)
-    ctr=0
-    for operator in root.findall('ops/operator'):
-        opName = operator.find('run')
-        for child in operator:
-            if child.tag in operator_map[opName.text].action_map:
-                if child.text is not None:
-                    statement="var"+`ctr` + " = " + func_call(child.tag, \
-                                 operator_map[opName.text].action_map[child.tag], \
-                                 interDataParamQueue, \
-                                 interFileIOParamQueue, \
-                                 operator_map[opName.text].paramQueue) \
-                                 + '\n'
-                    if isOutput(child) is False:
-                        interDataParamQueue.append("var"+`ctr`)
-                    tabPrint (statement, tabcount, code)
-            ctr += 1
-    tabcount -=1
-    tabPrint ("\n}", tabcount, code)
-    """
-    
 
 """
     Call main with passed params
