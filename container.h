@@ -190,6 +190,11 @@ public:
                 this->index++;
             }
         }
+
+	operator const_iterator () const {
+	    return const_iterator( *a, index );
+	}
+
         bool operator !=(iterator const& other) const {
             return index != other.index;
         }
@@ -246,6 +251,29 @@ public:
         }
     }
 
+    const_iterator find( const key_type &key ) const {
+        uint64_t index = kh(key) & (msize-1);
+        while(occupied[index] && !(table[index].first == key)) {
+            index = (index+1) & (msize-1);
+        }
+
+        if(occupied[index])
+            return const_iterator( *this, index );
+        else
+	    return cend();
+    }
+
+    iterator find( const key_type &key ) {
+        uint64_t index = kh(key) & (msize-1);
+        while(occupied[index] && !(table[index].first == key)) {
+            index = (index+1) & (msize-1);
+        }
+
+        if(occupied[index])
+            return iterator( *this, index );
+        else
+	    return end();
+    }
 
     iterator begin() {
         return iterator(*this, 0);

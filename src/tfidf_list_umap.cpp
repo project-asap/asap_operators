@@ -18,6 +18,7 @@
 #include "asap/io.h"
 
 #include <stddefines.h>
+#include <container.h>
 
 #define DEF_NUM_MEANS 8
 
@@ -130,6 +131,41 @@ data_set_type tfidf_driver( directory_listing_type & dir_list ) {
     return tfidf;
 }
 
+// a single null-terminated word
+struct wc_word {
+    const char* data;
+    
+    wc_word(const char * d = 0) : data( d ) { }
+    wc_word( const wc_word & w ) : data( w.data ) { }
+    
+    // necessary functions to use this as a key
+    bool operator<(wc_word const& other) const {
+        return strcmp(data, other.data) < 0;
+    }
+    bool operator==(wc_word const& other) const {
+        return strcmp(data, other.data) == 0;
+    }
+
+    operator const char * () const { return data; }
+    operator char * () const { return (char *)data; } // output
+};
+
+
+// a hash for the word
+struct wc_word_hash
+{
+    // FNV-1a hash for 64 bits
+    size_t operator()(wc_word const& key) const
+    {
+        const char* h = key.data;
+        uint64_t v = 14695981039346656037ULL;
+        while (*h != 0)
+            v = (v ^ (size_t)(*(h++))) * 1099511628211ULL;
+        return v;
+    }
+};
+
+
 int main(int argc, char **argv) {
     struct timespec begin, end;
     struct timespec veryStart;
@@ -163,6 +199,7 @@ int main(int argc, char **argv) {
 				asap::mm_no_ownership_policy>
 	vector_type;
 
+/*
     typedef asap::word_map<
 	std::unordered_map<const char *, size_t, asap::text::charp_hash,
 			   asap::text::charp_eql>,
@@ -176,6 +213,17 @@ int main(int argc, char **argv) {
 			   asap::appear_count<size_t, index_type>,
 			   asap::text::charp_hash, asap::text::charp_eql>,
 	word_bank_type> aggregate_map_type;
+*/
+    typedef hash_table<wc_word, size_t, wc_word_hash> wc_unordered_map;
+    typedef hash_table<wc_word,
+		       asap::appear_count<size_t, index_type>,
+		       wc_word_hash> dc_unordered_map;
+
+    typedef asap::word_map<wc_unordered_map, word_bank_type> internal_map_type;
+    typedef asap::kv_list<std::vector<std::pair<wc_word, size_t>>,
+			  word_bank_type> intermediate_map_type;
+    typedef asap::word_map<dc_unordered_map, word_bank_type> aggregate_map_type;
+
     typedef asap::data_set<vector_type, aggregate_map_type,
 			   directory_listing_type> data_set_type;
 
