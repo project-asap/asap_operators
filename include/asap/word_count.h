@@ -93,18 +93,7 @@ struct charp_eql {
     }
 };
 
-/*
-template<typename IndexTy, typename CountTy>
-struct word_catalog_reducer {
-    typedef IndexTy index_type;
-    typedef CountTy count_type;
-    typedef typename index_type::?;
-
-    void operator() ( mapped_type & left, mapped_type & right ) {
-    }
-};
-*/
-
+#if 0
 template<typename MapTy, typename Reducer>
 class map_reducer {
     typedef MapTy type;
@@ -182,6 +171,7 @@ public:
 	return imp_.view()[key];
     }
 };
+#endif
 
 template<typename WordListTy>
 class word_list_reducer {
@@ -251,6 +241,7 @@ void word_catalog( char * data, size_t data_size,
 		// TODO: check performance with std::for_each and std::find
 		// but with optimized codes in functors.
 		// *I = std::toupper( *I );
+		// TODO: vectorize this expression
 		if( *I >= 'a' && *I <= 'z' )
 		    *I = ( *I - 'a' ) + 'A';
 	    }
@@ -612,7 +603,7 @@ tfidf_by_words( InputIterator I, InputIterator E,
 
 	    size_t fcount = F->second.first; // Number of files involved in.
 	    value_type norm
-		= log10(value_type(num_points + 1) / value_type(fcount + 1)); 
+		= log10(value_type(num_dimensions + 1) / value_type(fcount + 1)); 
 	    size_t id = F->second.second; // Word ID
 	
 	    size_t pos = __sync_fetch_and_add( &word_ctr[id], 1 );
