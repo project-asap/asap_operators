@@ -24,8 +24,8 @@
 
 char const * indir = nullptr;
 char const * outfile = nullptr;
-bool by_words = false;
-bool do_sort = false;
+bool by_words = true;
+bool do_sort = true;
 
 static void help(char *progname) {
     std::cout << "Usage: " << progname << " -i <indir> -o <outfile> [-w] [-s]\n";
@@ -71,11 +71,11 @@ static void parse_args(int argc, char **argv) {
 
 template<typename directory_listing_type, typename intl_map_type, typename intm_map_type, typename agg_map_type, typename data_set_type>
 data_set_type tfidf_driver( directory_listing_type & dir_list ) {
-    struct timespec begin, end;
+    struct timespec begin, end, tfidf_begin, tfidf_end;
 
     // word count
-    get_time( begin );
-
+    //get_time( begin );
+    get_time( tfidf_begin );
     size_t num_files = dir_list.size();
     std::vector<intm_map_type> catalog;
     catalog.resize( num_files );
@@ -99,10 +99,10 @@ data_set_type tfidf_driver( directory_listing_type & dir_list ) {
 	// TODO: replace by post-processing parallel multi-way merge?
 	allwords.count_presence( catalog[i] );
     }
-    get_time (end);
-    print_time("word count", begin, end);
+   // get_time (end);
+   // print_time("word count", begin, end);
 
-    get_time( begin );
+   // get_time( begin );
     std::shared_ptr<agg_map_type> allwords_ptr
 	= std::make_shared<agg_map_type>();
     allwords_ptr->swap( allwords.get_value() );
@@ -121,9 +121,10 @@ data_set_type tfidf_driver( directory_listing_type & dir_list ) {
 	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr,
 	    do_sort ); // whether catalogs are sorted
     }
-
-    get_time (end);
-    print_time("TF/IDF", begin, end);
+    get_time(tfidf_end);
+   // get_time (end);
+    print_time("library", tfidf_begin, tfidf_end);
+  //  print_time("TF/IDF", begin, end);
 
     std::cerr << "TF/IDF vectors: " << tfidf.get_num_points() << '\n';
     std::cerr << "TF/IDF dimensions: " << tfidf.get_dimensions() << '\n';
