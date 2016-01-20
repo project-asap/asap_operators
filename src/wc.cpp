@@ -18,6 +18,7 @@
 #include "asap/io.h"
 
 #include <stddefines.h>
+#include <container.h>
 
 #define DEF_NUM_MEANS 8
 
@@ -65,6 +66,70 @@ static void parse_args(int argc, char **argv) {
     std::cerr << "Word count display number = " << disp_num << "\n";
 }
 
+struct hash_word {
+    const char * p;
+    size_t h;
+
+    hash_word( const char *p_ ) : p( p_ ), h( asap::text::charp_hash()( p ) ) {
+    }
+    hash_word( const hash_word & hw ) : p( hw.p ), h( hw.h ) { }
+    hash_word & operator = ( const hash_word & hw ) {
+	p = hw.p;
+	h = hw.h;
+	return *this;
+    }
+
+    operator const char * () const { return p; }
+    operator char * () const { return (char*)p; }
+};
+
+struct hash_word_hash {
+    size_t operator() ( const hash_word & w ) const {
+	return w.h;
+    }
+};
+
+struct hash_word_eql {
+    bool operator () ( const hash_word & lhs, const hash_word & rhs ) const {
+	return strcmp( lhs.p, rhs.p ) == 0;
+    }
+};
+
+// a single null-terminated word
+struct wc_word {
+    const char* data;
+    
+    wc_word(const char * d = 0) : data( d ) { }
+    wc_word( const wc_word & w ) : data( w.data ) { }
+    
+    // necessary functions to use this as a key
+    bool operator<(wc_word const& other) const {
+        return strcmp(data, other.data) < 0;
+    }
+    bool operator==(wc_word const& other) const {
+        return strcmp(data, other.data) == 0;
+    }
+
+    operator const char * () const { return data; }
+    operator char * () const { return (char *)data; } // output
+};
+
+
+// a hash for the word
+struct wc_word_hash
+{
+    // FNV-1a hash for 64 bits
+    size_t operator()(wc_word const& key) const
+    {
+        const char* h = key.data;
+        uint64_t v = 14695981039346656037ULL;
+        while (*h != 0)
+            v = (v ^ (size_t)(*(h++))) * 1099511628211ULL;
+        return v;
+    }
+};
+
+
 template<typename Pair>
 struct cmp_2nd_rev {
     bool operator() ( const Pair & p1, const Pair & p2 ) const {
@@ -91,8 +156,13 @@ int main(int argc, char **argv) {
 
     // word count
     get_time( begin );
-    typedef asap::word_map<std::unordered_map<const char *, size_t, asap::text::charp_hash, asap::text::charp_eql>, asap::word_bank_pre_alloc> word_map_type;
-    typedef asap::kv_list<std::vector<std::pair<const char *, size_t>>, asap::word_bank_pre_alloc> word_list_type;
+    // typedef asap::word_map<std::unordered_map<hash_word, size_t, hash_word_hash, hash_word_eql>, asap::word_bank_pre_alloc> word_map_type;
+    // typedef asap::kv_list<std::vector<std::pair<hash_word, size_t>>, asap::word_bank_pre_alloc> word_list_type;
+    // typedef asap::word_map<std::unordered_map<const char *, size_t, asap::text::charp_hash, asap::text::charp_eql>, asap::word_bank_pre_alloc> word_map_type;
+    // typedef asap::kv_list<std::vector<std::pair<const char *, size_t>>, asap::word_bank_pre_alloc> word_list_type;
+    typedef hash_table<wc_word, size_t, wc_word_hash> wc_unordered_map;
+    typedef asap::word_map<wc_unordered_map, asap::word_bank_pre_alloc> word_map_type;
+    typedef asap::kv_list<std::vector<std::pair<wc_word, size_t>>, asap::word_bank_pre_alloc> word_list_type;
 
     word_list_type catalog;
     asap::word_catalog<word_map_type>( std::string(infile), catalog );
@@ -121,7 +191,7 @@ int main(int argc, char **argv) {
     auto I = catalog.cbegin();
     auto E = catalog.cend();
     for( size_t i=0; I != E && i < dn; ++i, ++I ) {
-        fprintf( fp, "%15s - %lu\n", I->first, I->second );
+        fprintf( fp, "%15s - %lu\n", (char *)I->first, I->second );
 	total += I->second;
     }
     for( ; I != E; ++I )

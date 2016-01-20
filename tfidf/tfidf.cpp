@@ -529,7 +529,7 @@ class dictionary_reducer {
 	static void identity( MapType * p ) {
 	    // Initialize to useful default size depending on chunk size
 #ifndef STD_MAP
-	    new (p) MapType(1<<16);
+	    new (p) MapType(); // 1<<16);
 #else
 	    new (p) MapType();
 #endif
@@ -824,7 +824,7 @@ typedef Centres centres_reducer;
 
 void wc( char * data, uint64_t data_size, uint64_t chunk_size, wc_unordered_map & wc_dict, unsigned int file) {
     uint64_t splitter_pos = 0;
-    wc_dictionary_reducer dict(1<<16);
+    wc_dictionary_reducer dict; // (1<<16);
     while( 1 ) {
 	TRACE( e_ssplit );
 
@@ -909,7 +909,7 @@ void wc( char * data, uint64_t data_size, uint64_t chunk_size, wc_unordered_map 
 #endif
 }
 
-// #define NO_MMAP
+#define NO_MMAP
 
 // vim: ts=8 sw=4 sts=4 smarttab smartindent
 
@@ -1125,7 +1125,7 @@ int main(int argc, char *argv[])
     nfiles = files.size();
     printf("number of files: %d\n", nfiles);
 
-    wc_dictionary_pair_reducer total_dict_red(1<<16);
+    wc_dictionary_pair_reducer total_dict_red; // (1<<16);
     wc_unordered_map file_dict[nfiles];
 
     char * fdata[files.size()];
@@ -1228,7 +1228,7 @@ int main(int argc, char *argv[])
     }
 
 #ifndef STD_MAP
-    wc_unordered_pair_map total_dict(1<<16);
+    wc_unordered_pair_map total_dict; // (1<<16);
 #else
     wc_unordered_pair_map total_dict;
 #endif

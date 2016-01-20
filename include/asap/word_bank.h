@@ -589,8 +589,10 @@ public:
     insert( word_map<OtherIndexTy,OtherWordBankTy> && wc ) {
 	assert( this->m_words.empty() );
 	this->m_words.insert( this->m_words.end(),
-			      std::make_move_iterator(wc.begin()),
-			      std::make_move_iterator(wc.end()) );
+			      wc.begin(),
+			      wc.end() );
+	// std::make_move_iterator(wc.begin()),
+	// std::make_move_iterator(wc.end()) );
 	this->m_storage.copy( std::move(wc.storage()) );
 	wc.clear();
     }
