@@ -275,13 +275,11 @@ def setActionMappings(tree):
             eval('g_'+opName.text).action_map[key]=value
         dataStructType = operator.find('datastructure/type')
         eval('g_'+opName.text).setDataStructType(dataStructType.text)
-        # print opName.text, " imm after setting, struct type is ", eval('g_'+opName.text).dataStructType
 
 
 def loadOperatorLibraryData(data):
     for operator in data["operators"]:
         if operator["type"] == "dataset":
-            print "process dataset"
             newconstraint = DataSetConstraint(operator["Constraints.DataInfo.type"], 
                                              operator["Constraints.Engine.FS"],
 					     operator["Constraints.type"])
@@ -292,7 +290,6 @@ def loadOperatorLibraryData(data):
                                              operator["input"], 
                                              operator["status"])
             g_datasetsMap[operator["name"]] = newdataset
-            print "Added dataset"
         elif operator["type"] == "operator":
             newconstraint = OperatorConstraint(
                                              operator["Constraints.EngineSpecification.FS"],
@@ -307,29 +304,21 @@ def loadOperatorLibraryData(data):
                                              operator["input"], 
                                              operator["status"])
             g_operatorsMap[operator["name"]] = newoperator
-            print "Added operator"
         elif operator["type"] == "signature_rule":
             newsignature = Signature(operator["input"], operator["output"], operator["run"])
             for algorithmName in operator["algorithm.names"]:
                 g_signatureMap[algorithmName] = newsignature
-            print "Added signature"
         elif operator["type"] == "typedef":
             for algorithmName in operator["algorithm.names"]:
                 for algorithmType in operator["algorithm.types"]:
                     g_typedefMap[tuple([algorithmName, algorithmType])] = operator["types"]
-            print "Added typedef"
         elif operator["type"] == "inout_declaration":
             for algorithm in operator["algorithm.names"]:
 		g_iodeclMap[tuple([algorithm,"input"])] = operator["input"]
 		g_iodeclMap[tuple([algorithm,"output"])] = operator["output"]
-            print "inout_delcaration"
         elif operator["type"] == "arg_declaration":
             for algorithm in operator["algorithm.names"]:
-                ## for template in operator["argTemplates"]:
-                    ## # print template.argName, template.template
-		    ## # g_argsdeclMap[algorithm] = operator["argTemplates"]
 		g_argsdeclMap[algorithm] = operator["argTemplates"]
-            print "arg_delcaration"
         else:
             print "Error"
  	    sys.exit
@@ -412,17 +401,24 @@ def main(argv):
 
     code = open(codefile, "w")
 
+    """ 
+        Load materialised operators data from json
+    """
     loadOperatorLibraryData(libdata)
 
-    loadWorkflowData(flow)
+    """ 
+        Load workflow data from json
     """
+    loadWorkflowData(flow)
+
+
+    """ DEBUG TRACE BLOCK
     print "-------------------------------- Operators -------------------------------------------- "
     pprint(g_operatorsMap)
     print "-------------------------------- Signatures -------------------------------------------- "
     pprint(g_signatureMap)
     print "-------------------------------- Typedefs -------------------------------------------- "
     pprint(g_typedefMap)
-    """
     print "-------------------------------- iodelcs -------------------------------------------- "
     pprint(g_iodeclMap)
     print "-------------------------------- arg decls -------------------------------------------- "
@@ -435,6 +431,7 @@ def main(argv):
     pprint(g_inputBoxMap)
     print "-------------------------------- output Boxes -------------------------------------------- "
     pprint(g_outputBoxMap)
+    """
 
     """ Set tab level for generated code """
     tabcount=0
@@ -442,13 +439,6 @@ def main(argv):
     """ print start of main block """
     # tabPrint("int main() {\n\n", tabcount, code)
     tabcount=1
-
-    """ 
-        Initialise queue for inter-op data parameters and inter op IO file parameters
-        This have to have 'main' scope as they span beyond operator scope
-    """
-    interDataParamQueue=deque([])
-    interFileIOParamQueue=deque([])
 
     """ 
         Keep track of IO files declared so we can merge variables names so we have 1 var for the same filename
@@ -504,7 +494,6 @@ def main(argv):
                             tabPrint (declarationStr, 0, code)
                             tabPrint ("\n", 0, code)
                         g_argMap[(algName,inputId)] = var
-                        interFileIOParamQueue.append(var)
                         ctr += 1 
     tabPrint ("\n", 0, code)
 
@@ -515,12 +504,10 @@ def main(argv):
         """ 
         if box["type"] == "operator":
             actual_args = box["args"]
-            pprint(actual_args)
 
             tabPrint ("//  Variable Declarations for operator arguments \n\n", 0, code)
 	    for arg in actual_args.keys():
                 algName = g_operatorsMap[box["name"]].constraint.algname
-                pprint(g_argsdeclMap[algName])
                 declDict = g_argsdeclMap[algName][0]
                 if declDict.has_key(arg):
                    declarationTemplate=declDict[arg] 
@@ -574,7 +561,6 @@ def main(argv):
                 this code section could become a loop for every marker, pick off the inputs of
                 the operator - still TODO """
             with open('templates/'+algName+'input.template', 'r') as myfile:
-                # data=myfile.read().replace('FILE_PARAM1',interFileIOParamQueue.popleft())
                 data=myfile.read().replace('FILE_PARAM1',g_argMap[(algName,box["input"][0])]) # TODO when in loop, remove subscript
             myfile.close()
             tabPrint(data, tabcount, code)
@@ -599,7 +585,6 @@ def main(argv):
             tabPrint ("//  Output section \n\n", tabcount, code)
             """ output section """
             with open('templates/'+algName+'output.template', 'r') as myfile:
-                # data=myfile.read().replace('OUTFILE',interFileIOParamQueue.popleft())
                 data=myfile.read().replace('OUTFILE',g_argMap[(algName,box["output"][0])]) # TODO when in loop, remove subscript
                 myfile.close()
             tabPrint(data, tabcount, code)

@@ -22,8 +22,3 @@ int main(int argc, char **argv) {
 
     std::cerr << "Available threads: " << __cilkrts_get_nworkers() << "\n";
 
-    typedef asap::sparse_vector<size_t, float, true, asap::mm_ownership_policy>
-	vector_type;
-    typedef asap::word_list<std::vector<const char *>, asap::word_bank_pre_alloc> word_list;
-    typedef asap::data_set<vector_type,word_list> data_set_type;
-

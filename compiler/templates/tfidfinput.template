@@ -1,7 +1,6 @@
     // Directory listing
     get_time( begin );
-    typedef asap::word_list<std::deque<const char*>, asap::word_bank_managed>
-	directory_listing_type;
+
     directory_listing_type dir_list;
     asap::get_directory_listing( FILE_PARAM1, dir_list );
     get_time (end);
