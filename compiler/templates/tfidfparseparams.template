@@ -1,0 +1,36 @@
+/* At least until now we don't parse the arguments at the cpp end, but 
+   define arg formats in the operator library (to move from workflowxml)
+   and replace in template
+
+static void help(char *progname) {
+    std::cout << "Usage: " << progname << " -i <indir> -o <outfile>\n";
+}
+
+
+static void parse_args(int argc, char **argv) {
+    int c;
+    extern char *optarg;
+    
+    while ((c = getopt(argc, argv, "i:o:")) != EOF) {
+        switch (c) {
+	case 'i':
+	    indir = optarg;
+	    break;
+	case 'o':
+	    outfile = optarg;
+	    break;
+	case '?':
+	    help(argv[0]);
+	    exit(1);
+        }
+    }
+    
+    if( !indir )
+	fatal( "Input directory must be supplied." );
+    if( !outfile )
+	fatal( "Output file must be supplied." );
+    
+    std::cerr << "Input directory = " << indir << '\n';
+    std::cerr << "Output file = " << outfile << '\n';
+}
+*/

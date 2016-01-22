@@ -1,0 +1,4 @@
+    get_time( begin );
+    std::ofstream of( outfile, std::ios_base::out );
+    kmeans_op.output( of );
+    of.close();

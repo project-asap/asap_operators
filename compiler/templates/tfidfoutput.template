@@ -1,0 +1,8 @@
+    get_time( begin );
+    std::ofstream of( OUTFILE, std::ios_base::out );
+
+    size_t i=0;
+    for( auto I=tfidf.vector_cbegin(), E=tfidf.vector_cend(); I != E; ++I, ++i ){
+	of << dir_list[i] << ": " << *I << std::endl;
+    }
+    of.close();

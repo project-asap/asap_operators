@@ -1,0 +1,29 @@
+/* These are defined from workflow xml and operator library
+size_t num_clusters;
+size_t max_iters;
+bool force_dense;
+char const * infile = nullptr;
+char const * outfile = nullptr;
+
+*/
+
+int main(int argc, char **argv) {
+    struct timespec begin, end;
+    struct timespec veryStart, veryEnd;
+
+    srand( time(NULL) );
+
+    get_time( begin );
+    veryStart = begin;
+
+    // read args
+    // defined from workflow and oplibs xml:
+    // parse_args(argc,argv);
+
+    std::cerr << "Available threads: " << __cilkrts_get_nworkers() << "\n";
+
+    typedef asap::sparse_vector<size_t, float, true, asap::mm_ownership_policy>
+	vector_type;
+    typedef asap::word_list<std::vector<const char *>, asap::word_bank_pre_alloc> word_list;
+    typedef asap::data_set<vector_type,word_list> data_set_type;
+
