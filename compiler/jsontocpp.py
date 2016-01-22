@@ -6,135 +6,10 @@ import sys, getopt
 from collections import deque
 import re
 import unittest
-""" todelete
-import elementtree.ElementTree as ET
-from elementtree.ElementTree import Element, SubElement
-"""
-"""
-
-
-        Builds the operator function call by replacing PARAM placeholders with the actual generated variable names.
-        The variable names have been previously queued at declaration time in 2 of 3 parameter type queues.
-
-        The 3 parameter queue type are:
-        1. Data parameters queue contains 'linking' variables which accept return values from 
-                  one function call for input as an argument to the next function. 
-        2. Operator Parameters queue contains specific tuning parameters for the operators (eg. #clusters)
-        3. File parameters queue contains variables which hold input and output filename as specified in
-                  the input and output elements of the workflow xml description.
-  
-"""
-def func_call(tag, signature, data_op_queue, fileio_op_queue, op_queue):
-
-    # Set DATA_PARAMS first (ie. vars named data* which are workflow parameters)
-    paramPtr=1
-    currentParam="DATA_PARAM"+`paramPtr` 
-    while currentParam in signature:
-        replaceParam=data_op_queue.popleft()
-        signature = signature.replace(currentParam, replaceParam)
-        paramPtr+=1
-        currentParam="DATA_PARAM"+`paramPtr` 
-
-    # Set OP_PARAMS next (ie. special attributes such as 'num of clusters' to operators
-    paramPtr=1
-    currentParam="OP_PARAM"+`paramPtr` 
-    while currentParam in signature:
-        replaceParam=op_queue.popleft()
-        signature = signature.replace(currentParam, replaceParam)
-        paramPtr+=1
-        currentParam="OP_PARAM"+`paramPtr` 
-
-    # Set FILE_PARAMS next (ie. original input and output filename parameters
-    paramPtr=1
-    currentParam="FILE_PARAM"+`paramPtr` 
-    while currentParam in signature:
-        replaceParam=fileio_op_queue.popleft()
-        signature = signature.replace(currentParam, replaceParam)
-        paramPtr+=1
-        currentParam="PARAM"+`paramPtr` 
-    return signature
 
 """
-        Operator classes contains template information for constructs (declarations and function calls) necessary
-        to build an actual c++ execution call from the description of workflow.
-
-        For example, PARAM placeholders in template code are replaced with previously declared/generated variable names.
-
-        A Queue of operator parameters (specified as attributes to the 'run' element in XML workflow) is stashed in paramQueue
+        Schema classes which hold data from materialised library operators and description of workflow
 """
-class tfidf:
-    """ Represents options and declaration templates for tfidf """
-    io_declarations = {'input': 'char const * VARIN = VAROUT;', 'output': 'char const * VARIN = VAROUT;'}
-
-    attribute_declarations = {'max_iters': 'const int VARIN = VAROUT;', 'num_clusters': 'const int VARIN = VAROUT;' }
-
-    # records function signatures from operator library
-    action_map = {}
-
-
-    # set default data structure type in case none is specified in operator library
-    dataStructType='word_map_type'
-
-    # func for setting data structure type
-    # @staticmethod
-    def setDataStructType(self, dst):
-        self.dataStructType=dst
-        
-    # To queue operator parameters
-    paramQueue=deque([])
-
-class kmeans:
-    """ Represents options and declaration templates for kmeans """
-    io_declarations = {'input': 'char const * VARIN = VAROUT;', 'output': 'char const * VARIN = VAROUT;'}
-
-    attribute_declarations = {
-                    'num_clusters': 'const int VARIN = VAROUT;', 'max_iters': 'const int VARIN = VAROUT;',
-                    'force_dense': 'const bool VARIN = VAROUT;',
-                    'by_words': 'const bool VARIN = VAROUT;', 'do_sort': 'const bool VARIN = VAROUT;'}
-
-    # records function signatures from operator library
-    action_map = {}
-
-    # set default data structure type in case none is specified in operator library
-    dataStructType='word_map_type'
-
-    # func for setting data structure type
-    # @staticmethod
-    def setDataStructType(self, dst):
-        self.dataStructType=dst
-
-    # To queue operator parameters
-    paramQueue=deque([])
-
-class tfidfkmeans:
-    """ Represents options and declaration templates for tfidfkmeans """
-    io_declarations = {'input': 'char const * VARIN = VAROUT;', 'output': 'char const * VARIN = VAROUT;'}
-
-    attribute_declarations = {
-                    'num_clusters': 'const int VARIN = VAROUT;', 'max_iters': 'const int VARIN = VAROUT;',
-                    'force_dense': 'const bool VARIN = VAROUT;',
-                    'by_words': 'const bool VARIN = VAROUT;', 'do_sort': 'const bool VARIN = VAROUT;'}
-
-    # records function signatures from operator library
-    action_map = {}
-
-
-    # set default data structure type in case none is specified in operator library
-    dataStructType='word_list_type'
-
-    # func for setting data structure type
-    def setDataStructType(self, dst):
-        self.dataStructType=dst
-
-    # To queue operator parameters
-    paramQueue=deque([])
-
-
-
-# Perhaps won't be needed
-# class outputTypes:
-    # def __init__(self, types):
-        # pass # todo, store in zero based array
 
 class Constraint:
     def __init__(self, ctype):
@@ -234,14 +109,9 @@ def loadWorkflowData(data):
             g_operatorBoxMap[box["id"]] = newoperatorbox
 
 """
-    Declare global instances of operator classes so we can set/get member vars
-    Note: not the best way.  If we ever need an operator more than once in workflow?
-    these need to be made local to main and passed as arguments to functions such as 
-    setActionMappings etc
+    A set of dictionary maps which relate operators and algorithms to rules, signatures, 
+    typedefs, io declarations and relate library opterators to workflow boxes.
 """
-g_tfidf = tfidf()
-g_kmeans = kmeans()
-g_tfidfkmeans = kmeans()
 g_datasetsMap = {}
 g_operatorsMap = {}
 g_signatureMap = {}
@@ -252,30 +122,6 @@ g_inputBoxMap = {}
 g_outputBoxMap = {}
 g_operatorBoxMap = {}
 g_argMap = {}
-
-"""
-        map from xml element name to python library/template code class above
-"""
-operator_map = {'tfidf': tfidf, 'kmeans': kmeans, 'tfidfkmeans': tfidfkmeans}
-
-"""
-    The template details of what an operator (including input and output) call 
-    looks like for each of the operators as defined in an operators library xml file.
-    This function reads in this file and sets the operator->call_template within
-    each operators map member variable 'action_map'
-
-"""
-def setActionMappings(tree):
-    root = tree.getroot()
-    for operator in root.findall('ops/operator'):
-        opName = operator.find('name')
-        for template in operator.findall('template'):
-            key=template.find('key').text
-            value=template.find('value').text
-            eval('g_'+opName.text).action_map[key]=value
-        dataStructType = operator.find('datastructure/type')
-        eval('g_'+opName.text).setDataStructType(dataStructType.text)
-
 
 def loadOperatorLibraryData(data):
     for operator in data["operators"]:
@@ -331,21 +177,6 @@ def loadOperatorLibraryData(data):
 def tabPrint(str, tabcount, f):
     f.write(' ' * tabcount*4 + str)
 
-def isInputOrOutput(elem):
-    if re.search('input|output', elem.tag):
-        return True
-    return False
-
-def isInput(elem):
-    if re.search('input', elem.tag):
-        return True
-    return False
-
-def isOutput(elem):
-    if re.search('output', elem.tag):
-        return True
-    return False
-
 """                              
         Beginning of main processing block
 
@@ -372,29 +203,17 @@ def main(argv):
             liboperatorsfile = arg
         elif opt in ("-o", "--ofile"):
             codefile = arg
-    """
-    Parse the operators library file to gather info for op call templates 
-    oplib  = open(oplibfile, "r")
-    oplibtree=ET.parse(oplibfile)
-    oplib.close()
-    setActionMappings(oplibtree)
-
-    Parse workflow description from XML file 
-    workflow = open(workflowfile, "r")
-    code = open(codefile, "w")
-    wftree=ET.parse(workflowfile)
-    workflow.close()
-    root = wftree.getroot()
-    """
-
     """ 
-        Parse QUB's materialsed operators, including input output datasets
-        and store all relevant information on datasets, operators, typedefs
+        Parse workflow description from Unige workflow tool
     """
     workflow = open(workflowfile, "r")
     flow = json.load(workflow)
     workflow.close()
 
+    """ 
+        Parse QUB's materialsed operators, including input output datasets
+        and store all relevant information on datasets, operators, typedefs
+    """
     liboperators = open(liboperatorsfile, "r")
     libdata = json.load(liboperators)
     liboperators.close()
@@ -437,7 +256,6 @@ def main(argv):
     tabcount=0
     
     """ print start of main block """
-    # tabPrint("int main() {\n\n", tabcount, code)
     tabcount=1
 
     """ 
@@ -446,7 +264,6 @@ def main(argv):
     declaredIOFiles={}
 
     """" START OF SECTION PRINTING TEMPLATE FILES """
-
 
     """ print header and main_declarations template sections of code """
     with open('templates/header.template', 'r') as myfile:
