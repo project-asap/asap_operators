@@ -1,0 +1,21 @@
+#include <unistd.h>
+
+#include <iostream>
+#include <fstream>
+#include <deque>
+#include <unordered_map>
+
+#include <cilk/cilk.h>
+#include <cilk/reducer.h>
+#include <cilk/cilk_api.h>
+
+#include "asap/utils.h"
+#include "asap/arff.h"
+#include "asap/dense_vector.h"
+#include "asap/sparse_vector.h"
+#include "asap/word_count.h"
+#include "asap/normalize.h"
+#include "asap/io.h"
+#include "asap/kmeans.h"
+
+#include <stddefines.h>

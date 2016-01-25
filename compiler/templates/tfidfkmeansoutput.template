@@ -1,4 +1,14 @@
+
     get_time( begin );
-    std::ofstream of( outfile, std::ios_base::out );
-    kmeans_op.output( of );
-    of.close();
+    if( !OUTFILE )
+	; // skip output
+    else if( !strcmp( OUTFILE, "-" ) ) {
+	kmeans_op.output( std::cout );
+    } else {
+	std::ofstream of( OUTFILE, std::ios_base::out );
+	kmeans_op.output( of );
+	of.close();
+    }
+    get_time( end );
+    print_time("output", begin, end);
+

@@ -141,8 +141,9 @@
 		"algorithm.types": ["word_list_type","word_map_type"],
                 "types": [
 			"typedef asap::word_list<std::deque<const char*>, asap::word_bank_managed> directory_listing_type;",
-			"typedef asap::word_map<std::unordered_map<const char *, size_t, asap::text::charp_hash, asap::text::charp_eql>, asap::word_bank_pre_alloc> word_map_type;",
-			"typedef asap::word_list<std::vector<std::pair<const char * const, size_t>>, asap::word_bank_pre_alloc> word_list_type;",
+    			"typedef asap::word_map<std::map<const char *, size_t, asap::text::charp_cmp>, asap::word_bank_pre_alloc> word_map_type;",
+    			"typedef asap::kv_list<std::vector<std::pair<const char *, size_t>>, asap::word_bank_pre_alloc> word_list_type;",
+
 			"typedef asap::sparse_vector<size_t, float, false, asap::mm_no_ownership_policy> vector_type;",
 			"typedef asap::word_map<std::unordered_map<const char *, asap::appear_count<size_t, typename vector_type::index_type>, asap::text::charp_hash, asap::text::charp_eql>, asap::word_bank_pre_alloc> word_map_type2;"
                 ]
@@ -166,7 +167,12 @@
 	},
 	{
 		"type": "arg_declaration",
-		"algorithm.names": ["kmeans", "tfidfkmeans", "tfidf"],
+		"algorithm.names": ["tfidfkmeans"],
+                "argTemplates": [{"max_iters": "const int VARIN = VAROUT;", "num_clusters": "const int VARIN = VAROUT;", "force_dense": "const bool VARIN = VAROUT;", "by_words": "const bool VARIN = VAROUT;", "do_sort": "const bool VARIN = VAROUT;", "rnd_init": "unsigned int VARIN = VAROUT;"}]
+        },
+	{
+		"type": "arg_declaration",
+		"algorithm.names": ["kmeans", "tfidf"],
                 "argTemplates": [{"max_iters": "const int VARIN = VAROUT;", "num_clusters": "const int VARIN = VAROUT;", "force_dense": "const bool VARIN = VAROUT;"}]
         }]
 }
