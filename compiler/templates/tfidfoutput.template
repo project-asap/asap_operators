@@ -1,3 +1,4 @@
+
     get_time( begin );
     std::ofstream of( OUTFILE, std::ios_base::out );
 
@@ -6,3 +7,4 @@
 	of << dir_list[i] << ": " << *I << std::endl;
     }
     of.close();
+    get_time (end);

@@ -265,12 +265,21 @@ def main(argv):
 
     """" START OF SECTION PRINTING TEMPLATE FILES """
 
-    """ print header and main_declarations template sections of code """
-    with open('templates/header.template', 'r') as myfile:
-        data=myfile.read()
-    myfile.close()
-    tabPrint(data, 0, code)
-    tabPrint ("\n", 0, code)
+    """   
+        0st pass :o
+        Loop all operators to get all header files required.  Currently there will be duplicates.
+        TODO remove duplicates
+    """
+    for box in flow["boxes"]:
+
+        """ print header and main_declarations template sections of code """
+        if box["type"] == "operator":
+            algName = g_operatorsMap[box["name"]].constraint.algname
+            with open('templates/'+algName+'header.template', 'r') as myfile:
+                data=myfile.read()
+            myfile.close()
+            tabPrint(data, 0, code)
+            tabPrint ("\n", 0, code)
 
     """   
         1st pass

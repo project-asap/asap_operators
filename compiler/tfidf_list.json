@@ -1,0 +1,25 @@
+{
+	"boxes": [{
+		"id": "i0",
+		"name": "textDirectoryDataset",
+		"type": "input",
+		"filename": "all"
+	},
+	{
+		"id": "op0",
+		"name": "tfidf_cilk_list",
+		"type": "operator",
+                "args": {"num_clusters": "4",
+                        "max_iters": "5",
+                        "force_dense": "true"}
+                        ,
+		"input": ["i0"],
+		"output": ["o0"]
+	},
+	{
+		"id": "o0",
+		"name": "arffDataset",
+		"type": "output",
+		"filename": "mytest.arff"
+	}]
+}

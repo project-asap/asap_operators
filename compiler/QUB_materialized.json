@@ -20,7 +20,19 @@
 		"Constraints.DataInfo.type": "arff",
 		"Constraints.Engine.FS": "Standard",
 		"Constraints.type": "file",
-		"Execution.path": "/var/shared/projects/asap/inputs/operators/kmeans_input/arff/",
+		"Execution.path": "/var/shared/projects/asap/inputs/operators/kmeans_input/",
+		"input": []
+	},
+        {
+		"name": "textDataset",
+		"cost": "0.00",
+		"status": "stopped",
+		"type": "dataset",
+		"description": "textDataset",
+		"Constraints.DataInfo.type": "freetext",
+		"Constraints.Engine.FS": "Standard",
+		"Constraints.type": "file",
+		"Execution.path": "/var/shared/projects/asap/inputs/operators/kmeans_output/",
 		"input": []
 	},
 	{
@@ -82,7 +94,8 @@
 		"Constraints.Algorithm.dstruct_type": "word_list_type",
 		"Constraints.Output.number": "1",
                 "Constraints.Output.types": ["arff"],
-		"input": ["arffDataset"]
+		"input": ["arffDataset"],
+		"output": ["textDataset"]
 	},
 	{
 		"type": "signature_rule",
@@ -101,13 +114,25 @@
 	{
 		"type": "typedef",
 		"algorithm.names": ["tfidf"],
-		"algorithm.types": ["word_list_type","word_map_type"],
+		"algorithm.types": ["word_list_type"],
+                "types": ["typedef asap::word_list<std::deque<const char*>, asap::word_bank_managed> directory_listing_type;",
+			"typedef asap::word_map<std::map<const char *, size_t, asap::text::charp_cmp>, asap::word_bank_pre_alloc> word_map_type;",
+                        "typedef asap::kv_list<std::vector<std::pair<const char *, size_t>>, asap::word_bank_pre_alloc> word_list_type;",
+			"typedef asap::sparse_vector<size_t, float, false, asap::mm_no_ownership_policy> vector_type;",
+			"typedef asap::word_map<std::map<const char *, asap::appear_count<size_t, typename vector_type::index_type>, asap::text::charp_cmp>, asap::word_bank_pre_alloc> word_map_type2;",
+                        "typedef asap::data_set<vector_type, word_map_type2, directory_listing_type> data_set_type;"
+                ]
+        },
+	{
+		"type": "typedef",
+		"algorithm.names": ["tfidf"],
+		"algorithm.types": ["word_map_type"],
                 "types": ["typedef asap::word_list<std::deque<const char*>, asap::word_bank_managed> directory_listing_type;",
 			"typedef asap::word_map<std::map<const char *, size_t, asap::text::charp_cmp>, asap::word_bank_pre_alloc> word_map_type;",
 			"typedef asap::word_list<std::vector<std::pair<const char * const, size_t>>, asap::word_bank_pre_alloc> word_list_type;",
 			"typedef asap::sparse_vector<size_t, float, false, asap::mm_no_ownership_policy> vector_type;",
 			"typedef asap::word_map<std::map<const char *, asap::appear_count<size_t, typename vector_type::index_type>, asap::text::charp_cmp>, asap::word_bank_pre_alloc> word_map_type2;",
-                        "typedef asap::data_set<vector_type, word_map_type2> data_set_type;"
+                        "typedef asap::data_set<vector_type, word_map_type2, directory_listing_type> data_set_type;"
                 ]
         },
         {
@@ -126,8 +151,9 @@
 		"type": "typedef",
 		"algorithm.names": ["kmeans"],
 		"algorithm.types": ["word_list_type","word_map_type"],
+
                 "types": [
-			"typedef asap::sparse_vector<size_t, float, true, asap::mm_ownership_policy>",
+			"typedef asap::sparse_vector<size_t, float, true, asap::mm_ownership_policy> vector_type;",
 			"typedef asap::word_list<std::vector<const char *>, asap::word_bank_pre_alloc> word_list;",
 			"typedef asap::data_set<vector_type,word_list> data_set_type;"
                 ]

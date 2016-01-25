@@ -3,7 +3,6 @@
 #include <iostream>
 #include <fstream>
 #include <deque>
-#include <unordered_map>
 
 #include <cilk/cilk.h>
 #include <cilk/reducer.h>
@@ -16,8 +15,5 @@
 #include "asap/word_count.h"
 #include "asap/normalize.h"
 #include "asap/io.h"
-#include "asap/kmeans.h"
 
 #include <stddefines.h>
-
-#define DEF_NUM_MEANS 8
