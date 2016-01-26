@@ -16,7 +16,7 @@
 		"cost": "0.00",
 		"status": "stopped",
 		"type": "dataset",
-		"description": "arffDatasetataset",
+		"description": "arffDataset",
 		"Constraints.DataInfo.type": "arff",
 		"Constraints.Engine.FS": "Standard",
 		"Constraints.type": "file",
@@ -168,11 +168,13 @@
 	{
 		"type": "arg_declaration",
 		"algorithm.names": ["tfidfkmeans"],
-                "argTemplates": [{"max_iters": "const int VARIN = VAROUT;", "num_clusters": "const int VARIN = VAROUT;", "force_dense": "const bool VARIN = VAROUT;", "by_words": "const bool VARIN = VAROUT;", "do_sort": "const bool VARIN = VAROUT;", "rnd_init": "unsigned int VARIN = VAROUT;"}]
+                "argTemplates": [{"max_iters": "const int VARIN = VAROUT;", "num_clusters": "const int VARIN = VAROUT;", "force_dense": "const bool VARIN = VAROUT;", "by_words": "const bool VARIN = VAROUT;", "do_sort": "const bool VARIN = VAROUT;", "rnd_init": "unsigned int VARIN = VAROUT;"}],
+                "argDefaults": [{"max_iters": "0", "num_clusters": "8", "force_dense": "false", "by_words": "false", "do_sort": "false", "rnd_init": "1"}]
         },
 	{
 		"type": "arg_declaration",
 		"algorithm.names": ["kmeans", "tfidf"],
-                "argTemplates": [{"max_iters": "const int VARIN = VAROUT;", "num_clusters": "const int VARIN = VAROUT;", "force_dense": "const bool VARIN = VAROUT;"}]
+                "argTemplates": [{"max_iters": "const int VARIN = VAROUT;", "num_clusters": "const int VARIN = VAROUT;", "force_dense": "const bool VARIN = VAROUT;"}],
+                "argDefaults": [{"max_iters": "0", "num_clusters": "8", "force_dense": "false", "by_words": "false", "do_sort": "false", "rnd_init": "1"}]
         }]
 }

@@ -118,6 +118,7 @@ g_signatureMap = {}
 g_typedefMap = {}
 g_iodeclMap = {}
 g_argsdeclMap = {}
+g_argsdefaultsMap = {}
 g_inputBoxMap = {}
 g_outputBoxMap = {}
 g_operatorBoxMap = {}
@@ -165,6 +166,7 @@ def loadOperatorLibraryData(data):
         elif operator["type"] == "arg_declaration":
             for algorithm in operator["algorithm.names"]:
 		g_argsdeclMap[algorithm] = operator["argTemplates"]
+		g_argsdefaultsMap[algorithm] = operator["argDefaults"]
         else:
             print "Error"
  	    sys.exit
@@ -242,6 +244,8 @@ def main(argv):
     pprint(g_iodeclMap)
     print "-------------------------------- arg decls -------------------------------------------- "
     print g_argsdeclMap
+    print "-------------------------------- arg defaults -------------------------------------------- "
+    print g_argsdefaultsMap
     print "-------------------------------- Datasets -------------------------------------------- "
     pprint(g_datasetsMap)
     print "-------------------------------- operator Boxes -------------------------------------------- "
@@ -332,19 +336,29 @@ def main(argv):
             actual_args = box["args"]
 
             tabPrint ("//  Variable Declarations for operator arguments \n\n", 0, code)
+            algName = g_operatorsMap[box["name"]].constraint.algname
+            declDict = g_argsdeclMap[algName][0]
+	    defaultsDict = g_argsdefaultsMap[algName][0]
 	    for arg in actual_args.keys():
-                algName = g_operatorsMap[box["name"]].constraint.algname
-                declDict = g_argsdeclMap[algName][0]
                 if declDict.has_key(arg):
                    declarationTemplate=declDict[arg] 
-                   var = arg 
-                   declarationStr = declarationTemplate.replace("VARIN",var) \
+                   declarationStr = declarationTemplate.replace("VARIN",arg) \
                                          .replace("VAROUT",actual_args[arg]) \
                                          + '\n'
                    tabPrint(declarationStr, 0, code)
 
                 else:
                     print "Error: ", arg, " is not a valid argument to ", algName
+
+	    # Now create the declarations for default operator attributes
+            for arg in declDict.keys():
+		if arg not in actual_args.keys():
+                   declarationTemplate=declDict[arg] 
+                   declarationStr = declarationTemplate.replace("VARIN",arg) \
+                                         .replace("VAROUT",defaultsDict[arg]) \
+                                         + '\n'
+                   tabPrint(declarationStr, 0, code)
+
 
         else:
             continue

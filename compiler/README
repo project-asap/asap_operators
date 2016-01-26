@@ -6,9 +6,10 @@ JSON MATERIALISED OPERATORS VERSION
 
 RUNNING 
 
-    python jsontocpp.py -i tfidf.json -l QUB_materialized.json -o tfidflist.cpp
+    python jsontocpp.py -i tfidf_list.json -l QUB_materialized.json -o tfidflist.cpp
     python jsontocpp.py -i tfidf_map.json -l QUB_materialized.json -o tfidfmap.cpp
     python jsontocpp.py -i kmeans.json  -l QUB_materialized.json -o kmeans.cpp
+    python jsontocpp.py -i tfidfkmeans.json -l QUB_materialized.json -o tfidf_kmeans.cpp
 
 
 Where:
