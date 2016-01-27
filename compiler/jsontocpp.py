@@ -1,4 +1,36 @@
 #!/usr/bin/python
+"""
+	This program translates a high leve workflow description in json to swan codes.
+
+	The code can be categorised into sections as:
+
+		Definitions of dictionaries used to associate rules of between:
+                   	operators, inputs and output
+
+		Definitions of the holding classes for:
+			materialised operators
+			workflow descriptions
+
+		Functions which load:
+			workflow descriptions into holding classes
+			materialised operator descriptions into holding classes
+
+		Main function, which :
+			parses json files
+			calls the load function to populate holding classes
+			print code in section to output code file by:
+			    for each operator:
+				print header file section
+				print file section
+				print Variable Declarations holding input/output filenames                                                                           
+				print Variable Declarations for operator arguments
+				print Start of main section
+				print typedefs section
+				Input section
+				print Calling sequence section
+				print Output section
+				print Closing main section 
+"""
 
 import json
 from pprint import pprint
@@ -7,25 +39,45 @@ from collections import deque
 import re
 import unittest
 
+
+
 """
-        Schema classes which hold data from materialised library operators and description of workflow
+    A set of dictionary maps which relate operators and algorithms to rules, signatures, 
+    typedefs, io declarations and relate library operators to workflow boxes.
 """
 
-class Constraint:
-    def __init__(self, ctype):
-        self.ctype = cdes
+""" operator library dictionaries """
+g_datasetsMap = {}
+g_operatorsMap = {}
+g_signatureMap = {}
+g_typedefMap = {}
+g_iodeclMap = {}
+g_argsdeclMap = {}
+g_argsdefaultsMap = {}
 
-class DataSetConstraint(Constraint):
+""" workflow dictionaries """
+g_inputBoxMap = {}
+g_outputBoxMap = {}
+g_operatorBoxMap = {}
+g_argMap = {}
 
-    # Constructor for dataset 
+
+"""
+        SCHEMA CLASSES which hold data parsed from a 
+        JSON files representing materialised operators 
+        and a JSON file represeting a description of 
+        the user workflow
+"""
+
+""" holds data about data constraints """
+class DataSetConstraint:
     def __init__(self, dinfotype, fs, dstype):
         self.dinfotype = dinfotype
         self.Engine_FS = fs
         self.dstype = dstype
 
-class OperatorConstraint(Constraint):
-
-    # Constructor for operarator 
+""" holds data about operator constraints """
+class OperatorConstraint:
     def __init__(self, fs, runFile, algname, alg_dstructtype, outnum, outtypes):
         self.EngineSpecification_FS = fs
         self.runFile = runFile
@@ -34,30 +86,31 @@ class OperatorConstraint(Constraint):
         self.outnum = outnum
         self.outtypes = outtypes
 
+""" holds data about operators """
 class Operator:
 
-    """ Represents options and declaration templates for an operator """
     def __init__(self, name, description, constraint, inlist, status="stopped"):
         self.name = name
         self.description = description
         self.constraint = constraint
-        # self.epath = epath
         self.inlist = inlist
         self.status = status
 
+""" holds data about datasets """
 class Dataset:
-
-    """ Represents options and declaration templates for a dataset """
-    declarations = {'input': 'char const * VARIN = VAROUT;', 'output': 'char const * VARIN = VAROUT;'}
 
     def __init__(self, name, description, constraint, epath, inlist, status="stopped"):
         self.name = name
         self.description = description
-        self.constraint = constraint
+        self.constraint = constraint 
         self.epath = epath
         self.inlist = inlist
         self.status = status
 
+""" holds data about the function call signatures for running an operator
+    as well as the function signatures for their corresponding input and output 
+    function calls 
+"""
 class Signature:
     def __init__(self, input, output, run):
         self.input = input
@@ -65,32 +118,37 @@ class Signature:
         self.run = run
 
 """   
-    Classes for representing information from the Workflow Description Boxes
+    Classes for representing information about the user Workflow Description 
 """
 
+""" Represents an input box from the workflow description """
 class InputBox:
 
-    """ Represents an input box in the workflow description """
     def __init__(self, name, filename):
         self.name = name
         self.filename = filename
 
+""" Represents an output box from the workflow description """
 class OutputBox:
 
-    """ Represents an output box in the workflow description """
     def __init__(self, name, filename):
         self.name = name
         self.filename = filename
 
+""" Represents an operator box from the workflow description """
 class OperatorBox:
 
-    """ Represents an operator box in the workflow description """
     def __init__(self, name, args, binput, boutput):
         self.name = name
         self.args = args
         self.binput = binput
         self.boutput = boutput
 
+"""   
+    Function to load workflow data from json into workflow classes
+    and create and store a dictionary of instances of each player 
+    (operator, input or output) by id.
+"""
 def loadWorkflowData(data):
     for box in data["boxes"]:
         if box["type"] == "input":
@@ -108,22 +166,20 @@ def loadWorkflowData(data):
                                      box["output"])
             g_operatorBoxMap[box["id"]] = newoperatorbox
 
+"""   
+    Function to load materialised operator data from json into 
+    materialised operator classes.
+    Constraints on data types, engines, algorithms, inputs and outputs
+    are recorded within the classes.
+    Separate classes instances are created for:
+    	Operators, inputs, outputs, typedefs,
+ 	function signatures, argument rules and 
+	default argument values.
+    These class instances define rules of use and are stored in a dictionary
+    keyed by operator name, or operator/input/output name combination
+    and in doing so associates these rules with materialised operators, inputs and
+    outputs
 """
-    A set of dictionary maps which relate operators and algorithms to rules, signatures, 
-    typedefs, io declarations and relate library opterators to workflow boxes.
-"""
-g_datasetsMap = {}
-g_operatorsMap = {}
-g_signatureMap = {}
-g_typedefMap = {}
-g_iodeclMap = {}
-g_argsdeclMap = {}
-g_argsdefaultsMap = {}
-g_inputBoxMap = {}
-g_outputBoxMap = {}
-g_operatorBoxMap = {}
-g_argMap = {}
-
 def loadOperatorLibraryData(data):
     for operator in data["operators"]:
         if operator["type"] == "dataset":
@@ -181,14 +237,15 @@ def tabPrint(str, tabcount, f):
 
 """                              
         Beginning of main processing block
-
 """
 def main(argv):
     workflowfile = ''
     codefile = ''
     liboperatorsfile = ''
 
-    """  Read arguments """
+    """  
+	Read arguments 
+    """
     try:
         opts, args = getopt.getopt(argv,"hi:o:l:",["ifile=","ofile=","lfile="])
 
@@ -205,8 +262,9 @@ def main(argv):
             liboperatorsfile = arg
         elif opt in ("-o", "--ofile"):
             codefile = arg
+
     """ 
-        Parse workflow description from Unige workflow tool
+        Parse workflow description from workflow tool description
     """
     workflow = open(workflowfile, "r")
     flow = json.load(workflow)
@@ -214,16 +272,20 @@ def main(argv):
 
     """ 
         Parse QUB's materialsed operators, including input output datasets
-        and store all relevant information on datasets, operators, typedefs
+        and store all relevant information on datasets, operators, typedefs,
+	declaration templates, signature rules, argument rules
     """
     liboperators = open(liboperatorsfile, "r")
     libdata = json.load(liboperators)
     liboperators.close()
 
+    """ 
+        Open the output codefile 
+    """
     code = open(codefile, "w")
 
     """ 
-        Load materialised operators data from json
+        Load materialised operator data from json
     """
     loadOperatorLibraryData(libdata)
 
@@ -231,7 +293,6 @@ def main(argv):
         Load workflow data from json
     """
     loadWorkflowData(flow)
-
 
     """ DEBUG TRACE BLOCK
     print "-------------------------------- Operators -------------------------------------------- "
@@ -267,16 +328,27 @@ def main(argv):
     """
     declaredIOFiles={}
 
-    """" START OF SECTION PRINTING TEMPLATE FILES """
+    """ 
+	START PRINTING TEMPLATE FILES 
+
+        Template files contain predefined code sections for the operators
+	with placeholders to be replaced with appriate data from the
+	workflow and materialised operator descriptions.
+     
+        They are split into sections representing approximately 6 sections of
+        an operators full code.
+
+    """
 
     """   
-        0st pass :o
-        Loop all operators to get all header files required.  Currently there will be duplicates.
-        TODO remove duplicates
+        1st pass
+        Loop all operators to get all header files required.  
+        TODO remove duplicates headers when more than one operator
+	in workflow
     """
     for box in flow["boxes"]:
 
-        """ print header and main_declarations template sections of code """
+        """ print materialised header template to code output"""
         if box["type"] == "operator":
             algName = g_operatorsMap[box["name"]].constraint.algname
             with open('templates/'+algName+'header.template', 'r') as myfile:
@@ -285,16 +357,13 @@ def main(argv):
             tabPrint(data, 0, code)
             tabPrint ("\n", 0, code)
 
-    """   
-        1st pass
-        Outter Loop here so we get each operators version of code section template files 
-        Or perhaps this will be a first pass to gather lookahead info needed
+    """ 
+        2nd pass
+	Loop all operators to print variable declarations for input/output filenames
     """
     for box in flow["boxes"]:
 
-        """ 
-            Print the declarations for input and output files used by operators
-        """
+        """ print materialised declarations from operator dictionary rules to code output"""
         if box["type"] == "operator":
             algName = g_operatorsMap[box["name"]].constraint.algname
 
@@ -306,14 +375,12 @@ def main(argv):
                 outputId = box[iotype][0]
                 datasetPath =  g_datasetsMap[eval('g_'+iotype+'BoxMap')[eval(iotype+'Id')].name].epath
     
-                # Todo assertions
-                # unittest.TestCase.assertTrue(g_inputBoxMap[box["input"][0]].type == "input")
-        
                 ctr=0
                 if declarationTemplate is not None :
                         var = iotype+`ctr`
     
-                        ## Keep track of io files for condensing vars, if it already exists use existing var handle
+                        ## Keep track of io files for condensing vars, 
+			## if it already exists use existing var handle
                         if declaredIOFiles.has_key(filename):
                             prevVar = declaredIOFiles[filename]
                             var = prevVar
@@ -327,11 +394,13 @@ def main(argv):
                         ctr += 1 
     tabPrint ("\n", 0, code)
 
+    """ 
+        3rd pass
+	Loop all operators to print variable declarations for operator arguments
+        read from args field in the operator box
+    """
     for box in flow["boxes"]:
 
-        """
-           Print the declarations for ordinary variables (read from args field in operator Box)
-        """ 
         if box["type"] == "operator":
             actual_args = box["args"]
 
@@ -339,6 +408,8 @@ def main(argv):
             algName = g_operatorsMap[box["name"]].constraint.algname
             declDict = g_argsdeclMap[algName][0]
 	    defaultsDict = g_argsdefaultsMap[algName][0]
+
+	    # Create the declarations for actual supplied op arguments
 	    for arg in actual_args.keys():
                 if declDict.has_key(arg):
                    declarationTemplate=declDict[arg] 
@@ -350,7 +421,8 @@ def main(argv):
                 else:
                     print "Error: ", arg, " is not a valid argument to ", algName
 
-	    # Now create the declarations for default operator attributes
+	    # Now create the declarations for default operator attributes which
+	    # which were not supplied by use in workflow description
             for arg in declDict.keys():
 		if arg not in actual_args.keys():
                    declarationTemplate=declDict[arg] 
@@ -364,13 +436,16 @@ def main(argv):
             continue
 
         tabPrint ("\n", 0, code)
-        
-    """ 2nd pass """
+
+    """  
+        4th pass 
+	Loop all operators to print 'main' including operator calling sequence
+        code.  
+        This uses a combination of code template files and what is stored in materialised
+	operator rules
+    """
     for box in flow["boxes"]:
 
-        """
-           Print calls to Operator functions according to 'run' element from workflow
-        """ 
         ctr=0
         if box["type"] == "operator":
 
@@ -392,24 +467,26 @@ def main(argv):
                 tabPrint ("\n", tabcount, code)
             tabPrint ("\n", tabcount, code)
 
+            """ 
+                output input section 
+            """
             tabPrint ("//  Input section \n\n", tabcount, code)
 
-            """ operator input section, """
             """ NOTE: for now assume we have 1 input to operator...
                 Planning ahead--> if there are say 2 inputs, then there should be 
                 2 FILE_PARAMX markers in the template file, in which case 
-                this code section could become a loop for every marker, pick off the inputs of
-                the operator - still TODO """
+                this code section will be changed to loop for every marker, picking off the inputs of
+                the operator - TODO """
             with open('templates/'+algName+'input.template', 'r') as myfile:
                 data=myfile.read().replace('FILE_PARAM1',g_argMap[(algName,box["input"][0])]) # TODO when in loop, remove subscript
             myfile.close()
             tabPrint(data, tabcount, code)
             tabPrint ("\n", tabcount, code)
 
-            tabPrint ("//  Calling sequence section \n\n", tabcount, code)
-            """ operators calling sequence 
-                first read the catalog_build replacement code from the appropriate file
+            """ 
+                output operators call sequencec section 
             """
+            tabPrint ("//  Calling sequence section \n\n", tabcount, code)
             with open('templates/'+algName+'_'+'callsequence.template', 'r') as myfile:
                 
                 # data=myfile.read().replace('WORD_TYPE',eval('g_'+algName).dataStructType)
@@ -422,16 +499,20 @@ def main(argv):
                     data=data.replace('CATALOG_BUILD_CODE',catalogBuildCode)
             tabPrint(data, tabcount, code)
 
+            """ 
+                output output section 
+            """
             tabPrint ("//  Output section \n\n", tabcount, code)
-            """ output section """
             with open('templates/'+algName+'output.template', 'r') as myfile:
                 data=myfile.read().replace('OUTFILE',g_argMap[(algName,box["output"][0])]) # TODO when in loop, remove subscript
                 myfile.close()
             tabPrint(data, tabcount, code)
             tabPrint ("\n", tabcount, code)
 
+            """ 
+                output close of main section 
+            """
             tabPrint ("//  Closing main section \n\n", tabcount, code)
-            """ output close of main section """
             with open('templates/'+algName+'mainclose.template', 'r') as myfile:
                 data=myfile.read()
                 myfile.close()
