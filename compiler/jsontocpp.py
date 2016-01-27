@@ -1,10 +1,10 @@
 #!/usr/bin/python
 """
-	This program translates a high leve workflow description in json to swan codes.
+	This program translates a high level workflow description in json to swan codes.
 
-	The code can be categorised into sections as:
+	The code can be categorised into sections for aid of readability:
 
-		Definitions of dictionaries used to associate rules of between:
+		Definitions of dictionaries used to associate rules of:
                    	operators, inputs and output
 
 		Definitions of the holding classes for:
