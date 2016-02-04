@@ -1,0 +1,37 @@
+{
+"workflow": {
+        "nodes": [
+        {
+                "id": "1",
+                "taskids": ["1"],
+                "name": "tfidfkmeans"
+        }
+        ],
+        "edges": [
+        ],
+        "taskLinks": [
+        ],
+        "tasks": [
+                {
+                        "id": "1",
+                        "nodeId": "1",
+                        "name": "tfidfkmeans",
+                        "operator": {
+                                "constraints": {
+                                        "input": "1",
+                                        "input0": "/tmp/all",
+                                        "output": "1",
+                                        "output0": "/tmp/textfile.txt",
+                                        "opSpecification": {
+                                                "algorithm": "tfidf_list",
+                                                "args": {"num_clusters": "4",
+                                                         "max_iters": "5",
+                                                         "force_dense": "true"}
+
+                                        }
+                                }
+                        }
+                }
+        ]
+}
+}

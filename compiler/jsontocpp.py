@@ -384,7 +384,7 @@ def main(argv):
     """ 
         Open the output codefile 
     """
-    code = open(codefile, "w")
+    # code = open(codefile, "w")
 
     """ 
         Load materialised operator data from json
