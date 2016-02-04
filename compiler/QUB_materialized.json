@@ -46,9 +46,22 @@
 		"Constraints.runFile": "tfidf_cilk_map",
 		"Constraints.Algorithm.name": "tfidf",
 		"Constraints.Algorithm.dstruct_type": "word_map_type",
-		"Constraints.Output.number": "1",
-                "Constraints.Output.types": ["arff"],
-		"input": ["textDirectoryDataset"]
+		"Constraints": {
+                	"Input" : {
+                		"Engine": {
+					"FS": "standard"
+				},
+				"number": "1",
+                		"type": "textDirectoryDataset"
+			},
+			"Output" : {
+                		"Engine": {
+					"FS": "standard"
+				},
+				"number": "1",
+                		"type": "arffDataset"
+			}
+		}
 	},	
 	{
 		"name": "tfidf_cilk_list",
@@ -61,9 +74,22 @@
 		"Constraints.runFile": "tfidf_cilk_list",
 		"Constraints.Algorithm.name": "tfidf",
 		"Constraints.Algorithm.dstruct_type": "word_list_type",
-		"Constraints.Output.number": "1",
-                "Constraints.Output.types": ["arff"],
-		"input": ["textDirectoryDataset"]
+		"Constraints": {
+                	"Input" : {
+                		"Engine": {
+					"FS": "standard"
+				},
+				"number": "1",
+                		"type": "textDirectoryDataset"
+			},
+			"Output" : {
+                		"Engine": {
+					"FS": "standard"
+				},
+				"number": "1",
+                		"type": "arffDataset"
+			}
+		}
 	},
 	{
 		"name": "tfidfkmeans_cilk_list",
@@ -76,9 +102,22 @@
 		"Constraints.runFile": "tfidfkmeans_cilk_list",
 		"Constraints.Algorithm.name": "tfidfkmeans",
 		"Constraints.Algorithm.dstruct_type": "word_list_type",
-		"Constraints.Output.number": "1",
-                "Constraints.Output.types": ["arff"],
-		"input": ["textDirectoryDataset"]
+		"Constraints": {
+                	"Input" : {
+                		"Engine": {
+					"FS": "standard"
+				},
+				"number": "1",
+                		"type": "textDirectoryDataset"
+			},
+			"Output" : {
+                		"Engine": {
+					"FS": "standard"
+				},
+				"number": "1",
+                		"type": "textDataset"
+			}
+		}
         },
 	{
 		"name": "kmeans_cilk_list",
@@ -92,10 +131,22 @@
 		"Constraints.runFile": "kmeans_cilk_list",
 		"Constraints.Algorithm.name": "kmeans",
 		"Constraints.Algorithm.dstruct_type": "word_list_type",
-		"Constraints.Output.number": "1",
-                "Constraints.Output.types": ["arff"],
-		"input": ["arffDataset"],
-		"output": ["textDataset"]
+		"Constraints": {
+                	"Input" : {
+                		"Engine": {
+					"FS": "standard"
+				},
+				"number": "1",
+                		"type": "arffDataset"
+			},
+			"Output" : {
+                		"Engine": {
+					"FS": "standard"
+				},
+				"number": "1",
+                		"type": "textDataset"
+			}
+   		}
 	},
 	{
 		"type": "signature_rule",
@@ -162,8 +213,8 @@
 	{
 		"type": "inout_declaration",
 		"algorithm.names": ["tfidf", "kmeans", "tfidfkmeans"],
-		"input": "char const * VARIN = VAROUT;", 
-                "output": "char const * VARIN = VAROUT;"
+		"input0": "char const * VARIN = VAROUT;", 
+                "output0": "char const * VARIN = VAROUT;"
 	},
 	{
 		"type": "arg_declaration",

@@ -1,6 +1,6 @@
 
     get_time( begin );
-    std::ofstream of( OUTFILE, std::ios_base::out );
+    std::ofstream of( FILE_PARAM1, std::ios_base::out );
 
     size_t i=0;
     for( auto I=tfidf.vector_cbegin(), E=tfidf.vector_cend(); I != E; ++I, ++i ){

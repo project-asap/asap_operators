@@ -6,6 +6,6 @@
 
     fprintf( stdout, "within cluster SSE: %11.4lf\n", kmeans_op.within_sse() );
 
-    std::ofstream of( OUTFILE, std::ios_base::out );
+    std::ofstream of( FILE_PARAM1, std::ios_base::out );
     kmeans_op.output( of );
     of.close();

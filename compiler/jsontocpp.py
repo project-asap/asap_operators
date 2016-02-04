@@ -56,9 +56,13 @@ g_argsdeclMap = {}
 g_argsdefaultsMap = {}
 
 """ workflow dictionaries """
+g_inputNodeMap = {}
+g_outputNodeMap = {}
 g_inputBoxMap = {}
 g_outputBoxMap = {}
 g_operatorBoxMap = {}
+g_nodeBoxMap = {}
+g_nodeMap = {}
 g_argMap = {}
 
 
@@ -76,15 +80,33 @@ class DataSetConstraint:
         self.Engine_FS = fs
         self.dstype = dstype
 
+""" holds data about IO constraints """
+class IOConstraint:
+    def __init__(self, fileSystem, iotype):
+        self.fileSystem = fileSystem
+        self.iotype = iotype
+
 """ holds data about operator constraints """
 class OperatorConstraint:
-    def __init__(self, fs, runFile, algname, alg_dstructtype, outnum, outtypes):
+    def __init__(self, fs, runFile, algname, alg_dstructtype, inputs, outputs):
+        print "In opCon constructor ", algname
         self.EngineSpecification_FS = fs
         self.runFile = runFile
         self.algname = algname
         self.algtype = alg_dstructtype
-        self.outnum = outnum
-        self.outtypes = outtypes
+	self.inputConstraint = []
+	self.outputConstraint = []
+        print ' inputs number is ', inputs["number"]
+        for i in range(0,int(inputs["number"])):
+            print "adding input constraint to ", algname
+	    inputConstraint = IOConstraint(inputs["Engine"]["FS"],
+                                               inputs["type"])
+            self.inputConstraint.append(inputConstraint)
+        for i in range(0,int(outputs["number"])):
+            print "adding output constraint to ", algname
+	    outputConstraint = IOConstraint(outputs["Engine"]["FS"],
+                                               outputs["type"])
+            self.outputConstraint.append(outputConstraint)
 
 """ holds data about operators """
 class Operator:
@@ -93,7 +115,6 @@ class Operator:
         self.name = name
         self.description = description
         self.constraint = constraint
-        self.inlist = inlist
         self.status = status
 
 """ holds data about datasets """
@@ -124,18 +145,48 @@ class Signature:
 """ Represents an input box from the workflow description """
 class InputBox:
 
-    def __init__(self, name, filename):
-        self.name = name
-        self.filename = filename
+    def __init__(self, filename):
+        self.name = filename
+        # self.itype = itype
 
 """ Represents an output box from the workflow description """
 class OutputBox:
 
-    def __init__(self, name, filename):
-        self.name = name
-        self.filename = filename
+    def __init__(self, filename):
+        self.name = filename
+        # self.otype = otype
+
+class OpSpecification:
+
+    def __init__(self, algorithm, args):
+	self.algorithm = algorithm
+	self.args = args
 
 """ Represents an operator box from the workflow description """
+class OperatorBox:
+
+    def __init__(self, box, nodeid, name, constraints):
+        self.nodeid = nodeid
+        self.name = name
+        self.constraints = constraints
+        self.inputs = []
+        self.outputs = []
+        var=0
+        numinputs = box["operator"]["constraints"]["input"]
+        for i in range(0,int(numinputs)):
+            newinputbox = InputBox(box["operator"]["constraints"]["input"+str(i)])
+            self.inputs.append(newinputbox)
+            print "added an input to ", name
+        numoutputs = box["operator"]["constraints"]["output"]
+        for i in range(0,int(numoutputs)):
+            newoutputbox = OutputBox(box["operator"]["constraints"]["output"+str(i)])
+            self.outputs.append(newoutputbox)
+            print "added an output to ", name
+
+	self.opSpecification = OpSpecification(constraints["opSpecification"]["algorithm"],
+						constraints["opSpecification"]["args"])
+
+"""
 class OperatorBox:
 
     def __init__(self, name, args, binput, boutput):
@@ -143,6 +194,46 @@ class OperatorBox:
         self.args = args
         self.binput = binput
         self.boutput = boutput
+"""
+
+""" Represents a node operator box from the workflow description """
+class Node:
+
+    def __init__(self, taskids, name):
+        self.taskids = taskids
+        self.name = name
+
+
+"""   
+    THIS VERSION USES UNIGE's WORKFLOW DESCRIPTION FORMAT
+    Function to load workflow data from json into workflow classes
+    and create and store a dictionary of instances of each player 
+    (operator, input or output) by id.
+"""
+def loadWorkflowDataTEST(data):
+    for box in data["workflow"]["nodes"]:
+        newnode = Node(box["taskids"],
+                       box["name"])
+        g_nodeMap[box["id"]] = newnode
+
+    for box in data["workflow"]["tasks"]:
+        newoperatorbox = OperatorBox(box, 
+                                 box["nodeId"],
+                                 box["name"],
+                                 # todo make input and output loops for multiple i/o's
+                                 box["operator"]["constraints"])
+        newinputbox = InputBox(box["operator"]["constraints"]["input0"])
+                                 # box["operator"]["constraints"]["input0_type"])
+        newoutputbox = OutputBox(box["operator"]["constraints"]["output0"])
+                                 # box["operator"]["constraints"]["output0_type"])
+        g_operatorBoxMap[box["id"]] = newoperatorbox
+
+        g_nodeBoxMap[box["nodeId"]] = newoperatorbox
+
+        # g_inputBoxMap[tuple(box["id"],box["operator"]["constraints"]["input"])] = newinputbox
+        # g_outputBoxMap[tuple(box["id"],box["operator"]["constraints"]["output"])] = newoutputbox
+        # g_inputNodeMap[tuple(box["nodeid"],box["operator"]["constraints"]["input"])] = newinputbox
+        # g_outputNodeMap[tuple(box["nodeid"],box["operator"]["constraints"]["output"])] = newoutputbox
 
 """   
     Function to load workflow data from json into workflow classes
@@ -199,14 +290,15 @@ def loadOperatorLibraryData(data):
 					     operator["Constraints.runFile"],
 					     operator["Constraints.Algorithm.name"],
 					     operator["Constraints.Algorithm.dstruct_type"],
-					     operator["Constraints.Output.number"],
-					     operator["Constraints.Output.types"])
+                                             operator["Constraints"]["Input"],
+                                             operator["Constraints"]["Output"])
+
             newoperator = Operator(operator["name"], 
                                              operator["description"], 
                                              newconstraint, 
-                                             operator["input"], 
                                              operator["status"])
             g_operatorsMap[operator["name"]] = newoperator
+            g_operatorsMap[operator["Constraints.Algorithm.name"]] = newoperator
         elif operator["type"] == "signature_rule":
             newsignature = Signature(operator["input"], operator["output"], operator["run"])
             for algorithmName in operator["algorithm.names"]:
@@ -217,8 +309,18 @@ def loadOperatorLibraryData(data):
                     g_typedefMap[tuple([algorithmName, algorithmType])] = operator["types"]
         elif operator["type"] == "inout_declaration":
             for algorithm in operator["algorithm.names"]:
-		g_iodeclMap[tuple([algorithm,"input"])] = operator["input"]
-		g_iodeclMap[tuple([algorithm,"output"])] = operator["output"]
+                numInputParams = len(g_operatorsMap[algorithm].constraint.inputConstraint)
+		print "ips - ", numInputParams
+                for inputParam in range(0,numInputParams):
+                # for inputParam in g_operatorsMap[algorithm].constraint.inputConstraint:
+		    g_iodeclMap[tuple([algorithm,"input"+str(inputParam)])] = \
+                                                      operator["input"+str(inputParam)]
+
+                numOutputParams = len(g_operatorsMap[algorithm].constraint.outputConstraint)
+                # for outputParam in g_operatorsMap[algorithm].constraint.outputConstraint:
+                for outputParam in range(0,numOutputParams):
+		    g_iodeclMap[tuple([algorithm,"output"+str(outputParam)])] = \
+                                                      operator["output"+str(outputParam)]
         elif operator["type"] == "arg_declaration":
             for algorithm in operator["algorithm.names"]:
 		g_argsdeclMap[algorithm] = operator["argTemplates"]
@@ -292,7 +394,7 @@ def main(argv):
     """ 
         Load workflow data from json
     """
-    loadWorkflowData(flow)
+    loadWorkflowDataTEST(flow)
 
     """ DEBUG TRACE BLOCK
     print "-------------------------------- Operators -------------------------------------------- "
@@ -346,66 +448,121 @@ def main(argv):
         TODO remove duplicates headers when more than one operator
 	in workflow
     """
-    for box in flow["boxes"]:
+    for key in g_nodeMap:
 
-        """ print materialised header template to code output"""
-        if box["type"] == "operator":
-            algName = g_operatorsMap[box["name"]].constraint.algname
+        """ 
+            Open the output file for this operator 
+        """
+        opcode = open(g_nodeMap[key].name+'_gen.cpp', "w")
+	print "opened file ", opcode
+
+        # ASSUMPTION
+        # Isn't it safe to assume we should only ever have one task per node as Unige 
+        # documents state they optimise the workflow to make tasks nodes(vertices) in 
+        # their own right ?  TODO fix if this turns out not to be the case
+        # Either way we will still loop round the tasks here for extensibility purposes
+
+        for i in range(0,len(g_nodeMap[key].taskids)):  # Should only be once if 1 node per task
+            task = g_nodeMap[key].taskids[i]
+            # box = g_operatorBoxMap[task]
+
+            """ print materialised header template to code output"""
+            algName = g_nodeMap[key].name
             with open('templates/'+algName+'header.template', 'r') as myfile:
                 data=myfile.read()
             myfile.close()
-            tabPrint(data, 0, code)
-            tabPrint ("\n", 0, code)
+            tabPrint(data, 0, opcode)
+       
+            tabPrint ("\n", 0, opcode)
 
-    """ 
-        2nd pass
-	Loop all operators to print variable declarations for input/output filenames
-    """
-    for box in flow["boxes"]:
+        """ 
+            2nd pass
+	    Loop all operators to print variable declarations for input/output filenames
+        """
+    	# for key in g_nodeMap:
 
         """ print materialised declarations from operator dictionary rules to code output"""
-        if box["type"] == "operator":
-            algName = g_operatorsMap[box["name"]].constraint.algname
+        algName = g_nodeMap[key].name
 
-            tabPrint ("//  Variable Declarations holding input/output filenames  \n\n", 0, code)
-            for iotype in ["input","output"]:
-                declarationTemplate = g_iodeclMap[tuple([algName,iotype])]
-                filename = eval('g_'+iotype+'BoxMap')[box[iotype][0]].filename
-                inputId = box[iotype][0]
-                outputId = box[iotype][0]
-                datasetPath =  g_datasetsMap[eval('g_'+iotype+'BoxMap')[eval(iotype+'Id')].name].epath
-    
+        tabPrint ("//  Variable Declarations holding input/output filenames  \n\n", 0, opcode)
+
+        for i in range(0,len(g_nodeMap[key].taskids)):  # Should only be once if 1 node per task
+
+            """ Input files IO """
+	    paramInfo = g_operatorsMap[g_nodeMap[key].name].constraint.inputConstraint
+	    numParams = len(paramInfo)
+            print "inumParams is ", numParams
+	    for inputParam in range(0,numParams):
+                inputId = 'input'+str(inputParam)
+                declarationTemplate = g_iodeclMap[tuple([algName,inputId])]
+
+                filename = g_nodeBoxMap[key].inputs[inputParam].name 
+
                 ctr=0
                 if declarationTemplate is not None :
-                        var = iotype+`ctr`
-    
+                        var = 'input'+str(inputParam)
+     
                         ## Keep track of io files for condensing vars, 
-			## if it already exists use existing var handle
+		        ## if it already exists use existing var handle
                         if declaredIOFiles.has_key(filename):
                             prevVar = declaredIOFiles[filename]
                             var = prevVar
                         else:
                             declaredIOFiles[filename]=var
                             declarationStr = declarationTemplate.replace("VARIN", var) \
-                                                       .replace("VAROUT","\""+datasetPath+filename+"\"")
-                            tabPrint (declarationStr, 0, code)
-                            tabPrint ("\n", 0, code)
+                                                       .replace("VAROUT","\""+filename+"\"")
+                            tabPrint (declarationStr, 0, opcode)
+                            tabPrint ("\n", 0, opcode)
                         g_argMap[(algName,inputId)] = var
                         ctr += 1 
-    tabPrint ("\n", 0, code)
 
-    """ 
-        3rd pass
-	Loop all operators to print variable declarations for operator arguments
-        read from args field in the operator box
-    """
-    for box in flow["boxes"]:
+            """ Output files IO """
+	    paramInfo = g_operatorsMap[g_nodeMap[key].name].constraint.outputConstraint
+	    numParams = len(paramInfo)
+            print "onumParams is ", numParams
+	    for outputParam in range(0,numParams):
+                outputId = 'output'+str(outputParam)
+                declarationTemplate = g_iodeclMap[tuple([algName,outputId])]
 
-        if box["type"] == "operator":
-            actual_args = box["args"]
+                filename = g_nodeBoxMap[key].outputs[outputParam].name 
 
-            tabPrint ("//  Variable Declarations for operator arguments \n\n", 0, code)
-            algName = g_operatorsMap[box["name"]].constraint.algname
+                ctr=0
+                if declarationTemplate is not None :
+                        var = 'output'+str(outputParam)
+     
+                        ## Keep track of io files for condensing vars, 
+		        ## if it already exists use existing var handle
+                        if declaredIOFiles.has_key(filename):
+                            prevVar = declaredIOFiles[filename]
+                            var = prevVar
+                        else:
+                            declaredIOFiles[filename]=var
+                            declarationStr = declarationTemplate.replace("VARIN", var) \
+                                                       .replace("VAROUT","\""+filename+"\"")
+                            tabPrint (declarationStr, 0, opcode)
+                            tabPrint ("\n", 0, opcode)
+                        g_argMap[(algName,outputId)] = var
+                        ctr += 1 
+        tabPrint ("\n", 0, opcode)
+
+        """ 
+            3rd pass
+	    Loop all operators to print variable declarations for operator arguments
+            read from args field in the operator box
+        """
+        # for key in g_nodeMap:
+
+
+        for i in range(0,len(g_nodeMap[key].taskids)):  # Should only be once if 1 node per task
+            tabPrint ("//  Variable Declarations for operator arguments \n\n", 0, opcode)
+            algName = g_nodeMap[key].name
+	    # paramInfo = g_operatorsMap[g_nodeMap[key].name].constraint.inputConstraint
+
+            operatorBox = g_nodeBoxMap[key] 
+            actual_args = operatorBox.opSpecification.args
+
+            # actual_args = g_operatorsMap[g_nodeMap[key].name].taskids[i] \
+                           # ["operator"]["constraints"]["opSpecification"]["args"]
             declDict = g_argsdeclMap[algName][0]
 	    defaultsDict = g_argsdefaultsMap[algName][0]
 
@@ -416,77 +573,87 @@ def main(argv):
                    declarationStr = declarationTemplate.replace("VARIN",arg) \
                                          .replace("VAROUT",actual_args[arg]) \
                                          + '\n'
-                   tabPrint(declarationStr, 0, code)
-
+                   tabPrint(declarationStr, 0, opcode)
+    
                 else:
                     print "Error: ", arg, " is not a valid argument to ", algName
-
+    
 	    # Now create the declarations for default operator attributes which
 	    # which were not supplied by use in workflow description
             for arg in declDict.keys():
-		if arg not in actual_args.keys():
+                if arg not in actual_args.keys():
                    declarationTemplate=declDict[arg] 
                    declarationStr = declarationTemplate.replace("VARIN",arg) \
                                          .replace("VAROUT",defaultsDict[arg]) \
                                          + '\n'
-                   tabPrint(declarationStr, 0, code)
+                   tabPrint(declarationStr, 0, opcode)
+                else:
+                    continue
 
+        tabPrint ("\n", 0, opcode)
 
-        else:
-            continue
-
-        tabPrint ("\n", 0, code)
-
-    """  
-        4th pass 
-	Loop all operators to print 'main' including operator calling sequence
-        code.  
-        This uses a combination of code template files and what is stored in materialised
-	operator rules
-    """
-    for box in flow["boxes"]:
+        """  
+            4th pass 
+	    Loop all operators to print 'main' including operator calling sequence
+            code.  
+            This uses a combination of code template files and what is stored in materialised
+	    operator rules
+        """
+        # for key in g_nodeMap:
 
         ctr=0
-        if box["type"] == "operator":
+        for i in range(0,len(g_nodeMap[key].taskids)):  # Should only be once if 1 node per task
+
+            algName = g_nodeMap[key].name
+
+            # actual_args = g_operatorsMap[g_nodeMap[key].taskids[i].name].taskids[i] \
+                           # ["operator"]["constraints"]["opSpecification"]["args"]
 
             """ 
                 output start of main section 
             """
-            tabPrint ("//  Start of main section \n\n", 0, code)
-            algName = g_operatorsMap[box["name"]].constraint.algname
-            algStructType = g_operatorsMap[box["name"]].constraint.algtype
+            tabPrint ("//  Start of main section \n\n", 0, opcode)
+            # algName = g_operatorsMap[box["name"]].constraint.algname
+            # algStructType = g_operatorsMap[box["name"]].constraint.algtype
+	    algStructType = g_operatorsMap[g_nodeMap[key].name].constraint.algtype
             with open('templates/'+algName+'maindeclarations.template', 'r') as myfile:
                 data=myfile.read()
             myfile.close
-            tabPrint(data, 0, code)
+            tabPrint(data, 0, opcode)
 
-            tabPrint ("//  Start of typedefs section \n\n", tabcount, code)
+            tabPrint ("//  Start of typedefs section \n\n", tabcount, opcode)
             typedefs = g_typedefMap[tuple([algName, algStructType])]
             for typedef in typedefs:
-                tabPrint(typedef, tabcount, code)
-                tabPrint ("\n", tabcount, code)
-            tabPrint ("\n", tabcount, code)
+                tabPrint(typedef, tabcount, opcode)
+                tabPrint ("\n", tabcount, opcode)
+            tabPrint ("\n", tabcount, opcode)
 
             """ 
                 output input section 
             """
-            tabPrint ("//  Input section \n\n", tabcount, code)
+            tabPrint ("//  Input section \n\n", tabcount, opcode)
 
             """ NOTE: for now assume we have 1 input to operator...
                 Planning ahead--> if there are say 2 inputs, then there should be 
                 2 FILE_PARAMX markers in the template file, in which case 
                 this code section will be changed to loop for every marker, picking off the inputs of
                 the operator - TODO """
+
+            paramInfo = g_operatorsMap[g_nodeMap[key].name].constraint.inputConstraint
+            numParams = len(paramInfo)
             with open('templates/'+algName+'input.template', 'r') as myfile:
-                data=myfile.read().replace('FILE_PARAM1',g_argMap[(algName,box["input"][0])]) # TODO when in loop, remove subscript
+                data=myfile.read()
+                for inputParam in range(0,numParams):
+                    inputId = 'input'+str(inputParam)
+                    data=data.replace('FILE_PARAM'+str(inputParam+1),g_argMap[(algName,inputId)]) 
             myfile.close()
-            tabPrint(data, tabcount, code)
-            tabPrint ("\n", tabcount, code)
+            tabPrint(data, tabcount, opcode)
+            tabPrint ("\n", tabcount, opcode)
 
             """ 
                 output operators call sequencec section 
             """
-            tabPrint ("//  Calling sequence section \n\n", tabcount, code)
+            tabPrint ("//  Calling sequence section \n\n", tabcount, opcode)
             with open('templates/'+algName+'_'+'callsequence.template', 'r') as myfile:
                 
                 # data=myfile.read().replace('WORD_TYPE',eval('g_'+algName).dataStructType)
@@ -497,28 +664,36 @@ def main(argv):
                         catalogBuildCode=myfile.read()
                         myfile.close()
                     data=data.replace('CATALOG_BUILD_CODE',catalogBuildCode)
-            tabPrint(data, tabcount, code)
+            tabPrint(data, tabcount, opcode)
 
             """ 
                 output output section 
             """
-            tabPrint ("//  Output section \n\n", tabcount, code)
+            tabPrint ("//  Output section \n\n", tabcount, opcode)
+            paramInfo = g_operatorsMap[g_nodeMap[key].name].constraint.outputConstraint
+            numParams = len(paramInfo)
             with open('templates/'+algName+'output.template', 'r') as myfile:
-                data=myfile.read().replace('OUTFILE',g_argMap[(algName,box["output"][0])]) # TODO when in loop, remove subscript
-                myfile.close()
-            tabPrint(data, tabcount, code)
-            tabPrint ("\n", tabcount, code)
+                data=myfile.read()
+                for outputParam in range(0,numParams):
+                    outputId = 'output'+str(outputParam)
+                    data=data.replace('FILE_PARAM'+str(outputParam+1),g_argMap[(algName,outputId)]) 
+
+            myfile.close()
+            tabPrint(data, tabcount, opcode)
+            tabPrint ("\n", tabcount, opcode)
 
             """ 
                 output close of main section 
             """
-            tabPrint ("//  Closing main section \n\n", tabcount, code)
+            tabPrint ("//  Closing main section \n\n", tabcount, opcode)
             with open('templates/'+algName+'mainclose.template', 'r') as myfile:
                 data=myfile.read()
                 myfile.close()
-            tabPrint(data, tabcount, code)
+            tabPrint(data, tabcount, opcode)
 
-    code.close()
+
+        print "Closing file ", opcode
+        opcode.close()
 
 """
     Call main with passed params

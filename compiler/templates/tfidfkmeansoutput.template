@@ -1,11 +1,11 @@
 
     get_time( begin );
-    if( !OUTFILE )
+    if( !FILE_PARAM1 )
 	; // skip output
-    else if( !strcmp( OUTFILE, "-" ) ) {
+    else if( !strcmp( FILE_PARAM1, "-" ) ) {
 	kmeans_op.output( std::cout );
     } else {
-	std::ofstream of( OUTFILE, std::ios_base::out );
+	std::ofstream of( FILE_PARAM1, std::ios_base::out );
 	kmeans_op.output( of );
 	of.close();
     }
