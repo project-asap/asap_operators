@@ -294,23 +294,12 @@ void move_word_container( To & to, From && from ) {
 
 } // namespace internal
 
-template<typename WordContainerTy>
-void word_catalog( const std::string & filename,
-		   WordContainerTy & word_container,
-		   size_t chunk_size = size_t(1)<<20 ) {
-    typedef WordContainerTy word_container_type;
-    word_container_file_builder<word_container_type>
-	builder( filename, word_container );
-    text::word_catalog( builder.get_buffer(),
-			builder.get_buffer_end()-builder.get_buffer(),
-			builder.get_word_list(), chunk_size );
-}
-
 template<typename InternalContainerTy,
 	 typename WordContainerTy = InternalContainerTy>
-void word_catalog( const std::string & filename,
-		   WordContainerTy & word_container,
-		   size_t chunk_size = size_t(1)<<20 ) {
+typename std::enable_if<!std::is_same<InternalContainerTy,WordContainerTy>::value>::type
+word_catalog( const std::string & filename,
+	      WordContainerTy & word_container,
+	      size_t chunk_size = size_t(1)<<20 ) {
     typedef InternalContainerTy word_container_type;
     word_container_type intl_container;
     word_container_file_builder<word_container_type>
@@ -321,6 +310,21 @@ void word_catalog( const std::string & filename,
 
     internal::move_word_container( word_container, intl_container );
 }
+
+template<typename InternalContainerTy,
+	 typename WordContainerTy = InternalContainerTy>
+typename std::enable_if<std::is_same<InternalContainerTy,WordContainerTy>::value>::type
+word_catalog( const std::string & filename,
+	      WordContainerTy & word_container,
+	      size_t chunk_size = size_t(1)<<20 ) {
+    typedef WordContainerTy word_container_type;
+    word_container_file_builder<word_container_type>
+	builder( filename, word_container );
+    text::word_catalog( builder.get_buffer(),
+			builder.get_buffer_end()-builder.get_buffer(),
+			builder.get_word_list(), chunk_size );
+}
+
 
 template<typename MapTy>
 struct SizeCounter {
@@ -554,6 +558,7 @@ tfidf_by_words( InputIterator I, InputIterator E,
     // Get statistics on input word maps
     size_t num_dimensions = std::distance( I, E );
     size_t num_points = joint_word_map.size();
+    // TODO: parallelize if std::distance(I,E) large enough
     size_t nonzeros = std::for_each( I, E, SizeCounter<decltype(*I)>() ).size;
 
     // Construct set of vectors, either dense or sparse
@@ -570,6 +575,8 @@ tfidf_by_words( InputIterator I, InputIterator E,
     size_t inc_nonzeros = 0;
     size_t i=0;
     decltype(joint_word_map.begin()->second.second) uniq_id = 0;
+    // TODO: measure time spent specifically in the next loop
+    // 	     if promising, consider parallelising this loop
     for( typename index_list_type::iterator JI=joint_word_map.begin(),
 	     JE=joint_word_map.end(); JI != JE; ++JI, ++i ) {
 	size_t fcount = JI->second.first; // number of documents containing word
