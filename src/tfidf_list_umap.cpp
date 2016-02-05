@@ -24,8 +24,9 @@
 
 char const * indir = nullptr;
 char const * outfile = nullptr;
-bool by_words = true;
-bool do_sort = true;
+bool by_words = false;
+bool do_sort = false;
+bool intm_map = false;
 
 static void help(char *progname) {
     std::cout << "Usage: " << progname << " -i <indir> -o <outfile> [-w] [-s]\n";
@@ -35,7 +36,7 @@ static void parse_args(int argc, char **argv) {
     int c;
     extern char *optarg;
     
-    while ((c = getopt(argc, argv, "i:o:ws")) != EOF) {
+    while ((c = getopt(argc, argv, "i:o:wsm")) != EOF) {
         switch (c) {
 	case 'i':
 	    indir = optarg;
@@ -48,6 +49,9 @@ static void parse_args(int argc, char **argv) {
 	    break;
 	case 's':
 	    do_sort = true;
+	    break;
+	case 'm':
+	    intm_map = true;
 	    break;
 	case '?':
 	    help(argv[0]);
@@ -69,12 +73,24 @@ static void parse_args(int argc, char **argv) {
     std::cerr << "TF/IDF list sorted = " << ( do_sort ? "true\n" : "false\n" );
 }
 
-template<typename directory_listing_type, typename intl_map_type, typename intm_map_type, typename agg_map_type, typename data_set_type>
+template<typename map_type, bool can_sort = true>
+typename std::enable_if<can_sort>::type
+kv_sort( map_type & m ) {
+    std::sort( m.begin(), m.end(),
+	       asap::pair_cmp<typename map_type::value_type,
+	       typename map_type::value_type>() );
+}
+
+template<typename map_type, bool can_sort>
+typename std::enable_if<!can_sort>::type
+kv_sort( map_type & m ) {
+}
+
+template<typename directory_listing_type, typename intl_map_type, typename intm_map_type, typename agg_map_type, typename data_set_type, bool can_sort>
 data_set_type tfidf_driver( directory_listing_type & dir_list ) {
-    struct timespec begin, end, tfidf_begin, tfidf_end;
+    struct timespec wc_end, tfidf_begin, tfidf_end;
 
     // word count
-    //get_time( begin );
     get_time( tfidf_begin );
     size_t num_files = dir_list.size();
     std::vector<intm_map_type> catalog;
@@ -89,9 +105,9 @@ data_set_type tfidf_driver( directory_listing_type & dir_list ) {
 	// The list of pairs is sorted if intl_map_type is based on std::map
 	// but it is not sorted if based on std::unordered_map
 	if( do_sort )
-	    std::sort( catalog[i].begin(), catalog[i].end(),
-		       asap::pair_cmp<typename intl_map_type::value_type,
-		       typename intl_map_type::value_type>() );
+	    kv_sort<intm_map_type,can_sort>( catalog[i] );
+	// asap::pair_cmp<typename intl_map_type::value_type,
+		       	// typename intl_map_type::value_type>() );
 
 	// std::cerr << ": " << catalog[i].size() << " words\n";
 	// Reading from std::vector rather than std::map should be faster...
@@ -99,10 +115,8 @@ data_set_type tfidf_driver( directory_listing_type & dir_list ) {
 	// TODO: replace by post-processing parallel multi-way merge?
 	allwords.count_presence( catalog[i] );
     }
-   // get_time (end);
-   // print_time("word count", begin, end);
+   get_time( wc_end );
 
-   // get_time( begin );
     std::shared_ptr<agg_map_type> allwords_ptr
 	= std::make_shared<agg_map_type>();
     allwords_ptr->swap( allwords.get_value() );
@@ -122,12 +136,12 @@ data_set_type tfidf_driver( directory_listing_type & dir_list ) {
 	    do_sort ); // whether catalogs are sorted
     }
     get_time(tfidf_end);
-   // get_time (end);
-    print_time("library", tfidf_begin, tfidf_end);
-  //  print_time("TF/IDF", begin, end);
 
+    print_time("word count", tfidf_begin, wc_end);
+    print_time("TF/IDF", wc_end, tfidf_end);
     std::cerr << "TF/IDF vectors: " << tfidf.get_num_points() << '\n';
     std::cerr << "TF/IDF dimensions: " << tfidf.get_dimensions() << '\n';
+    print_time("library", tfidf_begin, tfidf_end);
 
     return tfidf;
 }
@@ -228,10 +242,15 @@ int main(int argc, char **argv) {
     typedef asap::data_set<vector_type, aggregate_map_type,
 			   directory_listing_type> data_set_type;
 
-    data_set_type tfidf
-	= tfidf_driver<directory_listing_type, internal_map_type,
-		       intermediate_map_type, aggregate_map_type,
-		       data_set_type>( dir_list );
+    data_set_type tfidf;
+    if( intm_map )
+	tfidf = tfidf_driver<directory_listing_type, internal_map_type,
+			     internal_map_type, aggregate_map_type,
+			     data_set_type, false>( dir_list );
+    else
+	tfidf = tfidf_driver<directory_listing_type, internal_map_type,
+			     intermediate_map_type, aggregate_map_type,
+			     data_set_type, true>( dir_list );
 
     get_time( begin );
     if( !outfile )
