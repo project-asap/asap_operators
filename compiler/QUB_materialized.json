@@ -5,10 +5,18 @@
 		"status": "stopped",
 		"type": "dataset",
 		"description": "textDirectoryDataset",
-		"Constraints.DataInfo.type": "freetext",
-		"Constraints.Engine.FS": "Standard",
-		"Constraints.type": "directory",
-		"Execution.path": "/var/shared/projects/asap/inputs/operators/tfidf_input/",
+		"Constraints": {
+                    "DataInfo": {
+			"type": "freetext"
+		    },
+		    "Engine": { 
+			"FS": "Standard"
+		    },
+		    "type": "directory"
+		},
+		"Execution": {
+		    "path": "/var/shared/projects/asap/inputs/operators/tfidf_input/"
+		},
 		"input": []
 	},
 	{
@@ -17,10 +25,19 @@
 		"status": "stopped",
 		"type": "dataset",
 		"description": "arffDataset",
-		"Constraints.DataInfo.type": "arff",
-		"Constraints.Engine.FS": "Standard",
-		"Constraints.type": "file",
-		"Execution.path": "/var/shared/projects/asap/inputs/operators/kmeans_input/",
+
+                "Constraints": {
+                    "DataInfo": {
+                        "type": "arff"
+                    },
+                    "Engine": { 
+                        "FS": "Standard"
+                    },
+                    "type": "file"
+                },
+                "Execution": {
+                    "path": "/var/shared/projects/asap/inputs/operators/kmeans_input/"
+                },
 		"input": []
 	},
         {
@@ -29,10 +46,19 @@
 		"status": "stopped",
 		"type": "dataset",
 		"description": "textDataset",
-		"Constraints.DataInfo.type": "freetext",
-		"Constraints.Engine.FS": "Standard",
-		"Constraints.type": "file",
-		"Execution.path": "/var/shared/projects/asap/inputs/operators/kmeans_output/",
+
+                "Constraints": {
+                    "DataInfo": {
+                        "type": "freetext"
+                    },
+                    "Engine": { 
+                        "FS": "Standard"
+                    },
+                    "type": "file"
+                },
+                "Execution": {
+                    "path": "/var/shared/projects/asap/inputs/operators/kmeans_output/"
+                },
 		"input": []
 	},
 	{
@@ -41,12 +67,16 @@
 		"status": "stopped",
 		"type": "operator",
 		"description": "TFIDF",
-		"Constraints.EngineSpecification.FS": "standard",
-		"Constraints.type": "directory",
-		"Constraints.runFile": "tfidf_cilk_map",
-		"Constraints.Algorithm.name": "tfidf",
-		"Constraints.Algorithm.dstruct_type": "word_map_type",
 		"Constraints": {
+			"EngineSpecification": {
+				"FS": "standard"
+			},
+			"type": "directory",
+			"runFile": "tfidf_cilk_map",
+			"Algorithm": {
+				"name": "tfidf",
+				"dstruct_type": "word_map_type"
+			},
                 	"Input" : {
                 		"Engine": {
 					"FS": "standard"
@@ -69,12 +99,16 @@
 		"status": "stopped",
 		"type": "operator",
 		"description": "TFIDF",
-		"Constraints.EngineSpecification.FS": "standard",
-		"Constraints.type": "directory",
-		"Constraints.runFile": "tfidf_cilk_list",
-		"Constraints.Algorithm.name": "tfidf",
-		"Constraints.Algorithm.dstruct_type": "word_list_type",
 		"Constraints": {
+			"EngineSpecification": {
+				"FS": "standard"
+			},
+			"type": "directory",
+			"runFile": "tfidf_cilk_list",
+			"Algorithm": {
+				"name": "tfidf",
+				"dstruct_type": "word_list_type"
+			},
                 	"Input" : {
                 		"Engine": {
 					"FS": "standard"
@@ -97,12 +131,16 @@
 		"status": "stopped",
 		"type": "operator",
 		"description": "TFIDFKMEANS",
-		"Constraints.EngineSpecification.FS": "standard",
-		"Constraints.type": "directory",
-		"Constraints.runFile": "tfidfkmeans_cilk_list",
-		"Constraints.Algorithm.name": "tfidfkmeans",
-		"Constraints.Algorithm.dstruct_type": "word_list_type",
 		"Constraints": {
+			"EngineSpecification": {
+				"FS": "standard"
+			},
+			"type": "directory",
+			"runFile": "tfidf_cilk_list",
+			"Algorithm": {
+				"name": "tfidfkmeans",
+				"dstruct_type": "word_list_type"
+			},
                 	"Input" : {
                 		"Engine": {
 					"FS": "standard"
@@ -125,13 +163,19 @@
 		"status": "stopped",
 		"type": "operator",
 		"description": "KMEANS",
-		"Constraints.EngineSpecification.FS": "standard",
-		"Constraints.type": "file",
-		"Constraints.DataInfo.type": "arff",
-		"Constraints.runFile": "kmeans_cilk_list",
-		"Constraints.Algorithm.name": "kmeans",
-		"Constraints.Algorithm.dstruct_type": "word_list_type",
 		"Constraints": {
+			"EngineSpecification": {
+				"FS": "standard"
+			},
+			"type": "file",
+			"DataInfo": {
+				"type": "arff"
+			},
+			"runFile": "kmeans_cilk_list",
+			"Algorithm": {
+				"name": "kmeans",
+				"dstruct_type": "word_list_type"
+			},
                 	"Input" : {
                 		"Engine": {
 					"FS": "standard"

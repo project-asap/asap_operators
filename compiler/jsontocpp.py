@@ -274,22 +274,22 @@ def loadWorkflowData(data):
 def loadOperatorLibraryData(data):
     for operator in data["operators"]:
         if operator["type"] == "dataset":
-            newconstraint = DataSetConstraint(operator["Constraints.DataInfo.type"], 
-                                             operator["Constraints.Engine.FS"],
-					     operator["Constraints.type"])
+            newconstraint = DataSetConstraint(operator["Constraints"]["DataInfo"]["type"], 
+                                             operator["Constraints"]["Engine"]["FS"],
+					     operator["Constraints"]["type"])
             newdataset = Dataset(operator["name"], 
                                              operator["description"], 
                                              newconstraint, 
-                                             operator["Execution.path"], 
+                                             operator["Execution"]["path"], 
                                              operator["input"], 
                                              operator["status"])
             g_datasetsMap[operator["name"]] = newdataset
         elif operator["type"] == "operator":
             newconstraint = OperatorConstraint(
-                                             operator["Constraints.EngineSpecification.FS"],
-					     operator["Constraints.runFile"],
-					     operator["Constraints.Algorithm.name"],
-					     operator["Constraints.Algorithm.dstruct_type"],
+                                             operator["Constraints"]["EngineSpecification"]["FS"],
+					     operator["Constraints"]["runFile"],
+					     operator["Constraints"]["Algorithm"]["name"],
+					     operator["Constraints"]["Algorithm"]["dstruct_type"],
                                              operator["Constraints"]["Input"],
                                              operator["Constraints"]["Output"])
 
@@ -298,7 +298,7 @@ def loadOperatorLibraryData(data):
                                              newconstraint, 
                                              operator["status"])
             g_operatorsMap[operator["name"]] = newoperator
-            g_operatorsMap[operator["Constraints.Algorithm.name"]] = newoperator
+            g_operatorsMap[operator["Constraints"]["Algorithm"]["name"]] = newoperator
         elif operator["type"] == "signature_rule":
             newsignature = Signature(operator["input"], operator["output"], operator["run"])
             for algorithmName in operator["algorithm.names"]:
