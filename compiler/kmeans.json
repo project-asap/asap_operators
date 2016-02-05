@@ -1,0 +1,25 @@
+{
+	"boxes": [{
+		"id": "i0",
+		"name": "arffDataset",
+		"type": "input",
+		"filename": "test.arff"
+	},
+	{
+		"id": "op0",
+		"name": "kmeans_cilk_list",
+		"type": "operator",
+                "args": {"num_clusters": "4",
+                        "max_iters": "5",
+                        "force_dense": "true"}
+                        ,
+		"input": ["i0"],
+		"output": ["o0"]
+	},
+	{
+		"id": "o0",
+		"name": "textDataset",
+		"type": "output",
+		"filename": "compilertest.arff"
+	}]
+}

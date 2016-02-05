@@ -1,9 +1,0 @@
-<workflow>
-    <ops>
-        <operator>
-            <input>"myInputDirectory"</input>
-            <run>tfidf</run>
-            <output>"tfidf-out.txt"</output>
-        </operator>
-    </ops>
-</workflow>

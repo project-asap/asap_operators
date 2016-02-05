@@ -1,0 +1,63 @@
+{
+"workflow": {
+        "nodes": [
+        {
+                "id": "1",
+                "taskids": ["1"],
+                "name": "tfidf"
+        },
+        {
+                "id": "2",
+                "taskids": ["2"],
+                "name": "kmeans"
+        }
+        ],
+        "edges": [{
+                "sourceId": "1",
+                "targetId": "2"
+        }],
+        "taskLinks": [
+        ],
+        "tasks": [
+                {
+                        "id": "1",
+                        "nodeId": "1",
+                        "name": "tfidf",
+                        "operator": {
+                                "constraints": {
+                                        "input": "1",
+                                        "input0": "/tmp/all",
+                                        "output": "1",
+                                        "output0": "/tmp/arffDataset.txt",
+                                        "opSpecification": {
+                                                "algorithm": "tfidf_map",
+                                                "args": {"num_clusters": "4",
+                                                         "max_iters": "5",
+                                                         "force_dense": "true"}
+
+                                        }
+                                }
+                        }
+                },
+                {
+                        "id": "2",
+                        "nodeId": "2",
+                        "name": "kmeans",
+                        "operator": {
+                                "constraints": {
+                                        "input": "1",
+                                        "input0": "arffDataset.txt",
+                                        "output": "1",
+                                        "output0": "textFile.txt",
+                                        "opSpecification": {
+                                                "algorithm": "kmeans",
+                                                "args": {"num_clusters": "4",
+                                                         "max_iters": "5",
+                                                         "force_dense": "true"}
+                                        }
+                                }
+                        }
+                }
+        ]
+}
+}

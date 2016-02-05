@@ -1,0 +1,19 @@
+#include <iostream>
+#include <fstream>
+#include <unistd.h>
+
+#include <cilk/cilk.h>
+#include <cilk/reducer.h>
+#include <cilk/cilk_api.h>
+
+#include "asap/utils.h"
+#include "asap/arff.h"
+#include "asap/dense_vector.h"
+#include "asap/sparse_vector.h"
+#include "asap/kmeans.h"
+#include "asap/normalize.h"
+
+#include <stddefines.h>
+
+#define DEF_NUM_MEANS 8
+

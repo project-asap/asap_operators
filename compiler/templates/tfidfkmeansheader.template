@@ -19,5 +19,3 @@
 #include "asap/kmeans.h"
 
 #include <stddefines.h>
-
-#define DEF_NUM_MEANS 8

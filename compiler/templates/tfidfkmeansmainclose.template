@@ -1,5 +1,3 @@
-    get_time( end );
-    print_time("output", begin, end);
 
     print_time("complete time", veryStart, end);
 

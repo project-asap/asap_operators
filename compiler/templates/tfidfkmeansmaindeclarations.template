@@ -1,15 +1,13 @@
 int main(int argc, char **argv) {
-
     struct timespec begin, end;
     struct timespec veryStart;
 
-    srand( time(NULL) );
+    srand( rnd_init == 0 ? time(NULL) : rnd_init );
 
     get_time( begin );
     veryStart = begin;
 
     // read args
-    // defined from workflow and oplibs xml: 
     // parse_args(argc,argv);
 
     std::cerr << "Available threads: " << __cilkrts_get_nworkers() << "\n";
