@@ -89,21 +89,17 @@ class IOConstraint:
 """ holds data about operator constraints """
 class OperatorConstraint:
     def __init__(self, fs, runFile, algname, alg_dstructtype, inputs, outputs):
-        print "In opCon constructor ", algname
         self.EngineSpecification_FS = fs
         self.runFile = runFile
         self.algname = algname
         self.algtype = alg_dstructtype
 	self.inputConstraint = []
 	self.outputConstraint = []
-        print ' inputs number is ', inputs["number"]
         for i in range(0,int(inputs["number"])):
-            print "adding input constraint to ", algname
 	    inputConstraint = IOConstraint(inputs["Engine"]["FS"],
                                                inputs["type"])
             self.inputConstraint.append(inputConstraint)
         for i in range(0,int(outputs["number"])):
-            print "adding output constraint to ", algname
 	    outputConstraint = IOConstraint(outputs["Engine"]["FS"],
                                                outputs["type"])
             self.outputConstraint.append(outputConstraint)
@@ -176,12 +172,10 @@ class OperatorBox:
         for i in range(0,int(numinputs)):
             newinputbox = InputBox(box["operator"]["constraints"]["input"+str(i)])
             self.inputs.append(newinputbox)
-            print "added an input to ", name
         numoutputs = box["operator"]["constraints"]["output"]
         for i in range(0,int(numoutputs)):
             newoutputbox = OutputBox(box["operator"]["constraints"]["output"+str(i)])
             self.outputs.append(newoutputbox)
-            print "added an output to ", name
 
 	self.opSpecification = OpSpecification(constraints["opSpecification"]["algorithm"],
 						constraints["opSpecification"]["args"])
@@ -310,7 +304,6 @@ def loadOperatorLibraryData(data):
         elif operator["type"] == "inout_declaration":
             for algorithm in operator["algorithm.names"]:
                 numInputParams = len(g_operatorsMap[algorithm].constraint.inputConstraint)
-		print "ips - ", numInputParams
                 for inputParam in range(0,numInputParams):
                 # for inputParam in g_operatorsMap[algorithm].constraint.inputConstraint:
 		    g_iodeclMap[tuple([algorithm,"input"+str(inputParam)])] = \
@@ -384,6 +377,8 @@ def main(argv):
     """ 
         Open the output codefile 
     """
+    # we now write the code to individual source code files whose names ar
+    # generated from a derivitave of algorithm (and possibly to be datastructure)
     # code = open(codefile, "w")
 
     """ 
@@ -442,27 +437,29 @@ def main(argv):
 
     """
 
-    """   
-        1st pass
-        Loop all operators to get all header files required.  
-        TODO remove duplicates headers when more than one operator
-	in workflow
-    """
+    """ For each node(task) in the workflow """
     for key in g_nodeMap:
 
         """ 
             Open the output file for this operator 
         """
         opcode = open(g_nodeMap[key].name+'_gen.cpp', "w")
-	print "opened file ", opcode
+
+        """   
+	    STAGE 1
+            Print header files required.  
+        """
 
         # ASSUMPTION
         # Isn't it safe to assume we should only ever have one task per node as Unige 
         # documents state they optimise the workflow to make tasks nodes(vertices) in 
         # their own right ?  TODO fix if this turns out not to be the case
         # Either way we will still loop round the tasks here for extensibility purposes
+	# so there may not be much to change.
 
-        for i in range(0,len(g_nodeMap[key].taskids)):  # Should only be once if 1 node per task
+        for i in range(0,len(g_nodeMap[key].taskids)):  # Should only be once if 1 node 
+						   	# per task in optimised workflow
+							# as per Unige document
             task = g_nodeMap[key].taskids[i]
             # box = g_operatorBoxMap[task]
 
@@ -476,8 +473,8 @@ def main(argv):
             tabPrint ("\n", 0, opcode)
 
         """ 
-            2nd pass
-	    Loop all operators to print variable declarations for input/output filenames
+            STAGE 2
+	    Print variable declarations for input/output filenames
         """
     	# for key in g_nodeMap:
 
@@ -491,7 +488,6 @@ def main(argv):
             """ Input files IO """
 	    paramInfo = g_operatorsMap[g_nodeMap[key].name].constraint.inputConstraint
 	    numParams = len(paramInfo)
-            print "inumParams is ", numParams
 	    for inputParam in range(0,numParams):
                 inputId = 'input'+str(inputParam)
                 declarationTemplate = g_iodeclMap[tuple([algName,inputId])]
@@ -516,10 +512,9 @@ def main(argv):
                         g_argMap[(algName,inputId)] = var
                         ctr += 1 
 
-            """ Output files IO """
+            """ Output files IO , TODO merge this section of code with input section above this """
 	    paramInfo = g_operatorsMap[g_nodeMap[key].name].constraint.outputConstraint
 	    numParams = len(paramInfo)
-            print "onumParams is ", numParams
 	    for outputParam in range(0,numParams):
                 outputId = 'output'+str(outputParam)
                 declarationTemplate = g_iodeclMap[tuple([algName,outputId])]
@@ -546,8 +541,8 @@ def main(argv):
         tabPrint ("\n", 0, opcode)
 
         """ 
-            3rd pass
-	    Loop all operators to print variable declarations for operator arguments
+            STAGE 3
+	    Print variable declarations for operator arguments
             read from args field in the operator box
         """
         # for key in g_nodeMap:
@@ -556,13 +551,10 @@ def main(argv):
         for i in range(0,len(g_nodeMap[key].taskids)):  # Should only be once if 1 node per task
             tabPrint ("//  Variable Declarations for operator arguments \n\n", 0, opcode)
             algName = g_nodeMap[key].name
-	    # paramInfo = g_operatorsMap[g_nodeMap[key].name].constraint.inputConstraint
 
             operatorBox = g_nodeBoxMap[key] 
             actual_args = operatorBox.opSpecification.args
 
-            # actual_args = g_operatorsMap[g_nodeMap[key].name].taskids[i] \
-                           # ["operator"]["constraints"]["opSpecification"]["args"]
             declDict = g_argsdeclMap[algName][0]
 	    defaultsDict = g_argsdefaultsMap[algName][0]
 
@@ -593,28 +585,21 @@ def main(argv):
         tabPrint ("\n", 0, opcode)
 
         """  
-            4th pass 
-	    Loop all operators to print 'main' including operator calling sequence
-            code.  
+            STAGE 4
+	    Print 'main' including operator calling sequence code.  
             This uses a combination of code template files and what is stored in materialised
 	    operator rules
         """
-        # for key in g_nodeMap:
 
         ctr=0
         for i in range(0,len(g_nodeMap[key].taskids)):  # Should only be once if 1 node per task
 
             algName = g_nodeMap[key].name
 
-            # actual_args = g_operatorsMap[g_nodeMap[key].taskids[i].name].taskids[i] \
-                           # ["operator"]["constraints"]["opSpecification"]["args"]
-
             """ 
                 output start of main section 
             """
             tabPrint ("//  Start of main section \n\n", 0, opcode)
-            # algName = g_operatorsMap[box["name"]].constraint.algname
-            # algStructType = g_operatorsMap[box["name"]].constraint.algtype
 	    algStructType = g_operatorsMap[g_nodeMap[key].name].constraint.algtype
             with open('templates/'+algName+'maindeclarations.template', 'r') as myfile:
                 data=myfile.read()
@@ -667,7 +652,7 @@ def main(argv):
             tabPrint(data, tabcount, opcode)
 
             """ 
-                output output section 
+                output 'output' section 
             """
             tabPrint ("//  Output section \n\n", tabcount, opcode)
             paramInfo = g_operatorsMap[g_nodeMap[key].name].constraint.outputConstraint
@@ -692,7 +677,6 @@ def main(argv):
             tabPrint(data, tabcount, opcode)
 
 
-        print "Closing file ", opcode
         opcode.close()
 
 """
