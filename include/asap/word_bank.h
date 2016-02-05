@@ -879,6 +879,13 @@ private:
 		reducer_fn( ret.first->second, I->second );
 		if( word_bank_type::is_managed ) // erase redundant copy of word
 		    this->erase( w );
+
+		// TODO: consider dropping the old word and setting I->first
+		//       to ret.first->first; also need to push the appropriate
+		//       parts of storage onto I's storage. This is hard
+		//       (appropriate parts) and we currently don't have the
+		//       container. Reason to do this is so we can reduce
+		//       memory footprint.
 	    }
 	}
 #elif 0
