@@ -60,6 +60,11 @@ tfidf_kmeans: tfidf.cpp
 tfidf_kmeans_dbg: tfidf.cpp
 	$(CXX) $(DEBUG_FLAGS) -DKMEANS -DASAP -O0 $^ -o $@ $(LDFLAGS)
 
+test: FORCE
+	tfidf_std -d test
+
+FORCE:
+
 clean:
 	rm -fr $(benchmark)
 
