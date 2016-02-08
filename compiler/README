@@ -7,20 +7,19 @@ REQUIREMENTS
 Python version 2.6.6 was used in development and testing (default on hpdc02).
 
 
-RUNNING  ---   Version with 2 tasks(nodes) - tfidf followed by kmeans
----------------------------------------------------------------------
+RUNNING TEST
+------------
+By executing "make <WORKFLOW>", eg:
 
-    python jsontocpp.py -i tfidf_then_kmeans.json -l QUB_materialized.json
+	make tfidf
 
-Where:
-    tfidf_then_kmeans.json is a workflow for tfidf followed by kmeans (separate node tasks)
-    based on Unige's workflow output after optimisation which makes every task a node.
+Where "WORKFLOW" is the user's description of analytics query in JSON format, 
+the compiler will generate Swan code, compile with c++ compiler, 
+and run the workflow against the datasets specified in the users workflow
+description.
 
+Other examples:
 
-RUNNING  ---   1 in-memory tasks(nodes) - tfidf and kmeans in one executable
----------------------------------------------------------------------
-
-    python jsontocpp.py -i tfidf_and_kmeans.json -l QUB_materialized.json
-
-Where:
-    tfidf_and_kmeans.json is a workflow for tfidfkmeans operator all in-memory
+	make kmeans
+	make tfidf_and_kmeans             /* in-memory version */
+	make tfidf_then_kmeans            /* file input/output version */

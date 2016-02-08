@@ -138,7 +138,7 @@
 			"type": "directory",
 			"runFile": "tfidf_cilk_list",
 			"Algorithm": {
-				"name": "tfidfkmeans",
+				"name": "tfidf_and_kmeans",
 				"dstruct_type": "word_list_type"
 			},
                 	"Input" : {
@@ -194,7 +194,7 @@
 	},
 	{
 		"type": "signature_rule",
-		"algorithm.names": ["tfidf", "tfidfkmeans"],
+		"algorithm.names": ["tfidf", "tfidf_and_kmeans"],
 		"input": "get_dir_listing(FILE_PARAM1, dir_list);",
 		"output": "output(DATA_PARAM1, FILE_PARAM1);",
 		"run": "tfidf(DATA_PARAM1, OP_PARAM1, OP_PARAM2);"
@@ -232,7 +232,7 @@
         },
         {
 		"type": "typedef",
-		"algorithm.names": ["tfidfkmeans"],
+		"algorithm.names": ["tfidf_and_kmeans"],
 		"algorithm.types": ["word_list_type","word_map_type"],
                 "types": [
 			"typedef asap::word_list<std::deque<const char*>, asap::word_bank_managed> directory_listing_type;",
@@ -256,13 +256,13 @@
         },
 	{
 		"type": "inout_declaration",
-		"algorithm.names": ["tfidf", "kmeans", "tfidfkmeans"],
+		"algorithm.names": ["tfidf", "kmeans", "tfidf_and_kmeans"],
 		"input0": "char const * VARIN = VAROUT;", 
                 "output0": "char const * VARIN = VAROUT;"
 	},
 	{
 		"type": "arg_declaration",
-		"algorithm.names": ["tfidfkmeans"],
+		"algorithm.names": ["tfidf_and_kmeans"],
                 "argTemplates": [{"max_iters": "const int VARIN = VAROUT;", "num_clusters": "const int VARIN = VAROUT;", "force_dense": "const bool VARIN = VAROUT;", "by_words": "const bool VARIN = VAROUT;", "do_sort": "const bool VARIN = VAROUT;", "rnd_init": "unsigned int VARIN = VAROUT;"}],
                 "argDefaults": [{"max_iters": "0", "num_clusters": "8", "force_dense": "false", "by_words": "false", "do_sort": "false", "rnd_init": "1"}]
         },
