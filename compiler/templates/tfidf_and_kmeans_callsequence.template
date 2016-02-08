@@ -36,7 +36,7 @@
 	{
 	    // Build up catalog for each file using a map
 	    word_map_type wmap;
-	    asap::word_catalog( filename, wmap );
+	    asap::word_catalog<word_map_type>( filename, wmap );
 	    // Convert file's catalog to a (sorted) list of pairs
 	    catalog[i].reserve( wmap.size() );    // avoid re-allocations
 	    catalog[i].insert( std::move(wmap) ); // move out wmap contents

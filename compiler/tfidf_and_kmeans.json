@@ -4,7 +4,7 @@
         {
                 "id": "1",
                 "taskids": ["1"],
-                "name": "tfidfkmeans"
+                "name": "tfidf_and_kmeans"
         }
         ],
         "edges": [
@@ -15,13 +15,13 @@
                 {
                         "id": "1",
                         "nodeId": "1",
-                        "name": "tfidfkmeans",
+                        "name": "tfidf_and_kmeans",
                         "operator": {
                                 "constraints": {
                                         "input": "1",
-                                        "input0": "/tmp/all",
+                                        "input0": "tfidf_input",
                                         "output": "1",
-                                        "output0": "/tmp/textfile.txt",
+                                        "output0": "tfidf_output.arff",
                                         "opSpecification": {
                                                 "algorithm": "tfidf_list",
                                                 "args": {"num_clusters": "4",

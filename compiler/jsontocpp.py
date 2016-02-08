@@ -38,6 +38,7 @@ import sys, getopt
 from collections import deque
 import re
 import unittest
+import os
 
 
 
@@ -443,6 +444,10 @@ def main(argv):
         """ 
             Open the output file for this operator 
         """
+   	# genDir = os.path.splitext(workflowfile)[0]
+	# if not os.path.exists(genDir):
+    		# os.makedirs(genDir)
+        # opcode = open(genDir+'/'+g_nodeMap[key].name+'_gen.cpp', "w")
         opcode = open(g_nodeMap[key].name+'_gen.cpp', "w")
 
         """   

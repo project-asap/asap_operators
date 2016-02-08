@@ -1,25 +1,36 @@
 {
-	"boxes": [{
-		"id": "i0",
-		"name": "arffDataset",
-		"type": "input",
-		"filename": "test.arff"
-	},
-	{
-		"id": "op0",
-		"name": "kmeans_cilk_list",
-		"type": "operator",
-                "args": {"num_clusters": "4",
-                        "max_iters": "5",
-                        "force_dense": "true"}
-                        ,
-		"input": ["i0"],
-		"output": ["o0"]
-	},
-	{
-		"id": "o0",
-		"name": "textDataset",
-		"type": "output",
-		"filename": "compilertest.arff"
-	}]
+"workflow": {
+        "nodes": [
+        {
+                "id": "1",
+                "taskids": ["1"],
+                "name": "kmeans"
+        }
+        ],
+        "edges": [
+        ],
+        "taskLinks": [
+        ],
+        "tasks": [
+                {
+                        "id": "1",
+                        "nodeId": "1",
+                        "name": "kmeans",
+                        "operator": {
+                                "constraints": {
+                                        "input": "1",
+                                        "input0": "tfidf_output.arff",
+                                        "output": "1",
+                                        "output0": "kmeans_output.txt",
+                                        "opSpecification": {
+                                                "algorithm": "kmeans",
+                                                "args": {"num_clusters": "4",
+                                                         "max_iters": "5",
+                                                         "force_dense": "true"}
+                                        }
+                                }
+                        }
+                }
+        ]
+}
 }

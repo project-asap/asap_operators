@@ -5,17 +5,10 @@
                 "id": "1",
                 "taskids": ["1"],
                 "name": "tfidf"
-        },
-        {
-                "id": "2",
-                "taskids": ["2"],
-                "name": "kmeans"
         }
         ],
-        "edges": [{
-                "sourceId": "1",
-                "targetId": "2"
-        }],
+        "edges": [
+        ],
         "taskLinks": [
         ],
         "tasks": [
@@ -35,25 +28,6 @@
                                                          "max_iters": "5",
                                                          "force_dense": "true"}
 
-                                        }
-                                }
-                        }
-                },
-                {
-                        "id": "2",
-                        "nodeId": "2",
-                        "name": "kmeans",
-                        "operator": {
-                                "constraints": {
-                                        "input": "1",
-                                        "input0": "tfidf_output.arff",
-                                        "output": "1",
-                                        "output0": "kmeans_output.txt",
-                                        "opSpecification": {
-                                                "algorithm": "kmeans",
-                                                "args": {"num_clusters": "4",
-                                                         "max_iters": "5",
-                                                         "force_dense": "true"}
                                         }
                                 }
                         }
