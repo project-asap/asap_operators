@@ -61,7 +61,7 @@ tfidf_kmeans_dbg: tfidf.cpp
 	$(CXX) $(DEBUG_FLAGS) -DKMEANS -DASAP -O0 $^ -o $@ $(LDFLAGS)
 
 test: FORCE
-	tfidf_std -d test
+	tfidf_std -d test -o tfidf_results.txt
 
 FORCE:
 

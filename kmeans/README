@@ -4,7 +4,7 @@
 
 
 # To compile
-make tfidf_std
+make kmeans_arff
 
 # To run
 make test
