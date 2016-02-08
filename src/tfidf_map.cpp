@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
 	std::string filename = *std::next(dir_list.cbegin(),i);
 	// std::cerr << "Read file " << filename;
 	// Build up catalog for each file using a map
-	asap::word_catalog( std::string(*std::next(dir_list.cbegin(),i)),
+	asap::word_catalog<word_map_type>( std::string(*std::next(dir_list.cbegin(),i)),
 			    catalog[i] );
 
 	// std::cerr << ": " << catalog[i].size() << " words\n";

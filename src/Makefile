@@ -1,4 +1,5 @@
 tests=kmeans tfidf_list tfidf_map tfidf_list_inplace tfidf_list_list tfidf_list_umap tfidf_kmeans wc
+tfidf_tests=tfidf_list tfidf_map tfidf_list_inplace tfidf_list_list tfidf_list_umap tfidf_kmeans wc
 
 INCLUDE_FILES=traits.h dense_vector.h sparse_vector.h vector_ops.h kmeans.h attributes.h memory.h utils.h data_set.h arff.h normalize.h word_bank.h word_count.h io.h
 INCLUDE=$(patsubst %, ../include/asap/%, $(INCLUDE_FILES))
@@ -15,12 +16,15 @@ LDFLAGS+=-g -std=c++11 -lrt $(OPT)
 
 all: $(tests)
 
-#kmeans: kmeans.o
-#tfidf_list_list: tfidf_list_list.o
-
 %.o: %.cpp $(INCLUDE)
 
 %: %.o
+
+test: $(tfidf_tests)
+	@ $< -i testdir -o tfidf_results.txt
+
+test_kmeans:	kmeans
+	@ $< -i test.arff -o kmeans_results.txt
 
 .PHONY: clean
 clean:
