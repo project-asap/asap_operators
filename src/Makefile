@@ -20,11 +20,13 @@ all: $(tests)
 
 %: %.o
 
-test: $(tfidf_tests)
+test: $(tfidf_tests) FORCE
 	@ $< -i testdir -o tfidf_results.txt
 
-test_kmeans:	kmeans
+test_kmeans:	kmeans FORCE
 	@ $< -i test.arff -o kmeans_results.txt
+
+FORCE:
 
 .PHONY: clean
 clean:
