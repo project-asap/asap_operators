@@ -12,8 +12,8 @@ all: $(benchmark)
 kmeans_arff: kmeans_arff.cpp 
 	$(CXX) $(CXXFLAGS) -DTIMING $^ -o $@ $(LDFLAGS)
 
-test: FORCE
-	kmeans_arff -c 2 -i test.arff -o kmeans_results.txt
+test: kmeans_arff FORCE
+	./kmeans_arff -c 2 -i test.arff -o kmeans_results.txt
 
 FORCE:
 

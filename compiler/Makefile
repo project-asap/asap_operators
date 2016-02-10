@@ -61,7 +61,7 @@ clean:
 	rm -fr $(patsubst %,%.dir,$(exes))
 
 
-all:
+test:
 	@ echo "_________________________________________________________________________________"
 	@ make tfidf.dir
 	@ make test_tfidf
