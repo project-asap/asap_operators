@@ -7,7 +7,8 @@ CXXFLAGSDEBUG+=-g $(CXXFLAGS)
 DEBUG_FLAGS=-O0 -g -std=c++11 -I. -DASAP -DTIMING -I../cilkpub_v105/include -I..
 LDFLAGS += -lrt
 
-all: $(benchmark)
+# all: $(benchmark)
+all: tfidf_std
 
 tfidf_seq_likwid: tfidf.cpp
 	$(CXX) $(CXXFLAGS) -DSEQUENTIAL=1 -DPMC=1 -DLIKWID_PERFMON=1 $^ -o $@ $(LDFLAGS) -llikwid

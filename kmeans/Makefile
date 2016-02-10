@@ -13,9 +13,11 @@ kmeans_arff: kmeans_arff.cpp
 	$(CXX) $(CXXFLAGS) -DTIMING $^ -o $@ $(LDFLAGS)
 
 test: FORCE
-	kmeans_arff -i test.arff -o kmeans_results.txt
+	kmeans_arff -c 2 -i test.arff -o kmeans_results.txt
 
 FORCE:
 
 clean:
 	rm -fr $(benchmark)
+
+all: kmeans_arff
