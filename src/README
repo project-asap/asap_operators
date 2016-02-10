@@ -12,8 +12,6 @@ Where TARGET may be any one of the following:
 	kmeans tfidf_list tfidf_map tfidf_list_inplace tfidf_list_list tfidf_list_umap tfidf_kmeans wc
 
 To run all others
-	make test <TARGET>
+	make test_<TARGET>
 
-To run kmeans test:
-	make test kmeans
-
+	for example, "make test_tfidf_list", "make test_kmeans"
