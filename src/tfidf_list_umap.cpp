@@ -253,11 +253,7 @@ int main(int argc, char **argv) {
 			     data_set_type, true>( dir_list );
 
     get_time( begin );
-    if( !outfile )
-	; // skip output
-    else if( !strcmp( outfile, "-" ) )
-	asap::arff_write( std::cout, tfidf );
-    else
+    if( outfile )
 	asap::arff_write( outfile, tfidf );
     get_time (end);
     print_time("output", begin, end);

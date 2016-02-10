@@ -47,8 +47,6 @@ static void parse_args(int argc, char **argv) {
     
     if( !indir )
 	fatal( "Input directory must be supplied." );
-    if( !outfile )
-	fatal( "Output file must be supplied." );
     
     std::cerr << "Input directory = " << indir << '\n';
     std::cerr << "Output file = " << outfile << '\n';
@@ -141,13 +139,8 @@ int main(int argc, char **argv) {
     print_time("TF/IDF", begin, end);
 
     get_time( begin );
-    std::ofstream of( outfile, std::ios_base::out );
-
-    size_t i=0;
-    for( auto I=tfidf.vector_cbegin(), E=tfidf.vector_cend(); I != E; ++I, ++i ){
-	of << dir_list[i] << ": " << *I << std::endl;
-    }
-    of.close();
+    if( outfile )
+	asap::arff_write( outfile, tfidf );
     get_time (end);
     print_time("output", begin, end);
 
