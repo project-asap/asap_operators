@@ -5,8 +5,8 @@
 imtests=tfidf kmeans tfidf_and_kmeans
 omtests=tfidf_then_kmeans
 exes=$(omtests) $(imtests)
-cpps=$(patsubst %, %.cpp, $(imtests))
-jsons=$(patsubst %, %.json, $(exes))
+#cpps=$(patsubst %, %.cpp, $(imtests))
+#jsons=$(patsubst %, %.json, $(exes))
 
 PY=python
 COMPILER=jsontocpp.py
@@ -14,27 +14,23 @@ OPLIB=SwanMaterialised.json
 
 .SILENT:
 
-$(cpps): %.cpp: %.json
+%.dir: %.json
 	@ echo " #####   Compiling Workflow $<   #####"
 	$(PY) $(COMPILER) -i $< -l $(OPLIB) 
 	@ echo " #####   Compiling Generated Swan $@ #####"
-	@ make $*
-
-tfidf_then_kmeans.cpp: tfidf.cpp kmeans.cpp
-	@ echo "11111"
-
+	@ make `ls -1 $*.dir/*.cpp | sed -e 's/.cpp//'`
 
 ## Test Rules
 
-test_%: %.cpp
+test_%: %.dir
 	@ echo " #####   Executing Workflow $*   #####"
-	@ $*
+	@ $*.dir/$*
 
-test_tfidf_then_kmeans: tfidf kmeans
-	@ echo " #####   Executing Workflow $@   #####"
-	@ tfidf
-	@ kmeans
-	@ echo " #####   Execution of Workflow $@ complete  #####"
+test_tfidf_then_kmeans: test_%: tfidf_then_kmeans.dir
+	@ echo " #####   Executing Workflow $*   #####"
+	@ $*.dir/tfidf
+	@ $*.dir/kmeans
+	@ echo " #####   Execution of Workflow $* complete  #####"
 
 
 
@@ -57,33 +53,26 @@ LDFLAGS+=-g -std=c++11 -lrt $(OPT)
 
 %.o: %.cpp $(INCLUDE)
 
-tfidf_then_kmeans: tfidf kmeans
-	@ echo "#### tfidf and kmeans have been built separately ####"
-
 %: %.o
 
 
-# .PHONY: clean
-
+.PHONY: clean
 clean:
-	rm -f $(exes)
-	rm -f $(cpps)
+	rm -fr $(patsubst %,%.dir,$(exes))
 
 
 all:
-	@ make clean
 	@ echo "_________________________________________________________________________________"
-	@ make tfidf
+	@ make tfidf.dir
 	@ make test_tfidf
 	@ echo "_________________________________________________________________________________"
-	@ make kmeans
+	@ make kmeans.dir
 	@ make test_kmeans
 	@ echo "_________________________________________________________________________________"
-	@ make tfidf_and_kmeans
+	@ make tfidf_and_kmeans.dir
 	@ make test_tfidf_and_kmeans
 	@ echo "_________________________________________________________________________________"
-	@ make clean
-	@ make tfidf_then_kmeans
+	@ make tfidf_then_kmeans.dir
 	@ make test_tfidf_then_kmeans
 	@ echo "_________________________________________________________________________________"
 
