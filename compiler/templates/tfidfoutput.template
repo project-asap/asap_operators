@@ -1,10 +1,5 @@
 
     get_time( begin );
-    std::ofstream of( FILE_PARAM1, std::ios_base::out );
-
-    size_t i=0;
-    for( auto I=tfidf.vector_cbegin(), E=tfidf.vector_cend(); I != E; ++I, ++i ){
-	of << dir_list[i] << ": " << *I << std::endl;
-    }
-    of.close();
+    if( FILE_PARAM1 )
+	asap::arff_write( FILE_PARAM1, tfidf );
     get_time (end);

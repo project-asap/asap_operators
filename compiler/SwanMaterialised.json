@@ -240,7 +240,8 @@
     			"typedef asap::kv_list<std::vector<std::pair<const char *, size_t>>, asap::word_bank_pre_alloc> word_list_type;",
 
 			"typedef asap::sparse_vector<size_t, float, false, asap::mm_no_ownership_policy> vector_type;",
-			"typedef asap::word_map<std::unordered_map<const char *, asap::appear_count<size_t, typename vector_type::index_type>, asap::text::charp_hash, asap::text::charp_eql>, asap::word_bank_pre_alloc> word_map_type2;"
+			"typedef asap::word_map<std::unordered_map<const char *, asap::appear_count<size_t, typename vector_type::index_type>, asap::text::charp_hash, asap::text::charp_eql>, asap::word_bank_pre_alloc> word_map_type2;",
+                        "typedef asap::data_set<vector_type, word_map_type2, directory_listing_type> data_set_type;"
                 ]
         },
 	{
