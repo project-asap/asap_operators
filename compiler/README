@@ -11,17 +11,17 @@ COMPILING FROM WORKFLOW TO SWAN CODES
 ------------------------------------
 By executing: 
 
-	make <WORKFLOW>
+	make <WORKFLOW>.dir
 
 	where workflow will be one of - tfidf 
 					kmeans 
 `					tfidf_and_kmeans 
 					tfidf_then_kmeans
 
-	For examples -  make tfidf
-			make kmeans
-			make tfidf_and_kmeans     /* in-memory version */
-			make tfidf_then_kmeans    /* file input/output version */
+	For examples -  make tfidf.dir
+			make kmeans.dir
+			make tfidf_and_kmeans.dir     /* in-memory version */
+			make tfidf_then_kmeans.dir    /* file input/output version */
 
 Here "WORKFLOW" matches the base name of the user's description of analytics query 
 in JSON format.  The compiler will generate Swan code and compile with c++ compiler.
