@@ -7,19 +7,43 @@ REQUIREMENTS
 Python version 2.6.6 was used in development and testing (default on hpdc02).
 
 
-RUNNING TEST
-------------
-By executing "make <WORKFLOW>", eg:
+COMPILING FROM WORKFLOW TO SWAN CODES
+------------------------------------
+By executing: 
 
-	make tfidf
+	make <WORKFLOW>
 
-Where "WORKFLOW" is the user's description of analytics query in JSON format, 
-the compiler will generate Swan code, compile with c++ compiler, 
-and run the workflow against the datasets specified in the users workflow
-description.
+	where workflow will be one of - tfidf 
+					kmeans 
+`					tfidf_and_kmeans 
+					tfidf_then_kmeans
 
-Other examples:
+	For examples -  make tfidf
+			make kmeans
+			make tfidf_and_kmeans     /* in-memory version */
+			make tfidf_then_kmeans    /* file input/output version */
 
-	make kmeans
-	make tfidf_and_kmeans             /* in-memory version */
-	make tfidf_then_kmeans            /* file input/output version */
+Here "WORKFLOW" matches the base name of the user's description of analytics query 
+in JSON format.  The compiler will generate Swan code and compile with c++ compiler.
+
+
+TESTING
+-------
+
+To run the codes generated for the workflow query against datasets specified in query run:
+
+	make <test_TARGET>
+
+	For examples:
+			make test_tfidf
+			make test_kmeans
+			make test_tfidf_and_kmeans      /* in-memory version */
+			make test_tfidf_then_kmeans     /* file input/output version */
+
+
+COMPILING AND TESTING ALL
+-------------------------
+
+To generate swan, compile and run tests on each target in turn run:
+
+	make all

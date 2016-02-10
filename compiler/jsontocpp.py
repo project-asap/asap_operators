@@ -447,8 +447,8 @@ def main(argv):
    	# genDir = os.path.splitext(workflowfile)[0]
 	# if not os.path.exists(genDir):
     		# os.makedirs(genDir)
-        # opcode = open(genDir+'/'+g_nodeMap[key].name+'_gen.cpp', "w")
-        opcode = open(g_nodeMap[key].name+'_gen.cpp', "w")
+        # opcode = open(genDir+'/'+g_nodeMap[key].name+'.cpp', "w")
+        opcode = open(g_nodeMap[key].name+'.cpp', "w")
 
         """   
 	    STAGE 1
