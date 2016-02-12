@@ -1,6 +1,6 @@
 {
 	"operators": [{
-		"name": "textDirectoryDataset",
+		"name": "textDirectory",
 		"cost": "0.00",
 		"status": "stopped",
 		"type": "dataset",
@@ -20,11 +20,11 @@
 		"input": []
 	},
 	{
-		"name": "arffDataset",
+		"name": "arff",
 		"cost": "0.00",
 		"status": "stopped",
 		"type": "dataset",
-		"description": "arffDataset",
+		"description": "arffFileDataset",
 
                 "Constraints": {
                     "DataInfo": {
@@ -41,11 +41,11 @@
 		"input": []
 	},
         {
-		"name": "textDataset",
+		"name": "textFile",
 		"cost": "0.00",
 		"status": "stopped",
 		"type": "dataset",
-		"description": "textDataset",
+		"description": "textFileDataset",
 
                 "Constraints": {
                     "DataInfo": {
@@ -82,14 +82,14 @@
 					"FS": "standard"
 				},
 				"number": "1",
-                		"type": "textDirectoryDataset"
+                		"type": "textDirectory"
 			},
 			"Output" : {
                 		"Engine": {
 					"FS": "standard"
 				},
 				"number": "1",
-                		"type": "arffDataset"
+                		"type": "arff"
 			}
 		}
 	},	
@@ -114,14 +114,14 @@
 					"FS": "standard"
 				},
 				"number": "1",
-                		"type": "textDirectoryDataset"
+                		"type": "textDirectory"
 			},
 			"Output" : {
                 		"Engine": {
 					"FS": "standard"
 				},
 				"number": "1",
-                		"type": "arffDataset"
+                		"type": "arff"
 			}
 		}
 	},
@@ -146,14 +146,14 @@
 					"FS": "standard"
 				},
 				"number": "1",
-                		"type": "textDirectoryDataset"
+                		"type": "textDirectory"
 			},
 			"Output" : {
                 		"Engine": {
 					"FS": "standard"
 				},
 				"number": "1",
-                		"type": "textDataset"
+                		"type": "text"
 			}
 		}
         },
@@ -181,14 +181,14 @@
 					"FS": "standard"
 				},
 				"number": "1",
-                		"type": "arffDataset"
+                		"type": "arff"
 			},
 			"Output" : {
                 		"Engine": {
 					"FS": "standard"
 				},
 				"number": "1",
-                		"type": "textDataset"
+                		"type": "text"
 			}
    		}
 	},
@@ -257,9 +257,9 @@
         },
 	{
 		"type": "inout_declaration",
-		"algorithm.names": ["tfidf", "kmeans", "tfidf_and_kmeans"],
-		"input0": "char const * VARIN = VAROUT;", 
-                "output0": "char const * VARIN = VAROUT;"
+		"dataset.names": ["textDirectory", "textFile", "arff"],
+		"input": "char const * VARIN = VAROUT;",
+                "output": "char const * VARIN = VAROUT;"
 	},
 	{
 		"type": "arg_declaration",
