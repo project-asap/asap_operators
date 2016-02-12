@@ -539,9 +539,13 @@ void arff_write( std::ostream & os,
 template<typename DataSetTy>
 void arff_write( const std::string & filename,
 		 const DataSetTy & data_set ) {
-    std::ofstream of( filename, std::ios_base::out );
-    arff_write( of, data_set );
-    of.close();
+    if( !strcmp( filename.c_str(), "-" ) )
+	arff_write( std::cout, data_set );
+    else {
+	std::ofstream of( filename, std::ios_base::out );
+	arff_write( of, data_set );
+	of.close();
+    }
 }
 
 }
