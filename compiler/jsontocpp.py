@@ -252,10 +252,7 @@ def loadWorkflowData(data):
 
 	    """ Create input edge to original operator """
 	    g_edges.append((newnodeid, box["nodeId"]))
-	    if not g_nodeInEdges:
-		g_nodeInEdges[box["nodeId"]] = [newnodeid]
-	    else:
-		g_nodeInEdges[box["nodeId"]].append(newnodeid)
+	    g_nodeInEdges[box["nodeId"]] = [newnodeid]
 		
             g_nodeBoxMap[newnodeid] = newiooperatorbox
 
@@ -276,11 +273,7 @@ def loadWorkflowData(data):
 
 	    """ Create input edge to original operator """
 	    g_edges.append((box["nodeId"], newnodeid))
-	    if not g_nodeOutEdges:
-		g_nodeOutEdges[box["nodeId"]] = [newnodeid]
-	    else:
-		g_nodeOutEdges[box["nodeId"]].append(newnodeid)
-
+	    g_nodeOutEdges[box["nodeId"]] = [newnodeid]
             g_nodeBoxMap[newnodeid] = newiooperatorbox
 
         # newinputbox = InputBox(box["operator"]["constraints"]["input0"])
@@ -388,7 +381,7 @@ def tabPrint(str, tabcount, f):
 """
         Process/Generate IO declaration and initialisation statements
 """
-def createIODeclaration(inEdge, ioId, declaredIOFiles, opcode, ioCount):
+def createIODeclaration(inEdge, ioId, declaredIOFiles, opcode, ioCount, algName):
 
     algName = g_nodeMap[inEdge].name
     ioConstraints = g_operatorsMap[g_nodeMap[inEdge].name].constraint.inputConstraint
@@ -403,21 +396,23 @@ def createIODeclaration(inEdge, ioId, declaredIOFiles, opcode, ioCount):
     
     ctr=0
     if declarationTemplate is not None :
-	var = ioId+str(ioCount)
+	var = algName+"_"+ioId+str(ioCount)
 
+	"""
 	## Keep track of io files for condensing vars, 
 	## if it already exists use existing var handle
 	if declaredIOFiles.has_key(filename):
 	    prevVar = declaredIOFiles[filename]
 	    var = prevVar
+	    print "var set to ", prevVar
 	else:
-	    declaredIOFiles[filename]=var
-	    declarationStr = declarationTemplate.replace("VARIN", var) \
-						.replace("VAROUT","\""+filename+"\"")
-	    tabPrint (declarationStr, 0, opcode)
-	    tabPrint ("\n", 0, opcode)
+	"""
+	declaredIOFiles[filename]=var
+	declarationStr = declarationTemplate.replace("VARIN", var) \
+					.replace("VAROUT","\""+filename+"\"")
+	tabPrint (declarationStr, 0, opcode)
+	tabPrint ("\n", 0, opcode)
 	g_argMap[(algName,var)] = var
-	print "created argMap with ", algName, " and ", var
         ctr += 1 
 
 
@@ -535,7 +530,6 @@ def main(argv):
     """ For each node(task) in the workflow """
     for key in g_nodeMap:
 
-	print "1key is ", key
 	if isComputationalNode(key) is False:
 	    # The computational operator will drive the compiler
 	    continue
@@ -597,13 +591,13 @@ def main(argv):
             ioCount = 0
 	    for inEdge in g_nodeInEdges[key]:
 
-		createIODeclaration(inEdge, 'input', declaredIOFiles, opcode, ioCount)
+		createIODeclaration(inEdge, 'input', declaredIOFiles, opcode, ioCount, algName)
 		ioCount += 1
 
             ioCount = 0
 	    for outEdge in g_nodeOutEdges[key]:
 
-		createIODeclaration(outEdge, 'output', declaredIOFiles, opcode, ioCount)
+		createIODeclaration(outEdge, 'output', declaredIOFiles, opcode, ioCount, algName)
 		ioCount += 1
 
         tabPrint ("\n", 0, opcode)
@@ -704,7 +698,7 @@ def main(argv):
             with open('templates/'+algName+'input.template', 'r') as myfile:
                 data=myfile.read()
                 for inputParam in range(0,numParams):
-                    inputId = 'input'+str(inputParam)
+                    inputId = algName+'_input'+str(inputParam)
                     data=data.replace('FILE_PARAM'+str(inputParam+1),g_argMap[(algName,inputId)]) 
             myfile.close()
             tabPrint(data, tabcount, opcode)
@@ -739,7 +733,7 @@ def main(argv):
             with open('templates/'+algName+'output.template', 'r') as myfile:
                 data=myfile.read()
                 for outputParam in range(0,numParams):
-                    outputId = 'output'+str(outputParam)
+                    outputId = algName+'_output'+str(outputParam)
                     data=data.replace('FILE_PARAM'+str(outputParam+1),g_argMap[(algName,outputId)]) 
 
             myfile.close()
