@@ -66,8 +66,14 @@ g_nodeBoxMap = {}
 g_nodeMap = {}
 g_argMap = {}
 g_edges = []
+g_compEdges = []
 g_nodeInEdges = {}
 g_nodeOutEdges = {}
+
+""" internal compiler maps """
+g_optimisedForward = {}
+g_optimisedBackward = {}
+
 
 """
         SCHEMA CLASSES which hold data parsed from a 
@@ -213,7 +219,12 @@ class Edge:
 def loadWorkflowData(data):
 
     global g_edges
+    global g_compEdges
     g_edges = data["workflow"]["edges"]
+
+    # Keep note of only computational edges for in-mem optimisations
+    # g_compEdges = data["workflow"]["edges"]
+    g_compEdges = list(g_edges)
 
     for box in data["workflow"]["nodes"]:
         newnode = Node(box["taskids"],
@@ -251,7 +262,8 @@ def loadWorkflowData(data):
 					False)
 
 	    """ Create input edge to original operator """
-	    g_edges.append((newnodeid, box["nodeId"]))
+	    # g_edges.append(newnodeid, box["nodeId"]))
+	    g_edges.append({'sourceId':newnodeid, 'targetId': box["nodeId"]})
 	    g_nodeInEdges[box["nodeId"]] = [newnodeid]
 		
             g_nodeBoxMap[newnodeid] = newiooperatorbox
@@ -272,7 +284,8 @@ def loadWorkflowData(data):
 					False)
 
 	    """ Create input edge to original operator """
-	    g_edges.append((box["nodeId"], newnodeid))
+	    # g_edges.append((box["nodeId"], newnodeid))
+	    g_edges.append({'sourceId':box["nodeId"], 'targetId': newnodeid})
 	    g_nodeOutEdges[box["nodeId"]] = [newnodeid]
             g_nodeBoxMap[newnodeid] = newiooperatorbox
 
@@ -370,7 +383,20 @@ def loadOperatorLibraryData(data):
             print "Error"
  	    sys.exit
 
+headerSection=" test this "
+ioDeclSection=""
+argsDeclSection=""
+mainSection=""
 
+"""
+        Miscellaneous functions
+"""
+def mytabPrint(str, tabcount, section):
+    print eval(section)
+    global headerSection
+    global ioDeclSection
+    global argsDeclSection
+    global mainSection
 
 """
         Miscellaneous functions
@@ -381,18 +407,18 @@ def tabPrint(str, tabcount, f):
 """
         Process/Generate IO declaration and initialisation statements
 """
-def createIODeclaration(inEdge, ioId, declaredIOFiles, opcode, ioCount, algName):
+def createIODeclaration(ioEdge, ioId, declaredIOFiles, opcode, ioCount, algName, tabcount):
 
-    algName = g_nodeMap[inEdge].name
-    ioConstraints = g_operatorsMap[g_nodeMap[inEdge].name].constraint.inputConstraint
+    algName = g_nodeMap[ioEdge].name
+    ioConstraints = g_operatorsMap[g_nodeMap[ioEdge].name].constraint.inputConstraint
     ioType = ioConstraints[ioCount].iotype
     declarationTemplate = g_iodeclMap[tuple([ioType, ioId])]
     
     filename=""
     if ioId is "input": 
-    	filename = g_nodeBoxMap[inEdge].inputs[ioCount].name 
+    	filename = g_nodeBoxMap[ioEdge].inputs[ioCount].name 
     else:
-    	filename = g_nodeBoxMap[inEdge].outputs[ioCount].name 
+    	filename = g_nodeBoxMap[ioEdge].outputs[ioCount].name 
     
     ctr=0
     if declarationTemplate is not None :
@@ -410,10 +436,69 @@ def createIODeclaration(inEdge, ioId, declaredIOFiles, opcode, ioCount, algName)
 	declaredIOFiles[filename]=var
 	declarationStr = declarationTemplate.replace("VARIN", var) \
 					.replace("VAROUT","\""+filename+"\"")
-	tabPrint (declarationStr, 0, opcode)
+	tabPrint (declarationStr, tabcount, opcode)
 	tabPrint ("\n", 0, opcode)
 	g_argMap[(algName,var)] = var
         ctr += 1 
+
+"""
+        Test if the 'key' node is forward in-memory optimisable
+	and store a map of the edge so we can backwards check
+	when processing the next computation operator it i
+	optimised/merged with
+"""
+def optimisableForward(key):
+
+        for edge in g_compEdges:
+            if edge['sourceId'] == key:
+                destNode = edge['targetId']
+
+                for i in range(0, len(g_nodeMap[key].taskids)):
+                    ioCount = 0
+                    for outEdge in g_nodeOutEdges[key]:
+                        outFilename = g_nodeBoxMap[outEdge].outputs[ioCount].name
+                        ioCount = 0
+
+                for i in range(0, len(g_nodeMap[destNode].taskids)):
+                    ioCount = 0
+                    for inEdge in g_nodeInEdges[destNode]:
+                        inFilename = g_nodeBoxMap[inEdge].inputs[ioCount].name
+                        ioCount = 0
+
+		g_optimisedForward[key] = destNode
+		return outFilename == inFilename
+
+	return False
+
+"""
+        Test if the 'key' node is backward in-memory optimisable
+	and store a map of the edge so we can backwards check
+	when processing the next computation operator it i
+	optimised/merged with
+"""
+def optimisableBackward(key):
+
+        for edge in g_compEdges:
+            if edge['targetId'] == key:
+                srcNode = edge['sourceId']
+
+                for i in range(0, len(g_nodeMap[srcNode].taskids)):
+                    ioCount = 0
+                    for outEdge in g_nodeOutEdges[srcNode]:
+                        outFilename = g_nodeBoxMap[srcNode].outputs[ioCount].name
+                        ioCount = 0
+
+                for i in range(0, len(g_nodeMap[key].taskids)):
+                    ioCount = 0
+                    for inEdge in g_nodeInEdges[key]:
+                        inFilename = g_nodeBoxMap[key].inputs[ioCount].name
+                        ioCount = 0
+
+		g_optimisedBackward[srcNode] = key
+		return outFilename == inFilename
+
+	return False
+
 
 
 """                              
@@ -423,6 +508,9 @@ def main(argv):
     workflowfile = ''
     codefile = ''
     liboperatorsfile = ''
+    # g_compEdges
+
+    mytabPrint(str, 0, "headerSection")
 
     """  
 	Read arguments 
@@ -507,9 +595,6 @@ def main(argv):
     """ Set tab level for generated code """
     tabcount=0
     
-    """ print start of main block """
-    tabcount=1
-
     """ 
         Keep track of IO files declared so we can merge variables names so we have 1 var for the same filename
     """
@@ -534,6 +619,8 @@ def main(argv):
 	    # The computational operator will drive the compiler
 	    continue
 
+        print "Processing computational node: ", g_nodeMap[key].name
+
         """ 
             Open the output file for this operator 
         """
@@ -554,24 +641,35 @@ def main(argv):
             Print header files required.  
         """
 
-        # ASSUMPTION
-        # We should only ever have one task per node as Unige 
-        # documents state they optimise the workflow to make tasks nodes(vertices) in 
-        # their own right ?  TODO fix if this turns out not to be the case
-        # Either way we will still loop round the tasks here for extensibility 
+	if optimisableBackward(key) is False:
 
-        for i in range(0,len(g_nodeMap[key].taskids)):  # Should only be once if 1 node 
-
-            task = g_nodeMap[key].taskids[i]
-
-            """ print materialised header template to code output"""
-            algName = g_nodeMap[key].name
-            with open('templates/'+algName+'header.template', 'r') as myfile:
-                data=myfile.read()
-            myfile.close()
-            tabPrint(data, 0, opcode)
-       
-            tabPrint ("\n", 0, opcode)
+            # ASSUMPTION
+            # We should only ever have one task per node as Unige 
+            # documents state they optimise the workflow to make tasks nodes(vertices) in 
+            # their own right ?  TODO fix if this turns out not to be the case
+            # Either way we will still loop round the tasks here for extensibility 
+    
+            for i in range(0,len(g_nodeMap[key].taskids)):  # Should only be once if 1 node 
+    
+                task = g_nodeMap[key].taskids[i]
+    
+                """ print materialised header template to code output"""
+                algName = g_nodeMap[key].name
+                with open('templates/'+algName+'header.template', 'r') as myfile:
+                    data=myfile.read()
+                myfile.close()
+                tabPrint(data, 0, opcode)
+           
+                tabPrint ("\n", 0, opcode)
+	else:
+	    altFilename = 'templates/crossheaderim.template'
+	    if os.path.isfile(altFilename):
+		print "Alternative input section exists"
+                with open(altFilename, 'r') as myfile:
+                    data=myfile.read()
+		myfile.close()
+                tabPrint(data, 0, opcode)
+                tabPrint ("\n", 0, opcode)
 
         """ 
             STAGE 2
@@ -581,26 +679,26 @@ def main(argv):
         """ print materialised declarations from operator dictionary rules to code output"""
         algName = g_nodeMap[key].name
 
-        tabPrint ("//  Variable Declarations holding input/output filenames  \n\n", 0, opcode)
+        tabPrint ("//  Variable Declarations holding input/output filenames  \n\n", tabcount, opcode)
 
 
         for i in range(0,len(g_nodeMap[key].taskids)):  # Should only be once if 1 task per node
 
             """ Input files IO """
+	    if optimisableBackward(key) is False:
+                ioCount = 0
+	        for inEdge in g_nodeInEdges[key]:
+		    createIODeclaration(inEdge, 'input', declaredIOFiles, opcode, ioCount, algName, tabcount)
+		    ioCount += 1
 
-            ioCount = 0
-	    for inEdge in g_nodeInEdges[key]:
-
-		createIODeclaration(inEdge, 'input', declaredIOFiles, opcode, ioCount, algName)
-		ioCount += 1
-
-            ioCount = 0
-	    for outEdge in g_nodeOutEdges[key]:
-
-		createIODeclaration(outEdge, 'output', declaredIOFiles, opcode, ioCount, algName)
-		ioCount += 1
-
-        tabPrint ("\n", 0, opcode)
+            """ Output files IO """
+	    if optimisableForward(key) is False:
+                ioCount = 0
+	        for outEdge in g_nodeOutEdges[key]:
+		    createIODeclaration(outEdge, 'output', declaredIOFiles, opcode, ioCount, algName, tabcount)
+		    ioCount += 1
+    
+        tabPrint ("\n", tabcount, opcode)
 
         """ 
             STAGE 3
@@ -609,9 +707,8 @@ def main(argv):
         """
         # for key in g_nodeMap:
 
-
         for i in range(0,len(g_nodeMap[key].taskids)):  # Should only be once if 1 node per task
-            tabPrint ("//  Variable Declarations for operator arguments \n\n", 0, opcode)
+            tabPrint ("//  Variable Declarations for operator arguments \n\n", tabcount, opcode)
             algName = g_nodeMap[key].name
 
             operatorBox = g_nodeBoxMap[key] 
@@ -627,7 +724,7 @@ def main(argv):
                    declarationStr = declarationTemplate.replace("VARIN",arg) \
                                          .replace("VAROUT",actual_args[arg]) \
                                          + '\n'
-                   tabPrint(declarationStr, 0, opcode)
+                   tabPrint(declarationStr, tabcount, opcode)
     
                 else:
                     print "Error: ", arg, " is not a valid argument to ", algName
@@ -640,7 +737,7 @@ def main(argv):
                    declarationStr = declarationTemplate.replace("VARIN",arg) \
                                          .replace("VAROUT",defaultsDict[arg]) \
                                          + '\n'
-                   tabPrint(declarationStr, 0, opcode)
+                   tabPrint(declarationStr, tabcount, opcode)
                 else:
                     continue
 
@@ -656,27 +753,32 @@ def main(argv):
         ctr=0
         for i in range(0,len(g_nodeMap[key].taskids)):  # Should only be once if 1 node per task
 
-            algName = g_nodeMap[key].name
+	    if optimisableBackward(key) is False:
 
-            """ 
-                output start of main section 
-            """
-            tabPrint ("//  Start of main section \n\n", 0, opcode)
-	    algStructType = g_operatorsMap[g_nodeMap[key].name].constraint.algtype
-            with open('templates/'+algName+'maindeclarations.template', 'r') as myfile:
-                data=myfile.read()
-            myfile.close
-            tabPrint(data, 0, opcode)
+                algName = g_nodeMap[key].name
 
-            tabPrint ("//  Start of typedefs section \n\n", tabcount, opcode)
-            typedefs = g_typedefMap[tuple([algName, algStructType])]
-            for typedef in typedefs:
-                tabPrint(typedef, tabcount, opcode)
+                """ 
+                    output start of main section 
+                """
+                tabPrint ("//  Start of main section \n\n", 0, opcode)
+	        algStructType = g_operatorsMap[g_nodeMap[key].name].constraint.algtype
+                with open('templates/'+algName+'maindeclarations.template', 'r') as myfile:
+                    data=myfile.read()
+                myfile.close
+                tabPrint(data, 0, opcode)
+
+    		tabcount=1
+
+    
+                tabPrint ("//  Start of typedefs section \n\n", tabcount, opcode)
+                typedefs = g_typedefMap[tuple([algName, algStructType])]
+                for typedef in typedefs:
+                    tabPrint(typedef, tabcount, opcode)
+                    tabPrint ("\n", tabcount, opcode)
                 tabPrint ("\n", tabcount, opcode)
-            tabPrint ("\n", tabcount, opcode)
 
             """
-                output input section
+                output 'input' section
             """
 	    # Only do this input section if we haven't identified an 'in-memory' merge from 
 	    # output of previous op
@@ -685,27 +787,39 @@ def main(argv):
 	    # in which case we can either re-assign the input variable or
 	    # change the name of the input variable to the earlier assignment in question
 
-            tabPrint ("//  Input section \n\n", tabcount, opcode)
+            tabPrint ("//  Input section if not optimised \n\n", tabcount, opcode)
 
-            """ NOTE: for now assume we have 1 input to operator...
+	    if optimisableBackward(key) is False:
+		print "Printing input section "
+
+                """ NOTE: for now assume we have 1 input to operator...
                 Planning ahead--> if there are say 2 inputs, then there should be 
                 2 FILE_PARAMX markers in the template file, in which case 
                 this code section will be changed to loop for every marker, picking off the inputs of
                 the operator - TODO """
 
-            paramInfo = g_operatorsMap[g_nodeMap[key].name].constraint.inputConstraint
-            numParams = len(paramInfo)
-            with open('templates/'+algName+'input.template', 'r') as myfile:
-                data=myfile.read()
-                for inputParam in range(0,numParams):
-                    inputId = algName+'_input'+str(inputParam)
-                    data=data.replace('FILE_PARAM'+str(inputParam+1),g_argMap[(algName,inputId)]) 
-            myfile.close()
-            tabPrint(data, tabcount, opcode)
-            tabPrint ("\n", tabcount, opcode)
+                paramInfo = g_operatorsMap[g_nodeMap[key].name].constraint.inputConstraint
+                numParams = len(paramInfo)
+                with open('templates/'+algName+'input.template', 'r') as myfile:
+                    data=myfile.read()
+                    for inputParam in range(0,numParams):
+                        inputId = algName+'_input'+str(inputParam)
+                        data=data.replace('FILE_PARAM'+str(inputParam+1),g_argMap[(algName,inputId)]) 
+                myfile.close()
+                tabPrint(data, tabcount, opcode)
+                tabPrint ("\n", tabcount, opcode)
+	    else:
+		altFilename = 'templates/'+algName+'inputim.template'
+		if os.path.isfile(altFilename):
+		    print "Alternative input section exists"
+                    with open(altFilename, 'r') as myfile:
+                        data=myfile.read()
+		    myfile.close()
+                    tabPrint(data, tabcount, opcode)
+                    tabPrint ("\n", tabcount, opcode)
 
             """ 
-                print to code output the operators call sequencec section 
+                print code output for the operators call sequence section 
             """
             tabPrint ("//  Calling sequence section \n\n", tabcount, opcode)
             with open('templates/'+algName+'_'+'callsequence.template', 'r') as myfile:
@@ -721,38 +835,44 @@ def main(argv):
             tabPrint(data, tabcount, opcode)
 
             """ 
-                output 'output' section 
+                output 'output' section if not forward optimised
             """
-	    # We will only do this if we haven't identified an in-memory merge situation
- 	    # Otherwise we should record the variable name which holds the output for 
+	    # We will only do output and 'close of main' if we haven't identified an in-memory merge 
+	    # situation.  Otherwise we should record the variable name which holds the output for 
 	    # replacement of the next input variable
 
-            tabPrint ("//  Output section \n\n", tabcount, opcode)
-            paramInfo = g_operatorsMap[g_nodeMap[key].name].constraint.outputConstraint
-            numParams = len(paramInfo)
-            with open('templates/'+algName+'output.template', 'r') as myfile:
-                data=myfile.read()
-                for outputParam in range(0,numParams):
-                    outputId = algName+'_output'+str(outputParam)
-                    data=data.replace('FILE_PARAM'+str(outputParam+1),g_argMap[(algName,outputId)]) 
+	    if optimisableForward(key) is False:
+		print "Printing output section "
+                tabPrint ("//  Output section \n\n", tabcount, opcode)
+                paramInfo = g_operatorsMap[g_nodeMap[key].name].constraint.outputConstraint
+                numParams = len(paramInfo)
+                with open('templates/'+algName+'output.template', 'r') as myfile:
+                    data=myfile.read()
+                    for outputParam in range(0,numParams):
+                        outputId = algName+'_output'+str(outputParam)
+                        data=data.replace('FILE_PARAM'+str(outputParam+1),g_argMap[(algName,outputId)]) 
 
-            myfile.close()
-            tabPrint(data, tabcount, opcode)
-            tabPrint ("\n", tabcount, opcode)
-
-            """ 
-                output close of main section 
-            """
-            tabPrint ("//  Closing main section \n\n", tabcount, opcode)
-            with open('templates/'+algName+'mainclose.template', 'r') as myfile:
-                data=myfile.read()
                 myfile.close()
-            tabPrint(data, tabcount, opcode)
+                tabPrint(data, tabcount, opcode)
+                tabPrint ("\n", tabcount, opcode)
 
-	# We don't want to close this code file if we have identified a merge-optimisation
-	# Though we may rename it op1_and_op2
+                """ 
+                    output close of main section 
+                """
+                tabPrint ("//  Closing main section \n\n", tabcount, opcode)
+                with open('templates/'+algName+'mainclose.template', 'r') as myfile:
+                    data=myfile.read()
+                    myfile.close()
+                tabPrint(data, tabcount, opcode)
+	    else:
+		print "Skipping output and close of main sections"
+
+	# We may not want to close this code file if we have identified a merge-optimisation
+	# Though we may rename it op1_and_op2, so depends on the final solution for handling
+	# this situation
 
         opcode.close()
+
 
 """
     Call main with passed params
