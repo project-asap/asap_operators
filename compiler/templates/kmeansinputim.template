@@ -11,10 +11,3 @@
 
     // for reproducibility
     srand(1);
-
-/*
-    for( auto I=data_set.vector_cbegin(), E=data_set.vector_cend();
-	 I != E; ++I ) {
-	std::cout << *I << std::endl;
-    }
-*/

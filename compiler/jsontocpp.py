@@ -383,7 +383,7 @@ def loadOperatorLibraryData(data):
             print "Error"
  	    sys.exit
 
-headerSection=" test this "
+headerSection=""
 ioDeclSection=""
 argsDeclSection=""
 mainSection=""
@@ -391,12 +391,14 @@ mainSection=""
 """
         Miscellaneous functions
 """
-def mytabPrint(str, tabcount, section):
-    print eval(section)
+def collectCode(str, tabcount, section):
     global headerSection
     global ioDeclSection
     global argsDeclSection
     global mainSection
+
+    globals()[section] += str
+
 
 """
         Miscellaneous functions
@@ -436,8 +438,7 @@ def createIODeclaration(ioEdge, ioId, declaredIOFiles, opcode, ioCount, algName,
 	declaredIOFiles[filename]=var
 	declarationStr = declarationTemplate.replace("VARIN", var) \
 					.replace("VAROUT","\""+filename+"\"")
-	tabPrint (declarationStr, tabcount, opcode)
-	tabPrint ("\n", 0, opcode)
+	collectCode(declarationStr+"\n", tabcount, "ioDeclSection")
 	g_argMap[(algName,var)] = var
         ctr += 1 
 
@@ -510,7 +511,8 @@ def main(argv):
     liboperatorsfile = ''
     # g_compEdges
 
-    mytabPrint(str, 0, "headerSection")
+    # mystr = " This was added"
+    # collectCode(mystr, 0, "headerSection")
 
     """  
 	Read arguments 
@@ -600,6 +602,12 @@ def main(argv):
     """
     declaredIOFiles={}
 
+    """
+	Output code filename.
+	Build up code file name for joined operators, reset each time an optimisation flow ends
+    """
+    opcode = ""
+
     """ 
 	START PRINTING TEMPLATE FILES 
 
@@ -619,10 +627,10 @@ def main(argv):
 	    # The computational operator will drive the compiler
 	    continue
 
-        print "Processing computational node: ", g_nodeMap[key].name
-
         """ 
-            Open the output file for this operator 
+	    Prepare the output filename for this operator's code.
+	    This may involve concatenating operatornames if in-memory
+	    optimisation was made.
         """
 
 	# This logic will needs to change -  If we are carrying out a merge
@@ -634,7 +642,12 @@ def main(argv):
    	genDir = os.path.splitext(workflowfile)[0]+'.dir'
 	if not os.path.exists(genDir):
     		os.makedirs(genDir)
-        opcode = open(genDir+'/'+g_nodeMap[key].name+'.cpp', "w")
+
+	if optimisableBackward(key) is False:
+            # opcode = open(genDir+'/'+g_nodeMap[key].name+'.cpp', "w")
+            opcode = g_nodeMap[key].name
+	else:
+	    opcode += "_"+g_nodeMap[key].name 
 
         """   
 	    STAGE 1
@@ -658,18 +671,14 @@ def main(argv):
                 with open('templates/'+algName+'header.template', 'r') as myfile:
                     data=myfile.read()
                 myfile.close()
-                tabPrint(data, 0, opcode)
-           
-                tabPrint ("\n", 0, opcode)
+    		collectCode(data+"\n", 0, "headerSection")
 	else:
 	    altFilename = 'templates/crossheaderim.template'
 	    if os.path.isfile(altFilename):
-		print "Alternative input section exists"
                 with open(altFilename, 'r') as myfile:
                     data=myfile.read()
 		myfile.close()
-                tabPrint(data, 0, opcode)
-                tabPrint ("\n", 0, opcode)
+    		collectCode(data+"\n", 0, "headerSection")
 
         """ 
             STAGE 2
@@ -679,8 +688,7 @@ def main(argv):
         """ print materialised declarations from operator dictionary rules to code output"""
         algName = g_nodeMap[key].name
 
-        tabPrint ("//  Variable Declarations holding input/output filenames  \n\n", tabcount, opcode)
-
+	collectCode("//  Variable Declarations holding input/output filenames  \n\n", 0, "ioDeclSection")
 
         for i in range(0,len(g_nodeMap[key].taskids)):  # Should only be once if 1 task per node
 
@@ -698,50 +706,49 @@ def main(argv):
 		    createIODeclaration(outEdge, 'output', declaredIOFiles, opcode, ioCount, algName, tabcount)
 		    ioCount += 1
     
-        tabPrint ("\n", tabcount, opcode)
+	collectCode("\n", 0, "ioDeclSection")
 
         """ 
             STAGE 3
 	    Print variable declarations for operator arguments
             read from args field in the operator box
         """
-        # for key in g_nodeMap:
-
         for i in range(0,len(g_nodeMap[key].taskids)):  # Should only be once if 1 node per task
-            tabPrint ("//  Variable Declarations for operator arguments \n\n", tabcount, opcode)
+	    collectCode("//  Variable Declarations for operator arguments \n\n", tabcount, "ioDeclSection")
             algName = g_nodeMap[key].name
 
             operatorBox = g_nodeBoxMap[key] 
             actual_args = operatorBox.opSpecification.args
 
-            declDict = g_argsdeclMap[algName][0]
-	    defaultsDict = g_argsdefaultsMap[algName][0]
+	    if algName in g_argsdeclMap:
+            	declDict = g_argsdeclMap[algName][0]
+	    	defaultsDict = g_argsdefaultsMap[algName][0]
 
-	    # Create the declarations for actual supplied op arguments
-	    for arg in actual_args.keys():
-                if declDict.has_key(arg):
-                   declarationTemplate=declDict[arg] 
-                   declarationStr = declarationTemplate.replace("VARIN",arg) \
-                                         .replace("VAROUT",actual_args[arg]) \
-                                         + '\n'
-                   tabPrint(declarationStr, tabcount, opcode)
-    
-                else:
-                    print "Error: ", arg, " is not a valid argument to ", algName
-    
-	    # Now create the declarations for default operator attributes which
-	    # which were not supplied by use in workflow description
-            for arg in declDict.keys():
-                if arg not in actual_args.keys():
-                   declarationTemplate=declDict[arg] 
-                   declarationStr = declarationTemplate.replace("VARIN",arg) \
-                                         .replace("VAROUT",defaultsDict[arg]) \
-                                         + '\n'
-                   tabPrint(declarationStr, tabcount, opcode)
-                else:
-                    continue
+	        # Create the declarations for actual supplied op arguments
+	        for arg in actual_args.keys():
+                    if declDict.has_key(arg):
+                        declarationTemplate=declDict[arg] 
+                        declarationStr = declarationTemplate.replace("VARIN",arg) \
+                                             .replace("VAROUT",actual_args[arg]) \
+                                             + '\n'
+	    	        collectCode(declarationStr, tabcount, "ioDeclSection")
+        
+                    else:
+                        print "Error: ", arg, " is not a valid argument to ", algName
+        
+	        # Now create the declarations for default operator attributes which
+	        # which were not supplied by use in workflow description
+                for arg in declDict.keys():
+                    if arg not in actual_args.keys():
+                        declarationTemplate=declDict[arg] 
+                        declarationStr = declarationTemplate.replace("VARIN",arg) \
+                                              .replace("VAROUT",defaultsDict[arg]) \
+                                             + '\n'
+	    	        collectCode(declarationStr, tabcount, "ioDeclSection")
+                    else:
+                        continue
 
-        tabPrint ("\n", 0, opcode)
+	collectCode("\n", 0, "ioDeclSection")
 
         """  
             STAGE 4
@@ -760,22 +767,21 @@ def main(argv):
                 """ 
                     output start of main section 
                 """
-                tabPrint ("//  Start of main section \n\n", 0, opcode)
+		collectCode("//  Start of main section \n\n", 0, "mainSection")
 	        algStructType = g_operatorsMap[g_nodeMap[key].name].constraint.algtype
                 with open('templates/'+algName+'maindeclarations.template', 'r') as myfile:
                     data=myfile.read()
                 myfile.close
-                tabPrint(data, 0, opcode)
+		collectCode(data, 0, "mainSection")
 
     		tabcount=1
 
     
-                tabPrint ("//  Start of typedefs section \n\n", tabcount, opcode)
+		collectCode("//  Start of typedefs section \n\n", tabcount, "mainSection")
                 typedefs = g_typedefMap[tuple([algName, algStructType])]
                 for typedef in typedefs:
-                    tabPrint(typedef, tabcount, opcode)
-                    tabPrint ("\n", tabcount, opcode)
-                tabPrint ("\n", tabcount, opcode)
+		    collectCode(typedef+"\n", tabcount, "mainSection")
+		collectCode("\n", tabcount, "mainSection")
 
             """
                 output 'input' section
@@ -787,10 +793,9 @@ def main(argv):
 	    # in which case we can either re-assign the input variable or
 	    # change the name of the input variable to the earlier assignment in question
 
-            tabPrint ("//  Input section if not optimised \n\n", tabcount, opcode)
+	    collectCode("//  Input section if not optimised \n\n", tabcount, "mainSection")
 
 	    if optimisableBackward(key) is False:
-		print "Printing input section "
 
                 """ NOTE: for now assume we have 1 input to operator...
                 Planning ahead--> if there are say 2 inputs, then there should be 
@@ -806,22 +811,19 @@ def main(argv):
                         inputId = algName+'_input'+str(inputParam)
                         data=data.replace('FILE_PARAM'+str(inputParam+1),g_argMap[(algName,inputId)]) 
                 myfile.close()
-                tabPrint(data, tabcount, opcode)
-                tabPrint ("\n", tabcount, opcode)
+	        collectCode(data+"\n", tabcount, "mainSection")
 	    else:
 		altFilename = 'templates/'+algName+'inputim.template'
 		if os.path.isfile(altFilename):
-		    print "Alternative input section exists"
                     with open(altFilename, 'r') as myfile:
                         data=myfile.read()
 		    myfile.close()
-                    tabPrint(data, tabcount, opcode)
-                    tabPrint ("\n", tabcount, opcode)
+	            collectCode(data+"\n", tabcount, "mainSection")
 
             """ 
                 print code output for the operators call sequence section 
             """
-            tabPrint ("//  Calling sequence section \n\n", tabcount, opcode)
+	    collectCode("//  Calling sequence section \n\n", tabcount, "mainSection")
             with open('templates/'+algName+'_'+'callsequence.template', 'r') as myfile:
                 
                 # data=myfile.read().replace('WORD_TYPE',eval('g_'+algName).dataStructType)
@@ -832,7 +834,7 @@ def main(argv):
                         catalogBuildCode=myfile.read()
                         myfile.close()
                     data=data.replace('CATALOG_BUILD_CODE',catalogBuildCode)
-            tabPrint(data, tabcount, opcode)
+	    collectCode(data, tabcount, "mainSection")
 
             """ 
                 output 'output' section if not forward optimised
@@ -842,8 +844,7 @@ def main(argv):
 	    # replacement of the next input variable
 
 	    if optimisableForward(key) is False:
-		print "Printing output section "
-                tabPrint ("//  Output section \n\n", tabcount, opcode)
+	        collectCode("//  Output section \n\n", tabcount, "mainSection")
                 paramInfo = g_operatorsMap[g_nodeMap[key].name].constraint.outputConstraint
                 numParams = len(paramInfo)
                 with open('templates/'+algName+'output.template', 'r') as myfile:
@@ -853,25 +854,30 @@ def main(argv):
                         data=data.replace('FILE_PARAM'+str(outputParam+1),g_argMap[(algName,outputId)]) 
 
                 myfile.close()
-                tabPrint(data, tabcount, opcode)
-                tabPrint ("\n", tabcount, opcode)
+	        collectCode(data+"\n", tabcount, "mainSection")
 
                 """ 
                     output close of main section 
                 """
-                tabPrint ("//  Closing main section \n\n", tabcount, opcode)
+	        collectCode("//  Closing main section \n\n", tabcount, "mainSection")
                 with open('templates/'+algName+'mainclose.template', 'r') as myfile:
                     data=myfile.read()
                     myfile.close()
-                tabPrint(data, tabcount, opcode)
-	    else:
-		print "Skipping output and close of main sections"
+	        collectCode(data, tabcount, "mainSection")
+
+		# Print the code to file
+                codeFile = open(genDir+'/'+opcode+'.cpp', "w")
+		tabPrint(headerSection, 0, codeFile)
+		tabPrint(ioDeclSection, 0, codeFile)
+		tabPrint(argsDeclSection, 0, codeFile)
+		tabPrint(mainSection, 0, codeFile)
+                codeFile.close()
 
 	# We may not want to close this code file if we have identified a merge-optimisation
 	# Though we may rename it op1_and_op2, so depends on the final solution for handling
 	# this situation
 
-        opcode.close()
+        # opcode.close()
 
 
 """

@@ -269,7 +269,7 @@
         },
 	{
 		"type": "arg_declaration",
-		"algorithm.names": ["kmeans", "tfidf"],
+		"algorithm.names": ["kmeans"],
                 "argTemplates": [{"max_iters": "const int VARIN = VAROUT;", "num_clusters": "const int VARIN = VAROUT;", "force_dense": "const bool VARIN = VAROUT;", "is_sparse": "const bool VARIN = VAROUT;"}],
                 "argDefaults": [{"max_iters": "0", "num_clusters": "8", "force_dense": "false", "by_words": "false", "do_sort": "false", "rnd_init": "1", "is_sparse": "false"}]
         }]

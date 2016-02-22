@@ -31,9 +31,7 @@
                                         "output0": "tfidf_output.arff",
                                         "opSpecification": {
                                                 "algorithm": "tfidf_map",
-                                                "args": {"num_clusters": "4",
-                                                         "max_iters": "5",
-                                                         "force_dense": "true"}
+                                                "args": {}
 
                                         }
                                 }

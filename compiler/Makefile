@@ -27,12 +27,16 @@ test_%: %.dir
 	@ $*.dir/$*
 
 test_tfidf_then_kmeans: test_%: tfidf_then_kmeans.dir
-	@ echo " #####   Executing Workflow $*   #####"
-	@ $*.dir/tfidf
-	@ $*.dir/kmeans
+	if [ -a $*.dir/tfidf_kmeans ] ; \
+	then \
+		echo " #####   Executing Optimised Version of Workflow tfidf_kmeans   #####" ; \
+		$*.dir/tfidf_kmeans ; \
+	else \
+		echo " #####   Executing Workflow $* #####" ; \
+		$*.dir/tfidf ; \
+		$*.dir/kmeans ; \
+	fi;
 	@ echo " #####   Execution of Workflow $* complete  #####"
-
-
 
 ##
 ## Swan/C++ compilation Rules
@@ -55,11 +59,9 @@ LDFLAGS+=-g -std=c++11 -lrt $(OPT)
 
 %: %.o
 
-
 .PHONY: clean
 clean:
 	rm -fr $(patsubst %,%.dir,$(exes))
-
 
 test:
 	@ echo "_________________________________________________________________________________"

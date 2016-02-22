@@ -72,17 +72,7 @@
 	= std::make_shared<directory_listing_type>();
     dir_list_ptr->swap( dir_list );
 
-    data_set_type data_set;
-    if( by_words ) {
-	data_set = asap::tfidf_by_words<vector_type>(
-	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr,
-	    do_sort ); // whether catalogs are sorted
-    } else {
-	data_set = asap::tfidf<vector_type>(
-	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr,
-	    do_sort ); // whether catalogs are sorted
-    }
-   data_set_type tfidf
+    data_set_type data_set
         = asap::tfidf<vector_type>(
             catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr );
     get_time( end );
