@@ -78,18 +78,22 @@
 				"dstruct_type": "word_map_type"
 			},
                 	"Input" : {
-                		"Engine": {
-					"FS": "standard"
-				},
 				"number": "1",
-                		"type": "textDirectory"
+				"Input0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "textDirectory"
+				}
 			},
 			"Output" : {
-                		"Engine": {
-					"FS": "standard"
-				},
 				"number": "1",
-                		"type": "arff"
+				"Output0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "arff"
+				}
 			}
 		}
 	},	
@@ -110,18 +114,22 @@
 				"dstruct_type": "word_list_type"
 			},
                 	"Input" : {
-                		"Engine": {
-					"FS": "standard"
-				},
 				"number": "1",
-                		"type": "textDirectory"
+				"Input0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "textDirectory"
+				}
 			},
 			"Output" : {
-                		"Engine": {
-					"FS": "standard"
-				},
 				"number": "1",
-                		"type": "arff"
+				"Output0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "arff"
+				}
 			}
 		}
 	},
@@ -142,18 +150,22 @@
 				"dstruct_type": "word_list_type"
 			},
                 	"Input" : {
-                		"Engine": {
-					"FS": "standard"
-				},
 				"number": "1",
-                		"type": "textDirectory"
+				"Input0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "textDirectory"
+				}
 			},
 			"Output" : {
-                		"Engine": {
-					"FS": "standard"
-				},
 				"number": "1",
-                		"type": "text"
+				"Output0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "text"
+				}
 			}
 		}
         },
@@ -177,18 +189,22 @@
 				"dstruct_type": "word_list_type"
 			},
                 	"Input" : {
-                		"Engine": {
-					"FS": "standard"
-				},
 				"number": "1",
-                		"type": "arff"
+				"Input0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "arff"
+				}
 			},
 			"Output" : {
-                		"Engine": {
-					"FS": "standard"
-				},
 				"number": "1",
-                		"type": "text"
+				"Output0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "text"
+				}
 			}
    		}
 	},

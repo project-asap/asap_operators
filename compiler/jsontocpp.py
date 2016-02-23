@@ -95,6 +95,12 @@ class IOConstraint:
         self.fileSystem = fileSystem
         self.iotype = iotype
 
+""" holds data about IO constraints """
+class IOConstraint:
+    def __init__(self, inputConstraint):
+        self.fileSystem = inputConstraint["Engine"]["FS"]
+        self.iotype = inputConstraint["type"]
+
 """ holds data about operator constraints """
 class OperatorConstraint:
     def __init__(self, fs, runFile, algname, alg_dstructtype, inputs, outputs):
@@ -105,12 +111,11 @@ class OperatorConstraint:
 	self.inputConstraint = []
 	self.outputConstraint = []
         for i in range(0,int(inputs["number"])):
-	    inputConstraint = IOConstraint(inputs["Engine"]["FS"],
-                                               inputs["type"])
+            inputLocator = "Input" + str(i)
+	    inputConstraint = IOConstraint(inputs["Input"+str(i)])
             self.inputConstraint.append(inputConstraint)
         for i in range(0,int(outputs["number"])):
-	    outputConstraint = IOConstraint(outputs["Engine"]["FS"],
-                                               outputs["type"])
+	    outputConstraint = IOConstraint(outputs["Output"+str(i)])
             self.outputConstraint.append(outputConstraint)
 
 """ holds data about operators """
@@ -170,14 +175,15 @@ class OpSpecification:
 """ Represents an operator box from the workflow description """
 class OperatorBox:
 
-    def __init__(self, nodeid, name, constraints, computational):
+    def __init__(self, nodeid, name, constraints):
         self.nodeid = nodeid
         self.name = name
         self.constraints = constraints
-        self.inputs = []
-        self.outputs = []
+			  # We don't need array of inputs as the outer func loops inputs and
+			  # we really want a different operator for each input.
         var=0
 
+        """
 	if computational is True:
 	    if constraints["opSpecification"].get("algorithm"):
 	        self.opSpecification = OpSpecification(constraints["opSpecification"]["algorithm"],
@@ -187,6 +193,7 @@ class OperatorBox:
 						   constraints["opSpecification"]["args"])
 
         numinputs = constraints["input"]
+	print "numinputs is ", numinputs
         for i in range(0,int(numinputs)):
             newinputbox = InputBox(constraints["input"+str(i)])
             self.inputs.append(newinputbox)
@@ -195,6 +202,38 @@ class OperatorBox:
         for i in range(0,int(numoutputs)):
             newoutputbox = OutputBox(constraints["output"+str(i)])
             self.outputs.append(newoutputbox)
+	"""
+
+
+""" Represents a computational operator box from the workflow description """
+class ComputationalOperatorBox(OperatorBox):
+
+    def __init__(self, nodeid, name, constraints):
+	OperatorBox.__init__(self, nodeid, name, constraints)
+
+        self.opSpecification = OpSpecification(constraints["opSpecification"]["algorithm"],
+						       constraints["opSpecification"]["args"])
+	
+
+""" Represents an input operator box from the workflow description """
+class InputOperatorBox(OperatorBox):
+
+    def __init__(self, nodeid, name, constraints, index):
+	OperatorBox.__init__(self, nodeid, name, constraints)
+
+	# self.opSpecification = OpSpecification(constraints["opSpecification"]["format"],
+						   # constraints["opSpecification"]["args"])
+	self.inputSpec = InputBox(constraints["input"+str(index)])
+
+""" Represents an output operator box from the workflow description """
+class OutputOperatorBox(OperatorBox):
+
+    def __init__(self, nodeid, name, constraints, index):
+	OperatorBox.__init__(self, nodeid, name, constraints)
+
+        # self.opSpecification = OpSpecification(constraints["opSpecification"]["format"],
+						   # constraints["opSpecification"]["args"])
+	self.outputSpec = OutputBox(constraints["output"+str(index)])
 
 """ Represents a node operator box from the workflow description """
 class Node:
@@ -232,11 +271,11 @@ def loadWorkflowData(data):
         g_nodeMap[box["id"]] = newnode
 
     for box in data["workflow"]["tasks"]:
-        newoperatorbox = OperatorBox( 
+        newoperatorbox = ComputationalOperatorBox( 
                                  box["nodeId"],
                                  box["name"],
-                                 box["operator"]["constraints"],
-				 True)
+                                 box["operator"]["constraints"]
+				 )
 
 	"""
 		Here we are transforming Unige's workflow so each input/output is an 
@@ -257,15 +296,18 @@ def loadWorkflowData(data):
             g_nodeMap[newnodeid] = newnode
 
 	    """ Create new task for this input """
-	    newiooperatorbox = OperatorBox(newnodeid, newnodename,
+	    newiooperatorbox = InputOperatorBox(newnodeid, newnodename,
 					box["operator"]["constraints"],
-					False)
+					i)
 
 	    """ Create input edge to original operator """
 	    # g_edges.append(newnodeid, box["nodeId"]))
 	    g_edges.append({'sourceId':newnodeid, 'targetId': box["nodeId"]})
-	    g_nodeInEdges[box["nodeId"]] = [newnodeid]
-		
+	    if box["nodeId"] not in g_nodeInEdges:
+	        g_nodeInEdges[box["nodeId"]] = [newnodeid]
+	    else:
+	        g_nodeInEdges[box["nodeId"]].append(newnodeid)
+
             g_nodeBoxMap[newnodeid] = newiooperatorbox
 
         numoutputs = box["operator"]["constraints"]["output"]
@@ -279,14 +321,18 @@ def loadWorkflowData(data):
             g_nodeMap[newnodeid] = newnode
 
 	    """ Create new task for this output """
-	    newiooperatorbox = OperatorBox(newnodeid, newnodename,
+	    newiooperatorbox = OutputOperatorBox(newnodeid, newnodename,
 					box["operator"]["constraints"],
-					False)
+					i)
 
 	    """ Create input edge to original operator """
 	    # g_edges.append((box["nodeId"], newnodeid))
 	    g_edges.append({'sourceId':box["nodeId"], 'targetId': newnodeid})
-	    g_nodeOutEdges[box["nodeId"]] = [newnodeid]
+	    # g_nodeOutEdges[box["nodeId"]].append(newnodeid)
+	    if box["nodeId"] not in g_nodeOutEdges:
+	        g_nodeOutEdges[box["nodeId"]] = [newnodeid]
+	    else:
+	        g_nodeOutEdges[box["nodeId"]].append(newnodeid)
             g_nodeBoxMap[newnodeid] = newiooperatorbox
 
         # newinputbox = InputBox(box["operator"]["constraints"]["input0"])
@@ -418,9 +464,9 @@ def createIODeclaration(ioEdge, ioId, declaredIOFiles, opcode, ioCount, algName,
     
     filename=""
     if ioId is "input": 
-    	filename = g_nodeBoxMap[ioEdge].inputs[ioCount].name 
+    	filename = g_nodeBoxMap[ioEdge].inputSpec.name 
     else:
-    	filename = g_nodeBoxMap[ioEdge].outputs[ioCount].name 
+    	filename = g_nodeBoxMap[ioEdge].outputSpec.name 
     
     ctr=0
     if declarationTemplate is not None :
@@ -445,8 +491,8 @@ def createIODeclaration(ioEdge, ioId, declaredIOFiles, opcode, ioCount, algName,
 """
         Test if the 'key' node is forward in-memory optimisable
 	and store a map of the edge so we can backwards check
-	when processing the next computation operator it i
-	optimised/merged with
+	when processing the next computation operator if it is
+	optimised/merged with this one
 """
 def optimisableForward(key):
 
@@ -457,13 +503,13 @@ def optimisableForward(key):
                 for i in range(0, len(g_nodeMap[key].taskids)):
                     ioCount = 0
                     for outEdge in g_nodeOutEdges[key]:
-                        outFilename = g_nodeBoxMap[outEdge].outputs[ioCount].name
+                        outFilename = g_nodeBoxMap[outEdge].outputSpec.name
                         ioCount = 0
 
                 for i in range(0, len(g_nodeMap[destNode].taskids)):
                     ioCount = 0
                     for inEdge in g_nodeInEdges[destNode]:
-                        inFilename = g_nodeBoxMap[inEdge].inputs[ioCount].name
+                        inFilename = g_nodeBoxMap[inEdge].inputSpec.name
                         ioCount = 0
 
 		g_optimisedForward[key] = destNode
@@ -474,8 +520,8 @@ def optimisableForward(key):
 """
         Test if the 'key' node is backward in-memory optimisable
 	and store a map of the edge so we can backwards check
-	when processing the next computation operator it i
-	optimised/merged with
+	when processing the next computation operator if it is
+	optimised/merged with this one
 """
 def optimisableBackward(key):
 
@@ -486,13 +532,13 @@ def optimisableBackward(key):
                 for i in range(0, len(g_nodeMap[srcNode].taskids)):
                     ioCount = 0
                     for outEdge in g_nodeOutEdges[srcNode]:
-                        outFilename = g_nodeBoxMap[srcNode].outputs[ioCount].name
+                        outFilename = g_nodeBoxMap[outEdge].outputSpec.name
                         ioCount = 0
 
                 for i in range(0, len(g_nodeMap[key].taskids)):
                     ioCount = 0
                     for inEdge in g_nodeInEdges[key]:
-                        inFilename = g_nodeBoxMap[key].inputs[ioCount].name
+                        inFilename = g_nodeBoxMap[inEdge].inputSpec.name
                         ioCount = 0
 
 		g_optimisedBackward[srcNode] = key
@@ -590,6 +636,12 @@ def main(argv):
     pprint(g_inputBoxMap)
     print "-------------------------------- output Boxes -------------------------------------------- "
     pprint(g_outputBoxMap)
+    print "-------------------------------- OutEdges -------------------------------------------- "
+    pprint(g_nodeOutEdges)
+    print "-------------------------------- InEdges -------------------------------------------- "
+    pprint(g_nodeInEdges)
+    print "-------------------------------- Comp Edges -------------------------------------------- "
+    pprint(g_compEdges)
     print "-------------------------------- Edges -------------------------------------------- "
     pprint(g_edges)
     """
