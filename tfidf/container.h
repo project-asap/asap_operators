@@ -294,7 +294,8 @@ public:
                 uint64_t index = hashes[i] & (newsize-1);
                 while(newoccupied[index])
                     index = (index+1) & (newsize-1);
-                newtable[index].swap( table[i] );
+                // newtable[index].swap( table[i] );
+		std::swap( newtable[index], table[i] );
 		newhashes[index] = hashes[i];
                 newoccupied[index] = true;
             }
