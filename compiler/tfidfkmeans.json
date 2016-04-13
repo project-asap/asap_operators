@@ -1,0 +1,26 @@
+{
+	"boxes": [{
+		"id": "i0",
+		"name": "textDirectoryDataset",
+		"type": "input",
+		"filename": "all"
+	},
+	{
+		"id": "op0",
+		"name": "tfidfkmeans_cilk_list",
+		"type": "operator",
+                "args": {"max_iters": "5",
+                        "force_dense": "true",
+			"by_words": "false",
+			"do_sort": "false",
+			"rnd_init": "1"},
+		"input": ["i0"],
+		"output": ["o0"]
+	},
+	{
+		"id": "o0",
+		"name": "textDataset",
+		"type": "output",
+		"filename": "compilertest.txt"
+	}]
+}

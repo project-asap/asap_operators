@@ -1,0 +1,7 @@
+
+    get_time( begin );
+    if( FILE_PARAM1 )
+	asap::arff_write( FILE_PARAM1, data_set );
+    get_time( end );
+    print_time("output", begin, end);
+

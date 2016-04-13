@@ -1,0 +1,292 @@
+{
+	"operators": [{
+		"name": "textDirectory",
+		"cost": "0.00",
+		"status": "stopped",
+		"type": "dataset",
+		"description": "textDirectoryDataset",
+		"Constraints": {
+                    "DataInfo": {
+			"type": "freetext"
+		    },
+		    "Engine": { 
+			"FS": "Standard"
+		    },
+		    "type": "directory"
+		},
+		"Execution": {
+		    "path": "/var/shared/projects/asap/inputs/operators/tfidf_input/"
+		},
+		"input": []
+	},
+	{
+		"name": "arff",
+		"cost": "0.00",
+		"status": "stopped",
+		"type": "dataset",
+		"description": "arffFileDataset",
+
+                "Constraints": {
+                    "DataInfo": {
+                        "type": "arff"
+                    },
+                    "Engine": { 
+                        "FS": "Standard"
+                    },
+                    "type": "file"
+                },
+                "Execution": {
+                    "path": "/var/shared/projects/asap/inputs/operators/kmeans_input/"
+                },
+		"input": []
+	},
+        {
+		"name": "textFile",
+		"cost": "0.00",
+		"status": "stopped",
+		"type": "dataset",
+		"description": "textFileDataset",
+
+                "Constraints": {
+                    "DataInfo": {
+                        "type": "freetext"
+                    },
+                    "Engine": { 
+                        "FS": "Standard"
+                    },
+                    "type": "file"
+                },
+                "Execution": {
+                    "path": "/var/shared/projects/asap/inputs/operators/kmeans_output/"
+                },
+		"input": []
+	},
+	{
+		"name": "tfidf_cilk_map",
+		"cost": "0.00",
+		"status": "stopped",
+		"type": "operator",
+		"description": "TFIDF",
+		"Constraints": {
+			"EngineSpecification": {
+				"FS": "standard"
+			},
+			"type": "directory",
+			"runFile": "tfidf_cilk_map",
+			"Algorithm": {
+				"name": "tfidf",
+				"dstruct_type": "word_map_type"
+			},
+                	"Input" : {
+				"number": "1",
+				"Input0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "textDirectory"
+				}
+			},
+			"Output" : {
+				"number": "1",
+				"Output0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "arff"
+				}
+			}
+		}
+	},	
+	{
+		"name": "tfidf_cilk_list",
+		"cost": "0.00",
+		"status": "stopped",
+		"type": "operator",
+		"description": "TFIDF",
+		"Constraints": {
+			"EngineSpecification": {
+				"FS": "standard"
+			},
+			"type": "directory",
+			"runFile": "tfidf_cilk_list",
+			"Algorithm": {
+				"name": "tfidf",
+				"dstruct_type": "word_list_type"
+			},
+                	"Input" : {
+				"number": "1",
+				"Input0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "textDirectory"
+				}
+			},
+			"Output" : {
+				"number": "1",
+				"Output0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "arff"
+				}
+			}
+		}
+	},
+	{
+		"name": "tfidfkmeans_cilk_list",
+		"cost": "0.00",
+		"status": "stopped",
+		"type": "operator",
+		"description": "TFIDFKMEANS",
+		"Constraints": {
+			"EngineSpecification": {
+				"FS": "standard"
+			},
+			"type": "directory",
+			"runFile": "tfidf_cilk_list",
+			"Algorithm": {
+				"name": "tfidf_and_kmeans",
+				"dstruct_type": "word_list_type"
+			},
+                	"Input" : {
+				"number": "1",
+				"Input0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "textDirectory"
+				}
+			},
+			"Output" : {
+				"number": "1",
+				"Output0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "text"
+				}
+			}
+		}
+        },
+	{
+		"name": "kmeans_cilk_list",
+		"cost": "0.00",
+		"status": "stopped",
+		"type": "operator",
+		"description": "KMEANS",
+		"Constraints": {
+			"EngineSpecification": {
+				"FS": "standard"
+			},
+			"type": "file",
+			"DataInfo": {
+				"type": "arff"
+			},
+			"runFile": "kmeans_cilk_list",
+			"Algorithm": {
+				"name": "kmeans",
+				"dstruct_type": "word_list_type"
+			},
+                	"Input" : {
+				"number": "1",
+				"Input0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "arff"
+				}
+			},
+			"Output" : {
+				"number": "1",
+				"Output0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "text"
+				}
+			}
+   		}
+	},
+	{
+		"type": "signature_rule",
+		"algorithm.names": ["tfidf", "tfidf_and_kmeans"],
+		"input": "get_dir_listing(FILE_PARAM1, dir_list);",
+		"output": "output(DATA_PARAM1, FILE_PARAM1);",
+		"run": "tfidf(DATA_PARAM1, OP_PARAM1, OP_PARAM2);"
+	},
+	{
+		"type": "signature_rule",
+		"algorithm.names": ["kmeans"],
+		"input": "read_file(FILE_PARAM1);",
+		"output": "output(DATA_PARAM1, FILE_PARAM1);",
+		"run": "kmeans(DATA_PARAM1, OP_PARAM1);"
+	},
+	{
+		"type": "typedef",
+		"algorithm.names": ["tfidf"],
+		"algorithm.types": ["word_list_type"],
+                "types": ["typedef asap::word_list<std::deque<const char*>, asap::word_bank_managed> directory_listing_type;",
+			"typedef asap::word_map<std::map<const char *, size_t, asap::text::charp_cmp>, asap::word_bank_pre_alloc> word_map_type;",
+                        "typedef asap::kv_list<std::vector<std::pair<const char *, size_t>>, asap::word_bank_pre_alloc> word_list_type;",
+			"typedef asap::sparse_vector<size_t, float, false, asap::mm_no_ownership_policy> vector_type;",
+			"typedef asap::word_map<std::map<const char *, asap::appear_count<size_t, typename vector_type::index_type>, asap::text::charp_cmp>, asap::word_bank_pre_alloc> word_map_type2;",
+                        "typedef asap::data_set<vector_type, word_map_type2, directory_listing_type> data_set_type;"
+                ]
+        },
+	{
+		"type": "typedef",
+		"algorithm.names": ["tfidf"],
+		"algorithm.types": ["word_map_type"],
+                "types": ["typedef asap::word_list<std::deque<const char*>, asap::word_bank_managed> directory_listing_type;",
+			"typedef asap::word_map<std::map<const char *, size_t, asap::text::charp_cmp>, asap::word_bank_pre_alloc> word_map_type;",
+			"typedef asap::word_list<std::vector<std::pair<const char * const, size_t>>, asap::word_bank_pre_alloc> word_list_type;",
+			"typedef asap::sparse_vector<size_t, float, false, asap::mm_no_ownership_policy> vector_type;",
+			"typedef asap::word_map<std::map<const char *, asap::appear_count<size_t, typename vector_type::index_type>, asap::text::charp_cmp>, asap::word_bank_pre_alloc> word_map_type2;",
+                        "typedef asap::data_set<vector_type, word_map_type2, directory_listing_type> data_set_type;"
+                ]
+        },
+        {
+		"type": "typedef",
+		"algorithm.names": ["tfidf_and_kmeans"],
+		"algorithm.types": ["word_list_type","word_map_type"],
+                "types": [
+			"typedef asap::word_list<std::deque<const char*>, asap::word_bank_managed> directory_listing_type;",
+    			"typedef asap::word_map<std::map<const char *, size_t, asap::text::charp_cmp>, asap::word_bank_pre_alloc> word_map_type;",
+    			"typedef asap::kv_list<std::vector<std::pair<const char *, size_t>>, asap::word_bank_pre_alloc> word_list_type;",
+
+			"typedef asap::sparse_vector<size_t, float, false, asap::mm_no_ownership_policy> vector_type;",
+			"typedef asap::word_map<std::unordered_map<const char *, asap::appear_count<size_t, typename vector_type::index_type>, asap::text::charp_hash, asap::text::charp_eql>, asap::word_bank_pre_alloc> word_map_type2;",
+                        "typedef asap::data_set<vector_type, word_map_type2, directory_listing_type> data_set_type;"
+                ]
+        },
+	{
+		"type": "typedef",
+		"algorithm.names": ["kmeans"],
+		"algorithm.types": ["word_list_type","word_map_type"],
+
+                "types": [
+			"typedef asap::sparse_vector<size_t, float, true, asap::mm_ownership_policy> vector_type;",
+			"typedef asap::word_list<std::vector<const char *>, asap::word_bank_pre_alloc> word_list;",
+			"typedef asap::data_set<vector_type,word_list> data_set_type;"
+                ]
+        },
+	{
+		"type": "inout_declaration",
+		"dataset.names": ["textDirectory", "textFile", "arff"],
+		"input": "char const * VARIN = VAROUT;",
+                "output": "char const * VARIN = VAROUT;"
+	},
+	{
+		"type": "arg_declaration",
+		"algorithm.names": ["tfidf_and_kmeans"],
+                "argTemplates": [{"max_iters": "const int VARIN = VAROUT;", "num_clusters": "const int VARIN = VAROUT;", "force_dense": "const bool VARIN = VAROUT;", "by_words": "const bool VARIN = VAROUT;", "do_sort": "const bool VARIN = VAROUT;", "rnd_init": "unsigned int VARIN = VAROUT;"}],
+                "argDefaults": [{"max_iters": "0", "num_clusters": "8", "force_dense": "false", "by_words": "false", "do_sort": "false", "rnd_init": "1"}]
+        },
+	{
+		"type": "arg_declaration",
+		"algorithm.names": ["kmeans"],
+                "argTemplates": [{"max_iters": "const int VARIN = VAROUT;", "num_clusters": "const int VARIN = VAROUT;", "force_dense": "const bool VARIN = VAROUT;", "is_sparse": "const bool VARIN = VAROUT;"}],
+                "argDefaults": [{"max_iters": "0", "num_clusters": "8", "force_dense": "false", "by_words": "false", "do_sort": "false", "rnd_init": "1", "is_sparse": "false"}]
+        }]
+}

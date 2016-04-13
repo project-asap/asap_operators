@@ -1,0 +1,23 @@
+    bool is_sparse;
+    data_set_type data_set
+	= asap::arff_read<data_set_type>( std::string( FILE_PARAM1 ), is_sparse );
+    std::cout << "Relation: " << data_set.get_relation() << std::endl;
+    std::cout << "Dimensions: " << data_set.get_dimensions() << std::endl;
+    std::cout << "Points: " << data_set.get_num_points() << std::endl;
+
+    // Normalize data for improved clustering results
+    std::vector<std::pair<float, float>> extrema
+	= asap::normalize( data_set );
+
+    get_time (end);
+    print_time("input", begin, end);
+
+    // for reproducibility
+    srand(1);
+
+/*
+    for( auto I=data_set.vector_cbegin(), E=data_set.vector_cend();
+	 I != E; ++I ) {
+	std::cout << *I << std::endl;
+    }
+*/

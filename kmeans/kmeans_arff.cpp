@@ -17,6 +17,7 @@
 #include <limits>
 #include <cassert>
 #include <vector>
+#include <type_traits>
 
 #if SEQUENTIAL && PMC
 #include <likwid.h>
@@ -36,7 +37,8 @@
 #include "tracing/events.cc"
 #endif
 
-#include "stddefines.h"
+// khere #include "stddefines.h"
+#include <stddefines.h>
 
 #define DEF_NUM_POINTS 100000
 #define DEF_NUM_MEANS 100
@@ -45,7 +47,8 @@
 #define DEF_NUM_THREADS 8
 
 #define REAL_IS_INT 0
-typedef float real;
+// typedef float real;
+typedef double real;
 
 int num_points; // number of vectors
 int num_dimensions;         // Dimension of each vector
@@ -55,6 +58,7 @@ int max_iters; // maximum number of iterations
 real * min_val; // min value of each dimension of vector space
 real * max_val; // max value of each dimension of vector space
 const char * infile = NULL; // input file
+const char * outfile = NULL; // output file
 
 #define CROAK(x)   croak(x,__FILE__,__LINE__)
 
@@ -76,7 +80,7 @@ struct sparse_point {
 
     sparse_point() { c = NULL; v = NULL; nonzeros = 0; cluster = -1; }
     sparse_point(int *c, real* d, int nz, int cluster)
-	: c(c), v(v), nonzeros(nz), cluster(cluster) { }
+	: c(c), v(d), nonzeros(nz), cluster(cluster) { }
     sparse_point(const point&pt);
     
     bool normalize() {
@@ -121,9 +125,23 @@ struct sparse_point {
     }
 };
 
+std::ostream & operator << ( std::ostream & os, const sparse_point & sp ) {
+    os << '{';
+    for( int i=0, e=num_dimensions, j=0; i != e; ++i ) {
+	real v = 0;
+	if( i == sp.c[j] ) v = sp.v[j++];
+	os << v;
+	if( i+1 < e )
+	    os << ", ";
+    }
+    os << '}';
+    return os;
+}
+
 struct point
 {
     real * d;
+    real sumsq;
     int cluster;
 
     point() { d = NULL; cluster = -1; }
@@ -142,6 +160,17 @@ struct point
 #endif
 	    return false;
 	}
+    }
+
+    void update_sum_sq() {
+	real ssq = 0;
+        for (int i = 0; i < num_dimensions; i++) {
+	    ssq += d[i] * d[i];
+	}
+	sumsq = ssq;
+    }
+    real get_sum_sq() const {
+	return sumsq;
     }
 
     void clear() {
@@ -233,10 +262,26 @@ sparse_point::sparse_point(const point&pt) {
 
 real sparse_point::sq_dist(point const& p) const {
     real sum = 0;
-    for (int i = 0; i < nonzeros; i++) {
-	real diff = v[i] - p.d[c[i]];
+#if 0
+    int j=0;
+    for( int i=0; i < num_dimensions; ++i ) {
+	real diff;
+	if( j < nonzeros && i == c[j] ) {
+	    diff = v[j] - p.d[i];
+	    ++j;
+	} else
+	    diff = p.d[i];
 	sum += diff * diff;
     }
+#else
+    sum = p.get_sum_sq();
+    for( int i=0; i < nonzeros; ++i ) { 
+	sum += v[i] *  ( v[i] - real(2) * p.d[c[i]] );
+	// assert( sum1 > real(0) );
+    }
+#endif
+    // printf( "sum=%f sum1=%f\n", sum, sum1 );
+    // assert( ( sum - sum1 ) / sum1 < 1e-3 );
     return sum;
 }
 
@@ -284,15 +329,17 @@ public:
     }
     void add_point( Point * pt ) {
 	int c = pt->cluster;
+	Point & tgt = centres[c];
 	for( int i=0; i < num_dimensions; ++i )
-	    centres[c].d[i] += pt->d[i];
-	centres[c].cluster++;
+	    tgt.d[i] += pt->d[i];
+	tgt.cluster++;
     }
     void add_point( sparse_point * pt ) {
 	int c = pt->cluster;
+	Point & tgt = centres[c];
 	for( int i=0; i < pt->nonzeros; ++i )
-	    centres[c].d[pt->c[i]] += pt->v[i];
-	centres[c].cluster++;
+	    tgt.d[pt->c[i]] += pt->v[i];
+	tgt.cluster++;
     }
 
     void normalize( int c ) {
@@ -303,6 +350,11 @@ public:
 	cilk_for( int c=0; c < num_clusters; ++c )
 	    modified |= centres[c].normalize();
 	return modified;
+    }
+
+    void update_sum_sq() {
+	cilk_for( int c=0; c < num_clusters; ++c )
+	    centres[c].update_sum_sq();
     }
 
     void select( const point * pts ) {
@@ -346,6 +398,14 @@ public:
 	}
     }
 
+    template<typename DSPoint>
+    real within_sse( DSPoint * points ) {
+	real sse = 0;
+	for( int i=0; i < num_points; ++i ) {
+	    sse += points[i].sq_dist( centres[points[i].cluster] );
+	}
+	return sse;
+    }
 
     const Point & operator[] ( int c ) const {
 	return centres[c];
@@ -386,6 +446,10 @@ public:
 	return imp_.view()[c];
     }
 
+    void update_sum_sq() {
+	imp_.view().update_sum_sq();
+    }
+
     void swap( Centres & c ) {
 	imp_.view().swap( c );
     }
@@ -407,6 +471,9 @@ int kmeans_cluster(Centres & centres, DSPoint * points) {
     int modified = 0;
 
     centres_reducer new_centres;
+
+    if( std::is_same<sparse_point,DSPoint>::value )
+	centres.update_sum_sq();
 
 #if GRANULARITY
     int nmap = std::min(num_points, 16) * 16;
@@ -479,7 +546,7 @@ void parse_args(int argc, char **argv)
     // num_dimensions = DEF_DIM;
     // grid_size = DEF_GRID_SIZE;
     
-    while ((c = getopt(argc, argv, "c:i:m:d")) != EOF) 
+    while ((c = getopt(argc, argv, "c:i:o:m:d")) != EOF) 
     {
         switch (c) {
             // case 'd':
@@ -497,6 +564,9 @@ void parse_args(int argc, char **argv)
             case 'i':
                 infile = optarg;
                 break;
+            case 'o':
+                outfile = optarg;
+                break;
             // case 'p':
                 // num_points = atoi(optarg);
                 // break;
@@ -513,14 +583,17 @@ void parse_args(int argc, char **argv)
 	CROAK( "Number of clusters must be larger than 0." );
     if( !infile )
 	CROAK( "Input file must be supplied." );
+    if( !outfile )
+	CROAK( "Output file must be supplied." );
     
     std::cerr << "Number of clusters = " << num_clusters << '\n';
     std::cerr << "Input file = " << infile << '\n';
+    std::cerr << "Output file = " << outfile << '\n';
 }
 
 struct arff_file {
     std::vector<const char *> idx;
-    std::vector<Point> points;
+    std::vector<sparse_point> points;
     char * fdata;
     char * relation;
     real * minval, * maxval;
@@ -545,6 +618,8 @@ public:
 	fdata[finfo.st_size] = '\0';
 
 	close( fd );
+
+	size_t * tcount = 0;
 
 	// Now parse the data
 	char * p = fdata, * q;
@@ -597,6 +672,7 @@ public:
 	    } else if( !strncasecmp( p, "data", 4 ) ) {
 		// From now on everything is data
 		int ndim = idx.size();
+		tcount = new size_t[ndim](); // zero init
 		p += 4;
 
 		do {
@@ -607,25 +683,51 @@ public:
 			ADVANCE( p );
 			sparse_data = true;
 		    }
-		    real * coord = new real[ndim](); // zero init
-		    unsigned long nexti = 0;
-		    do {
-			while( isspace( *p ) )
-			    ADVANCE( p );
-			if( is_sparse ) {
+		    if( is_sparse ) {
+			int nonzeros = 0;
+			real * v = new real[ndim];
+			int * c = new int[ndim];
+			unsigned long nexti = 0;
+			do {
+			    while( isspace( *p ) )
+				ADVANCE( p );
 			    unsigned long i = strtoul( p, &p, 10 );
 			    while( isspace( *p ) )
 				ADVANCE( p );
 			    if( *p == '?' )
 				CROAK( "missing data not supported" );
-			    real v = 0;
+			    real vv = 0;
 #if REAL_IS_INT
-			    v = strtoul( p, &p, 10 );
+			    vv = strtoul( p, &p, 10 );
 #else
-			    v = strtod( p, &p );
+			    vv = strtod( p, &p );
 #endif
-			    coord[i] = v;
-			} else {
+			    // coord[i-1] = v;
+			    v[nonzeros] = vv;
+			    c[nonzeros] = i; // -1;
+			    ++nonzeros;
+
+			    tcount[i-1]++;
+
+			    while( isspace( *p ) && *p != '\n' )
+				ADVANCE( p );
+			    if( *p == ',' )
+				ADVANCE( p );
+			} while( *p != '}' && *p != '\n' );
+			do {
+			    ADVANCE( p );
+			} while( isspace( *p ) );
+			real * s_v = new real[nonzeros];
+			int * s_c = new int[nonzeros];
+			std::copy( v, v+nonzeros, s_v );
+			std::copy( c, c+nonzeros, s_c );
+			delete[] c;
+			delete[] v;
+			points.push_back( sparse_point( s_c, s_v, nonzeros, -1 ) );
+		    } else {
+			real * coord = new real[ndim](); // zero init
+			unsigned long nexti = 0;
+			do {
 			    while( isspace( *p ) )
 				ADVANCE( p );
 			    if( *p == '?' )
@@ -637,16 +739,17 @@ public:
 			    v = strtod( p, &p );
 #endif
 			    coord[nexti++] = v;
-			}
-			while( isspace( *p ) && *p != '\n' )
+			    while( isspace( *p ) && *p != '\n' )
+				ADVANCE( p );
+			    if( *p == ',' )
+				ADVANCE( p );
+			} while( *p != '}' && *p != '\n' );
+			do {
 			    ADVANCE( p );
-			if( *p == ',' )
-			    ADVANCE( p );
-		    } while( *p != '}' && *p != '\n' );
-		    do {
-			ADVANCE( p );
-		    } while( isspace( *p ) );
-		    points.push_back( point( coord, -1 ) );
+			} while( isspace( *p ) );
+			CROAK( "not supporting dense input right now" );
+			// points.push_back( point( coord, -1 ) );
+		    }
 		} while( *p != '\0' );
 	    }
 	} while( 1 );
@@ -659,6 +762,7 @@ public:
 	    minval[i] = std::numeric_limits<real>::max();
 	    maxval[i] = std::numeric_limits<real>::min();
 	}
+#if 0
 	cilk_for( int i=0; i < ndim; ++i ) {
 	    for( int j=0; j < points.size(); ++j ) {
 		real v = points[j].d[i];
@@ -672,6 +776,38 @@ public:
 		    / (maxval[i] - minval[i]+1);
 	    }
 	}
+#endif
+	// Sparse property
+	size_t num_points = points.size();
+	cilk_for( int i=0; i < ndim; ++i ) {
+	    if( tcount[i] < num_points )
+		minval[i] = 0;
+	}
+
+	for( int j=0; j < num_points; ++j ) {
+	    const sparse_point & pt = points[j];
+	    for( int i=0; i < pt.nonzeros; ++i ) {
+		real v = pt.v[i];
+		int  c = pt.c[i];
+		if( minval[c] > v )
+		    minval[c] = v;
+		if( maxval[c] < v )
+		    maxval[c] = v;
+	    }
+	}
+	cilk_for( int j=0; j < num_points; ++j ) {
+	    sparse_point & pt = points[j];
+	    for( int i=0; i < pt.nonzeros; ++i ) {
+		real &v = pt.v[i];
+		int   c = pt.c[i];
+		if( minval[c] != maxval[c] ) {
+		    v = (v - minval[c]) / (maxval[c] - minval[c]+1);
+		} else {
+		    v = (real)1;
+		}
+	    }
+	}
+	delete[] tcount;
 
 	std::cerr << "@relation: " << relation << "\n";
 	std::cerr << "@attributes: " << idx.size() << "\n";
@@ -682,10 +818,12 @@ public:
 int main(int argc, char **argv)
 {
     struct timespec begin, end;
+    struct timespec veryStart, veryEnd;
 
     srand( time(NULL) );
 
     get_time( begin );
+    get_time( veryStart );
 
     //read args
     parse_args(argc,argv);
@@ -707,9 +845,17 @@ int main(int argc, char **argv)
     min_val = arff_data.minval;
     max_val = arff_data.maxval;
 
+    get_time (end);
+    print_time("input", begin, end);
+
+    get_time (begin);
+
+    // for reproducibility
+    srand(1);
+
     // allocate memory
     // get points
-    point * points = &arff_data.points[0];
+    sparse_point * points = &arff_data.points[0];
 
     // get means
     Centres centres;
@@ -729,13 +875,24 @@ int main(int argc, char **argv)
 
     printf("KMeans: Calling MapReduce Scheduler\n");
 
+    get_time (begin);        
     // keep re-clustering until means stabilise (no points are reassigned
     // to different clusters)
 #if SEQUENTIAL && PMC
     LIKWID_MARKER_START("mapreduce");
 #endif // SEQUENTIAL && PMC
-    get_time (begin);        
     int niter = 1;
+
+    // for( size_t i=0; i < num_points; ++i )
+	// std::cout << points[i] << std::endl;
+
+    while(kmeans_cluster(centres, points)) {
+	if( ++niter >= max_iters && max_iters > 0 )
+	    break;
+	centres.update_sum_sq();
+	fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &points[0] ) );
+    }
+#if 0
     if( arff_data.sparse_data && !force_dense ) {
 	// First build sparse representation
 	std::vector<sparse_point> spoints;
@@ -743,12 +900,18 @@ int main(int argc, char **argv)
 	for( int i=0; i < num_points; ++i )
 	    spoints.push_back( sparse_point( points[i] ) );
 
+	// centres.update_sum_sq();
+	// fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &points[0] ) );
+
 	while(kmeans_cluster(centres, &spoints[0])) {
 	    if( ++niter >= max_iters && max_iters > 0 )
 		break;
+	    // centres.update_sum_sq();
+	    // fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( &spoints[0] ) );
 	}
 
 	for( int i=0; i < num_points; ++i ) {
+	    points[i].cluster = spoints[i].cluster; // copy result
 	    delete[] spoints[i].c;
 	    delete[] spoints[i].v;
 	}
@@ -758,6 +921,7 @@ int main(int argc, char **argv)
 		break;
 	}
     }
+#endif
     get_time (end);        
 #if SEQUENTIAL && PMC
     LIKWID_MARKER_STOP("mapreduce");
@@ -774,62 +938,79 @@ int main(int argc, char **argv)
     for(int i = 0; i < num_clusters; i++)
 	centres[i].dump();
 #endif
+    fprintf( stdout, "sparse? %s\n",
+	     ( arff_data.sparse_data && !force_dense ) ? "yes" : "no" );
     fprintf( stdout, "iterations: %d\n", niter );
 
+/*
     real sse = 0;
     for( int i=0; i < num_points; ++i ) {
 	sse += centres[points[i].cluster].sq_dist( points[i] );
     }
     fprintf( stdout, "within cluster sum of squared errors: %11.4lf\n", sse );
+*/
+    centres.update_sum_sq();
+    fprintf( stdout, "within cluster SSE: %11.4lf\n", centres.within_sse( points ) );
 
-    fprintf( stdout, "%37s\n", "Cluster#" );
-    fprintf( stdout, "%-16s", "Attribute" );
-    fprintf( stdout, "%10s", "Full Data" );
+    FILE * outfp = fopen( outfile, "w" );
+    if( !outfp )
+	CROAK( "cannot open output file for writing" );
+
+    fprintf( outfp, "%37s\n", "Cluster#" );
+    fprintf( outfp, "%-16s", "Attribute" );
+    fprintf( outfp, "%10s", "Full Data" );
     for( int i=0; i < num_clusters; ++i )
-	fprintf( stdout, "%11d", i );
-    fprintf( stdout, "\n" );
+	fprintf( outfp, "%11d", i );
+    fprintf( outfp, "\n" );
 
     char buf[32];
     sprintf( buf, "(%d)", num_points );
-    fprintf( stdout, "%26s", buf );
+    fprintf( outfp, "%26s", buf );
     for( int i=0; i < num_clusters; ++i ) {
 	sprintf( buf, "(%d)", centres[i].cluster );
-	fprintf( stdout, "%11s", buf );
+	fprintf( outfp, "%11s", buf );
     }
-    fprintf( stdout, "\n" );
+    fprintf( outfp, "\n" );
 
-    fprintf( stdout, "================" );
-    fprintf( stdout, "==========" );
+    fprintf( outfp, "================" );
+    fprintf( outfp, "==========" );
     for( int i=0; i < num_clusters; ++i )
-	fprintf( stdout, "===========" );
-    fprintf( stdout, "\n" );
+	fprintf( outfp, "===========" );
+    fprintf( outfp, "\n" );
 
     for( int i=0; i < num_dimensions; ++i ) {
-	fprintf( stdout, "%-16s", arff_data.idx[i] );
+	fprintf( outfp, "%-16s", arff_data.idx[i] );
 #if REAL_IS_INT
 #error not yet implemented
 #else
 	real s = 0;
+/*
 	for( int j=0; j < num_points; ++j )
 	    s += points[j].d[i];
+*/
+	for( int k=0; k < num_clusters; ++k )
+	    s += centres[k].d[i];
 	s /= (real)num_points;
 	s = min_val[i] + s * (max_val[i] - min_val[i] + 1);
-	fprintf( stdout, "%10.4lf", s );
+	fprintf( outfp, "%10.4lf", s );
 #endif
 	for( int k=0; k < num_clusters; ++k ) {
 #if REAL_IS_INT
 #error not yet implemented
 #else
 	    real s = 0;
+/*
 	    for( int j=0; j < num_points; ++j )
 		if( points[j].cluster == k )
 		    s += points[j].d[i];
+*/
+	    s = centres[k].d[i];
 	    s /= (real)centres[k].cluster;
 	    s = min_val[i] + s * (max_val[i] - min_val[i] + 1);
-	    fprintf( stdout, "%11.4lf", s );
+	    fprintf( outfp, "%11.4lf", s );
 #endif
 	}
-	fprintf( stdout, "\n" );
+	fprintf( outfp, "\n" );
     }
 
     //free memory
@@ -838,6 +1019,7 @@ int main(int argc, char **argv)
 
     get_time (end);
     print_time("finalize", begin, end);
+    print_time("complete time", veryStart, end);
 
 #if TRACING
     event_tracer::destroy();

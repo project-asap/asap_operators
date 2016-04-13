@@ -1,0 +1,17 @@
+## Requirements for compiling :
+#
+# icc version 14.0.0 (gcc version 4.4.7 compatibility)
+
+
+To compile
+
+	make <TARGET>
+
+Where TARGET may be any one of the following:
+
+	kmeans tfidf_list tfidf_map tfidf_list_inplace tfidf_list_list tfidf_list_umap tfidf_kmeans wc
+
+To run all others
+	make test_<TARGET>
+
+	for example, "make test_tfidf_list", "make test_kmeans"

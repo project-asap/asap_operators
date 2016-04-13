@@ -34,7 +34,12 @@ CPUS[30]='0,4,8,12,1,5,9,13,16,20,24,28,17,21,25,29,2,6,10,14,3,7,11,15,18,22,26
 CPUS[31]='0,4,8,12,1,5,9,13,16,20,24,28,17,21,25,29,2,6,10,14,3,7,11,15,18,22,26,30,19,23,27'
 CPUS[32]='0,4,8,12,1,5,9,13,16,20,24,28,17,21,25,29,2,6,10,14,3,7,11,15,18,22,26,30,19,23,27,31'
 
-# for t in 4 1 ; do
-CILK_NWORKERS=$2 numactl --physcpubind=+${CPUS[$2]} --interleave=all ./$1 -train $3 -output vectors.bin -cbow 1 -size 20 -window 3 -negative 3 -hs 0 -threads $2 -binary 1 iter 2
-# done
+hostname=$4
+for t in 32 16 8 4 2 ; do
+    # CILK_NWORKERS=$t numactl --physcpubind=+${CPUS[$t]} --interleave=all ./$1 -train $3 -output vectors.bin -cbow 1 -size 20 -window 3 -negative 3 -hs 0 -threads $t -binary 1 iter 2 > output/out.$1.$t.$3 2>&1
+    CILK_NWORKERS=$t ./$1 -train $2 -output vectors.bin -cbow 1 -size 20 -window 3 -negative 3 -hs 0 -threads $t -binary 1 iter 2 > output/$3.out.$1.$t.$2 2>&1
+done
+
+# Example call to this script:
+# ./run.sh origw2v text8 hvan03
 

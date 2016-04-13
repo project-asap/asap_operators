@@ -1,0 +1,52 @@
+/* At least until now we don't parse the arguments at the cpp end, but 
+   define arg formats in the operator library (to move from workflowxml)
+   and replace in template
+
+static void help(char *progname) {
+    std::cout << "Usage: " << progname
+	      << " [-d] -i <infile> -o <outfile> -c <numclusters> "
+	      << " -m <maxiters>\n";
+}
+
+static void parse_args(int argc, char **argv) {
+    int c;
+    extern char *optarg;
+    
+    num_clusters = DEF_NUM_MEANS;
+    max_iters = 0;
+    
+    while ((c = getopt(argc, argv, "c:i:o:m:d")) != EOF) {
+        switch (c) {
+	case 'd':
+	    force_dense = true;
+	    break;
+	case 'm':
+	    max_iters = atoi(optarg);
+	    break;
+	case 'c':
+	    num_clusters = atoi(optarg);
+	    break;
+	case 'i':
+	    infile = optarg;
+	    break;
+	case 'o':
+	    outfile = optarg;
+	    break;
+	case '?':
+	    help(argv[0]);
+	    exit(1);
+        }
+    }
+    
+    if( num_clusters <= 0 )
+	fatal( "Number of clusters must be larger than 0." );
+    if( !infile )
+	fatal( "Input file must be supplied." );
+    if( !outfile )
+	fatal( "Output file must be supplied." );
+    
+    std::cerr << "Number of clusters = " << num_clusters << '\n';
+    std::cerr << "Input file = " << infile << '\n';
+    std::cerr << "Output file = " << outfile << '\n';
+}
+*/

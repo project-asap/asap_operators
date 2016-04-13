@@ -1,0 +1,17 @@
+int main(int argc, char **argv) {
+    struct timespec begin, end;
+    struct timespec veryStart;
+
+    srand( time(NULL) );
+
+    get_time( begin );
+    get_time( veryStart );
+
+    // read args
+    // parse_args(argc,argv);
+
+    std::cerr << "Available threads: " << __cilkrts_get_nworkers() << "\n";
+
+    get_time (end);
+    print_time("init", begin, end);
+

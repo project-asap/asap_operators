@@ -1,0 +1,61 @@
+{
+"workflow": {
+        "nodes": [
+        {
+                "id": "1",
+                "taskids": ["1"],
+                "name": "tfidf"
+        },
+        {
+                "id": "2",
+                "taskids": ["2"],
+                "name": "kmeans"
+        }
+        ],
+        "edges": [{
+                "sourceId": "1",
+                "targetId": "2"
+        }],
+        "taskLinks": [
+        ],
+        "tasks": [
+                {
+                        "id": "1",
+                        "nodeId": "1",
+                        "name": "tfidf",
+                        "operator": {
+                                "constraints": {
+                                        "input": "1",
+                                        "input0": "tfidf_input",
+                                        "output": "1",
+                                        "output0": "tfidf_output.arff",
+                                        "opSpecification": {
+                                                "algorithm": "tfidf_map",
+                                                "args": {}
+
+                                        }
+                                }
+                        }
+                },
+                {
+                        "id": "2",
+                        "nodeId": "2",
+                        "name": "kmeans",
+                        "operator": {
+                                "constraints": {
+                                        "input": "1",
+                                        "input0": "tfidf_output.arff",
+                                        "output": "1",
+                                        "output0": "kmeans_output.txt",
+                                        "opSpecification": {
+                                                "algorithm": "kmeans",
+                                                "args": {"num_clusters": "4",
+                                                         "max_iters": "5",
+                                                         "force_dense": "true"}
+                                        }
+                                }
+                        }
+                }
+        ]
+}
+}

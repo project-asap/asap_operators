@@ -1,0 +1,10 @@
+## Requirements for compiling :
+#
+# icc version 14.0.0 (gcc version 4.4.7 compatibility)
+
+
+# To compile
+make kmeans_arff
+
+# To run
+make test
