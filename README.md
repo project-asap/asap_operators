@@ -22,9 +22,11 @@ Operators
 
 The TF-IDF algorithm determines the significance of words within a document or corpus.  It is based on the frequency of a word within a document relative to the words occurence in other documents.  Alternative implementations are provided based on choice of associative container.  These include:
 - An implementation using an unordered map for the associative container is at *tfidf/tfidf.cpp*. To build and run:
+    cd tfidf
     make tfidf_std
     make test
 - An Implementation using lists for the containers is at *src/tfidf_list_list*.
+    cd src
     make tfidf_list_list
     make test_tfidf_list_list
 
