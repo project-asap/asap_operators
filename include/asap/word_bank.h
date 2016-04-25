@@ -5,14 +5,49 @@
 #define INCLUDED_ASAP_WORD_BANK_H
 
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <fcntl.h>
 
 #include <string>
 #include <list>
+#include <map>
 #include <utility>
 #include <memory>
 
+#include "asap/traits.h"
+#include "asap/hashtable.h"
+#include "asap/hashindex.h"
+
 namespace asap {
+
+template<typename Container>
+typename std::enable_if<
+    !is_specialization_of<hash_table, Container>::value
+&& !is_specialization_of<hash_index, Container>::value
+&& !is_specialization_of<std::vector, Container>::value>::type
+reserve_space( Container & c, size_t s ) { }
+
+template<typename Container,
+	 typename = typename std::enable_if<
+	     is_specialization_of<hash_table, Container>::value
+	     || is_specialization_of<hash_index, Container>::value>::type>
+void reserve_space( Container & c, size_t s ) {
+    size_t s2 = s;
+    size_t m = 1;
+    while( (s2 & (s2-1)) != 0 ) {
+	s2 &= ~m;
+	m <<= 1;
+    }
+    c.rehash( s2<<1 );
+}
+
+template<typename Container,
+	 typename std::enable_if<
+	     is_specialization_of<std::vector, Container>::value>::type*
+	 = nullptr>
+void reserve_space( Container & c, size_t s ) {
+    c.reserve( s );
+}
 
 class word_bank_base {
     // list of all chunks of text
@@ -262,24 +297,38 @@ public:
     }
 };
 
+template<typename Type>
+struct value_cmp {
+    bool operator () ( const Type & v1, const Type & v2 ) const {
+	return v1 < v2;
+    }
+};
+
+template<> struct value_cmp<const char *> {
+    bool operator () ( const char * v1, const char * v2 ) const {
+	return strcmp( v1, v2 ) < 0;
+    }
+};
+
 // TODO: make parameter for word_list/merge/reduce operator
 template<typename ValueTyL, typename ValueTyR>
 struct pair_cmp {
-    bool operator () ( const ValueTyL & v1, const ValueTyR & v2 ) {
-	return strcmp( v1.first, v2.first ) < 0;
+    bool operator () ( const ValueTyL & v1, const ValueTyR & v2 ) const {
+	return value_cmp<decltype(v1.first)>()( v1.first, v2.first );
+	// return strcmp( v1.first, v2.first ) < 0;
     }
 };
 
 template<typename ValueTyL, typename ValueTyR>
 struct pair_add_reducer {
-    void operator () ( ValueTyL & v1, const ValueTyR & v2 ) {
+    void operator () ( ValueTyL & v1, const ValueTyR & v2 ) const {
 	v1.second += v2.second;
     }
 };
 
 template<typename ValueTyL, typename ValueTyR>
 struct pair_nonzero_reducer {
-    void operator () ( ValueTyL & v1, const ValueTyR & v2 ) {
+    void operator () ( ValueTyL & v1, const ValueTyR & v2 ) const {
 	v1.second += ( v2.second > 0 );
     }
 };
@@ -495,6 +544,8 @@ public:
     typedef typename index_type::iterator	iterator;
 
     static const bool is_managed = word_bank_type::is_managed;
+    static const bool can_sort = true;
+    static const bool always_sorted = false;
 
 private:
     template<typename OtherIndexTy>
@@ -601,17 +652,20 @@ public:
     void count_presence( const word_map<OtherIndexTy,OtherWordBankTy> & rhs ) {
 	typedef typename word_map<OtherIndexTy,OtherWordBankTy>::value_type
 	    other_value_type;
-	core_reduce( rhs.cbegin(), rhs.cend(), rhs.storage(),
+	core_reduce( rhs.cbegin(), rhs.cend(), rhs.size(),
+		     pair_cmp<value_type,value_type>(),
 		     pair_nonzero_reducer<value_type,other_value_type>() );
+	this->m_storage.copy( rhs.storage() );
     }
 
     template<typename OtherIndexTy, typename OtherWordBankTy>
     void count_presence( const kv_list<OtherIndexTy,OtherWordBankTy> & rhs ) {
 	typedef typename kv_list<OtherIndexTy,OtherWordBankTy>::value_type
 	    ::second_type other_value_type;
-	core_reduce( rhs.cbegin(), rhs.cend(), rhs.size(), rhs.storage(),
+	core_reduce( rhs.cbegin(), rhs.cend(), rhs.size(),
 		     pair_cmp<value_type,value_type>(),
 		     pair_nonzero_reducer<value_type,other_value_type>() );
+	this->m_storage.copy( rhs.storage() );
     }
 
 
@@ -621,16 +675,16 @@ public:
     void reduce( kv_list & rhs ) {
 	// TODO: consider parallel merge (std::experimental::parallel_merge)
 	// TODO: Better with move iterators?
-	core_reduce( rhs.begin(), rhs.end(), rhs.size(), rhs.storage(),
+	core_reduce( rhs.begin(), rhs.end(), rhs.size(),
 		     pair_cmp<value_type,value_type>(),
 		     pair_add_reducer<value_type,value_type>() );
+	this->m_storage.copy( std::move(rhs.storage()) );
 	rhs.clear();
     }
 
 private:
     template<class InputIt, class Compare, class Reduce>
     void core_reduce(InputIt first2, InputIt last2, size_t size2,
-		     const word_bank_base & storage,
 		     Compare cmp, Reduce reduce) {
 	index_type joint;
 	joint.reserve( this->size() + size2 ); // worst case
@@ -639,7 +693,6 @@ private:
 		    pair_cmp<value_type,value_type>(),
 		    pair_add_reducer<value_type,value_type>() );
 	this->m_words.swap( joint );
-	this->m_storage.copy( std::move(storage) );
     }
     template<class InputIt, class OutputIt, class Compare, class Reduce>
     OutputIt core_merge(iterator first1, iterator last1,
@@ -724,6 +777,9 @@ public:
     typedef typename index_type::iterator	iterator;
 
     static const bool is_managed = word_bank_type::is_managed;
+    static const bool can_sort = false;
+    static const bool always_sorted
+	= is_specialization_of<std::map, index_type>::value;
 
     template<typename OtherIndexTy, typename OtherWordBankTy>
     friend class word_map;
@@ -736,6 +792,15 @@ private:
 	std::is_same<typename OtherIndexTy::key_type, key_type>::value
 	&&
 	std::is_same<typename OtherIndexTy::mapped_type, mapped_type>::value> {
+    };
+
+    template<typename OtherIndexTy>
+    struct is_compatible_kv
+	: std::integral_constant<
+	bool,
+	std::is_same<typename OtherIndexTy::value_type::first_type, key_type>::value
+	&&
+	std::is_same<typename OtherIndexTy::value_type::second_type, mapped_type>::value> {
     };
 
 public:
@@ -776,17 +841,19 @@ public:
     const_iterator cbegin() const { return this->m_words.cbegin(); }
     const_iterator cend() const { return this->m_words.cend(); }
 
-    iterator find( const char * w ) {
+    void reserve( size_t n ) { reserve_space( this->m_words, n ); }
+
+    iterator find( const key_type & w ) {
 	return this->m_words.find( w );
     }
-    const_iterator find( const char * w ) const {
+    const_iterator find( const key_type & w ) const {
 	return this->m_words.find( w );
     }
     // For reference and ease of substituting types in templates
-    iterator binary_search( const char * w ) {
+    iterator binary_search( const key_type & w ) {
 	return find( w );
     }
-    const_iterator binary_search( const char * w ) const {
+    const_iterator binary_search( const key_type & w ) const {
 	return find( w );
     }
 
@@ -810,16 +877,32 @@ public:
     typename
     std::enable_if<is_compatible<OtherIndexTy>::value>::type
     insert( const word_map<OtherIndexTy,OtherWordBankTy> & wc ) {
-	this->m_words.insert( this->m_words.end(), wc.cbegin(), wc.cend() );
+	this->m_words.insert( wc.cbegin(), wc.cend() );
 	this->m_storage.copy( wc.storage() );
     }
     template<typename OtherIndexTy, typename OtherWordBankTy>
     typename
     std::enable_if<is_compatible<OtherIndexTy>::value>::type
     insert( word_map<OtherIndexTy,OtherWordBankTy> && wc ) {
-	this->m_words.insert( this->m_words.end(),
-			      std::make_move_iterator(wc.begin()),
-			      std::make_move_iterator(wc.end()) );
+	// std::make_move_iterator on wc.begin() and end() segfaults
+	// if wc is a asap::hashtable
+	this->m_words.insert( wc.begin(), wc.end() );
+	this->m_storage.copy( std::move(wc.storage()) );
+	wc.clear();
+    }
+
+    template<typename OtherIndexTy, typename OtherWordBankTy>
+    typename
+    std::enable_if<is_compatible_kv<OtherIndexTy>::value>::type
+    insert( const kv_list<OtherIndexTy,OtherWordBankTy> & wc ) {
+	this->m_words.insert( wc.cbegin(), wc.cend() );
+	this->m_storage.copy( wc.storage() );
+    }
+    template<typename OtherIndexTy, typename OtherWordBankTy>
+    typename
+    std::enable_if<is_compatible_kv<OtherIndexTy>::value>::type
+    insert( kv_list<OtherIndexTy,OtherWordBankTy> && wc ) {
+	this->m_words.insert( wc.begin(), wc.end() );
 	this->m_storage.copy( std::move(wc.storage()) );
 	wc.clear();
     }
@@ -851,7 +934,7 @@ private:
 	    // The reason hereto is that we cannot overwrite the key
 	    // once the element has been inserted. Unless if we force it
 	    // with a const_cast...
-	    const char * w = I->first;
+	    key_type w = I->first;
 	    if( word_bank_type::is_managed ) { // record new copy of word
 		size_t len = strlen( I->first );
 		w = memorize( (char*)I->first, len );
@@ -1042,10 +1125,20 @@ private:
 	if( fstat( fd, &finfo ) < 0 )
 	    fatale( "fstat", fname );
 
-	uint64_t r = 0;
+#if 0
+	char * buf = (char*)mmap(0, finfo.st_size + 1, 
+				 PROT_READ | PROT_WRITE,
+				 MAP_PRIVATE | MAP_POPULATE, fd, 0);
+#else
 	char * buf = new char[finfo.st_size+1];
-	while( r < (uint64_t)finfo.st_size )
-	    r += pread( fd, buf + r, finfo.st_size, r );
+	uint64_t r = 0;
+	while( r < (uint64_t)finfo.st_size ) {
+	    uint64_t rr = pread( fd, buf + r, finfo.st_size - r, r );
+	    if( rr == (uint64_t)-1 )
+		fatale( "pread", fname );
+	    r += rr;
+	}
+#endif
 	buf[finfo.st_size] = '\0';
 
 	close( fd );
@@ -1061,4 +1154,4 @@ private:
 
 } // namespace asap
 
-#endif // INCLUDED_ASAP_MEMORY_H
+#endif // INCLUDED_ASAP_WORD_BANK_H
