@@ -115,7 +115,7 @@ data_set_type tfidf_driver( directory_listing_type & dir_list ) {
 	// TODO: replace by post-processing parallel multi-way merge?
 	allwords.count_presence( catalog[i] );
     }
-   get_time( wc_end );
+    get_time( wc_end );
 
     std::shared_ptr<agg_map_type> allwords_ptr
 	= std::make_shared<agg_map_type>();
