@@ -62,7 +62,7 @@ std::vector<std::pair<typename DataSet::value_type,
 	// TODO: consider vectorization
 	mm[i] = std::make_pair(
 	    std::numeric_limits<value_type>::max(),
-	    std::numeric_limits<value_type>::min() );
+	    -std::numeric_limits<value_type>::max() );
     }
 
     // Calculate minimum and maximum value

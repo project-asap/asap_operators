@@ -11,6 +11,7 @@
 #include "asap/memory.h"
 #include "asap/traits.h"
 #include "asap/data_set.h"
+#include "asap/word_count.h"
 
 namespace asap {
 
@@ -154,8 +155,10 @@ read_sparse_vector( char *& pref, char * end, vector_type & vector ) {
 	++p;
     do {
 	typename vector_type::index_type i = std::strtoul( p, &p, 10 );
-	while( std::isspace( *p ) )
+	while( std::isspace( *p ) || *p == ':' )
 	    ++p;
+	if( *p == '}' )
+	    break;
 	if( *p == '?' )
 	    fatal( "missing data not supported" );
 	typename vector_type::value_type vv = 0;
@@ -499,6 +502,35 @@ const char * as_word( const std::pair<Type1,Type2> & val ) {
     return val.first;
 }
 
+template<typename Type>
+const char * get_value( const Type & val ) {
+    return "";
+}
+
+template<typename Type1, typename Type2>
+const Type2 & get_value( const std::pair<Type1,Type2> & val ) {
+    return val.second;
+}
+
+template<typename Type1, typename Type2>
+std::ostream &
+operator << ( std::ostream & os, const std::pair<Type1,Type2> & val ) {
+    return os << as_word( val );
+}
+
+template<size_t N, typename Type2>
+std::ostream &
+operator << ( std::ostream & os,
+	      const std::pair<asap::text::ngram<N>,Type2> & val ) {
+    for( size_t i=0; i < N; ++i ) {
+	os << as_word( val.first[i] );
+	if( i < N-1 )
+	    os << '#';
+    }
+    return os;
+}
+
+
 template<typename VectorIter, typename ColNameIter, typename RowNameIter>
 void arff_write( std::ostream & of,
 		 const char * const relation_name,
@@ -508,12 +540,13 @@ void arff_write( std::ostream & of,
     of << "@relation " << relation_name;
 
     for( auto I=cI; I != cE; ++I )
-	of << "\n\t@attribute " << as_word(*I) << " numeric";
+	of << "\n\t@attribute " << *I
+	   << " numeric % value=" << get_value(*I);
 
     of << "\n\n@data";
 
     for( auto I=vI; I != vE; ++I, ++rI )
-	of << "\n\t" << *I << " % " << as_word(*rI);
+	of << "\n\t" << *I << " % " << *rI;
 
     of << std::endl;
 }

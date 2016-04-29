@@ -8,13 +8,11 @@
 
 namespace asap {
 
-/* -- unused
 template<template<typename...> class Template, typename T>
 struct is_specialization_of : std::false_type { };
 
 template<template<typename...> class Template, typename... Params>
 struct is_specialization_of<Template, Template<Params...>> : std::true_type { };
-*/
 
 namespace internal {
 

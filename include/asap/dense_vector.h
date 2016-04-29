@@ -324,7 +324,7 @@ operator << ( std::ostream & os, const VectorTy & sv ) {
 	typename VectorTy::value_type v;
 	typename VectorTy::index_type c;
 	sv.get( i, v, c );
-	os << c << ": " << v;
+	os << c << " " << v;
 	if( i+1 < e )
 	    os << ", ";
     }

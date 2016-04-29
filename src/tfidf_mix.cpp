@@ -268,6 +268,17 @@ data_set_type tfidf_driver( directory_listing_type & dir_list ) {
 
 	// std::cerr << ": " << catalog[i].size() << " words\n";
 
+	// TODO: merge hash -> list conversion and count_presence() in one
+	//       step. Motivation: possibly need to access LLC/memory during
+	//       traversal. More iops/memop.
+
+	// TODO: use two different global (allwords) data structures:
+	//  1. during the wc phase, use a hash map(?) with 1 value only (#files)
+	//  2. then assign uniq IDs. Hereto need to iterate the hash map(?)
+	//     construct a parallel iteration over the buckets of the hash map.
+	//  3. construct a data structure suitable for the last phase with all
+	//     features (#files, uniq ID)
+
 	// TODO: replace by post-processing parallel multi-way merge?
 	allwords.count_presence( catalog[i] );
     }
@@ -546,6 +557,7 @@ int main(int argc, char **argv) {
     case 0x01021: CMD('h','l','h','m','l'); break;
     case 0x01022: CMD('h','l','h','m','m'); break;
     case 0x01044: CMD('h','l','h','d','d'); break;
+    case 0x01100: CMD('h','l','l','h','h'); break;
     case 0x01111: CMD('h','l','l','l','l'); break;
     case 0x01113: CMD('h','l','l','l','i'); break;
     case 0x01212: CMD('h','l','m','l','m'); break;
