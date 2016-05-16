@@ -43,7 +43,10 @@ To build and run tests for all the compiler and operators,  from this directory 
 
 
 Direct invocation and argument options
---------------
+--------------------------------------
+
+kmeans
+------
 Arguments can be supplied to a direct invocation of kmeans.  An example of a direct invocation command line is:
     ./kmeans_arff -c 2 -i test.arff -o kmeans_results.txt
 
@@ -54,6 +57,8 @@ And the possible arguments are:
  - i \- to specify the input file
  - o \- to speccify the output file
  
+tfidf
+-----
 Arguments can be supplied to a direct invocation of tfidf.  An example of a direct invocation command line is:
     ./tfidf_std -d test -o tfidf_results.txt
 
