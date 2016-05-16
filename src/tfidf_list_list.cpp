@@ -188,7 +188,7 @@ int main(int argc, char **argv) {
 	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr );
     } else {
 	tfidf = asap::tfidf<vector_type>(
-	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr );
+	    catalog.cbegin(), catalog.cend(), allwords_ptr, *allwords_ptr, dir_list_ptr , true, true);
     }
     get_time (end);
     print_time("TF/IDF", begin, end);

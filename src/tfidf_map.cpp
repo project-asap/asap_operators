@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
 
     data_set_type tfidf
 	= asap::tfidf<vector_type>(
-	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr );
+	    catalog.cbegin(), catalog.cend(), allwords_ptr, *allwords_ptr, dir_list_ptr , true, true);
     get_time (end);
     print_time("TF/IDF", begin, end);
 
