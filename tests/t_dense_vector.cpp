@@ -1,3 +1,4 @@
+/* -*-C++-*- */
 /*
  * Copyright 2016 EU Project ASAP 619706.
  *

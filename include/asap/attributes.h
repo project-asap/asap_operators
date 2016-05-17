@@ -1,3 +1,5 @@
+/* -*-C++-*-
+ */
 /*
  * Copyright 2016 EU Project ASAP 619706.
  *
@@ -14,8 +16,6 @@
  * limitations under the License.
 */
 
-/* -*-C++-*-
- */
 
 #ifndef INCLUDED_ASAP_ATTRIBUTES_H
 #define INCLUDED_ASAP_ATTRIBUTES_H

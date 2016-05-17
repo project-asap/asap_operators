@@ -1,3 +1,5 @@
+/* -*-C++-*-
+ */
 /*
  * Copyright 2016 EU Project ASAP 619706.
  *
@@ -13,9 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
 */
-
-/* -*-C++-*-
- */
 
 #ifndef INCLUDED_ASAP_KMEANS_H
 #define INCLUDED_ASAP_KMEANS_H

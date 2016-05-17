@@ -1,3 +1,4 @@
+// -*- c++ -*-
 /*
  * Copyright 2016 EU Project ASAP 619706.
  *
@@ -12,9 +13,10 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * This is based on code from Pheonix++ Version 1.0, license below applies.
 */
 
-// -*- c++ -*-
 /* Copyright (c) 2016, Queen's University Belfast.
  */
 /* Based on:

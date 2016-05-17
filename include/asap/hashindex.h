@@ -1,3 +1,4 @@
+// -*- c++ -*-
 /*
  * Copyright 2016 EU Project ASAP 619706.
  *
@@ -14,7 +15,6 @@
  * limitations under the License.
 */
 
-// -*- c++ -*-
 /* Copyright (c) 2016, Queen's University Belfast.
  */
 
