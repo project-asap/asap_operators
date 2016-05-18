@@ -212,7 +212,7 @@ int main(int argc, char **argv) {
 	    do_sort ); // whether catalogs are sorted
     } else {
 	data_set = asap::tfidf<vector_type>(
-	    catalog.cbegin(), catalog.cend(), allwords_ptr, *allwords_ptr, dir_list_ptr , do_sort, true);
+	    catalog.cbegin(), catalog.cend(), allwords_ptr, *allwords_ptr, dir_list_ptr , true, true);
     }
     get_time( end );
     print_time("TF/IDF", begin, end);

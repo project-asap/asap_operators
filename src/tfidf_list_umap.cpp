@@ -153,7 +153,7 @@ data_set_type tfidf_driver( directory_listing_type & dir_list ) {
     } else {
 	tfidf = asap::tfidf<typename data_set_type::vector_type>(
 	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr,
-	    do_sort, do_sort ); // whether catalogs are sorted
+	    false, true ); // whether catalogs are sorted
     }
     get_time(tfidf_end);
 
