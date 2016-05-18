@@ -21,10 +21,20 @@ OPLIB=SwanMaterialised.json
 	@ make `ls -1 $*.dir/*.cpp | sed -e 's/.cpp//'`
 
 ## Test Rules
-
-test_%: %.dir
+test_tfidf: test_%: tfidf.dir
 	@ echo " #####   Executing Workflow $*   #####"
 	@ $*.dir/$*
+	@if cmp tfidf_output.arff tfidf_output.arff.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
+
+test_kmeans: test_%: kmeans.dir
+	@ echo " #####   Executing Workflow $*   #####"
+	@ $*.dir/$*
+	@if cmp kmeans_output.txt kmeans_output.txt.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
+
+test_tfidf_and_kmeans: test_%: tfidf_and_kmeans.dir
+	@ echo " #####   Executing Workflow $*   #####"
+	@ $*.dir/$*
+	@if cmp kmeans_output.txt kmeans_output.txt.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 
 test_tfidf_then_kmeans: test_%: tfidf_then_kmeans.dir
 	if [ -a $*.dir/tfidf_kmeans ] ; \
@@ -37,7 +47,8 @@ test_tfidf_then_kmeans: test_%: tfidf_then_kmeans.dir
 		$*.dir/kmeans ; \
 	fi;
 	@ echo " #####   Execution of Workflow $* complete  #####"
-
+	@if cmp tfidf_output.arff test_tfidf_then_kmeans_output.arff.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
+	@if cmp kmeans_output.txt test_tfidf_then_kmeans_output.txt.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 ##
 ## Swan/C++ compilation Rules
 ##
@@ -67,14 +78,18 @@ test:
 	@ echo "_________________________________________________________________________________"
 	@ make tfidf.dir
 	@ make test_tfidf
+	@ cp tfidf_output.arff test_tfidf_output.arff.good
 	@ echo "_________________________________________________________________________________"
 	@ make kmeans.dir
 	@ make test_kmeans
+	@ cp kmeans_output.txt test_kmeans_output.txt.good
 	@ echo "_________________________________________________________________________________"
 	@ make tfidf_and_kmeans.dir
 	@ make test_tfidf_and_kmeans
+	@ cp kmeans_output.txt test_tfidf_and_kmeans_output.txt.good
 	@ echo "_________________________________________________________________________________"
 	@ make tfidf_then_kmeans.dir
 	@ make test_tfidf_then_kmeans
+	@ cp tfidf_output.arff test_tfidf_then_kmeans_output.arff.good
+	@ cp kmeans_output.txt test_tfidf_then_kmeans_output.txt.good
 	@ echo "_________________________________________________________________________________"
-
