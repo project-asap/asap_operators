@@ -525,7 +525,13 @@ int main(int argc, char **argv) {
     std::cerr << "total bytes: " << total_size << '\n';
 
     typedef size_t index_type;
+#if MEM == 0 // default
     typedef asap::word_bank_pre_alloc word_bank_type;
+#elif MEM == 1
+    typedef asap::word_bank_malloc word_bank_type;
+#elif MEM == 2
+    typedef asap::word_bank_managed word_bank_type;
+#endif
 
     typedef asap::sparse_vector<index_type, float, false,
 				asap::mm_no_ownership_policy>

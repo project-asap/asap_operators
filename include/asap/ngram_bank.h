@@ -42,8 +42,8 @@ public:
 	m_storage.swap( wb.m_storage );
     }
 
-    void enregister( std::shared_ptr<char> && buf ) {
-	m_storage.enregister( std::move(buf) );
+    void enregister( std::shared_ptr<char> & buf ) {
+	m_storage.enregister( buf );
     }
 
     // Build up a string
