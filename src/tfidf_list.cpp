@@ -150,6 +150,8 @@ int main(int argc, char **argv) {
 	= std::make_shared<directory_listing_type>();
     dir_list_ptr->swap( dir_list );
 
+    asap::internal::assign_ids( allwords_ptr->begin(), allwords_ptr->end() );
+
     data_set_type tfidf
 	= asap::tfidf<vector_type>(
 	    catalog.cbegin(), catalog.cend(), allwords_ptr, *allwords_ptr, dir_list_ptr , false, true);

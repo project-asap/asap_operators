@@ -148,6 +148,9 @@ int main(int argc, char **argv) {
 	// = std::make_shared<word_map_type2>();
     // allwords_ptr->swap( allwords.get_value() );
 
+    asap::internal::assign_ids( allwords.get_value().begin(),
+				allwords.get_value().end() );
+
     asap::tfidf_inplace<float>(
 		    catalog.begin(), catalog.end(), allwords.get_value() );
     get_time (end);

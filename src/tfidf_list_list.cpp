@@ -184,6 +184,7 @@ int main(int argc, char **argv) {
     print_time("convert to list", begin, end);
 
     get_time( begin );
+    asap::internal::assign_ids( allwords_ptr->begin(), allwords_ptr->end() );
     data_set_type tfidf;
     if( by_words ) {
 	tfidf = asap::tfidf_by_words<vector_type>(
