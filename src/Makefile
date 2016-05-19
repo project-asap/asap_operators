@@ -1,4 +1,4 @@
-targets=kmeans tfidf_list tfidf_map tfidf_list_inplace tfidf_list_list tfidf_list_umap tfidf_kmeans wc tfidf_1gram tfidf_2gram tfidf_3gram tfidf_sfxa
+targets=kmeans tfidf_list tfidf_map tfidf_list_inplace tfidf_list_list tfidf_list_umap tfidf_kmeans wc tfidf_1gram tfidf_2gram tfidf_3gram
 tfidf_tests=tfidf_list tfidf_map tfidf_list_inplace tfidf_list_list tfidf_list_umap tfidf_kmeans wc tfidf_mix_malloc tfidf_mix_prealloc tfidf_mix_managed
 tests=$(patsubst %, test_%, $(targets))
 
