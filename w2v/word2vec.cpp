@@ -644,6 +644,8 @@ void TrainModel() {
   InitNet();
   if (negative > 0) InitUnigramTable();
   start = clock();
+// HV: TODO: Potentially split highly parallel loop across more chunks
+//           to allow for load balancing; do proper cilk_for loop
   cilk_for (a = 0; a < num_threads; a++) TrainModelThread((void *) a);
   // for (a = 0; a < num_threads; a++) pthread_create(&pt[a], NULL, TrainModelThread, (void *)a);
   // for (a = 0; a < num_threads; a++) pthread_join(pt[a], NULL);
