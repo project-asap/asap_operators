@@ -62,6 +62,16 @@ struct dense_vector_operations {
 	}
 	return sq_dist;
     }
+
+    static value_type
+    square_norm( value_type const *a, index_type length ) {
+	value_type sq_norm = 0;
+	for( value_type const *IA=a, *EA=a+length; IA != EA; ++IA ) {
+	    value_type val = *IA;
+	    sq_norm += val * val;
+	}
+	return sq_norm;
+    }
 };
 
 #ifdef __INTEL_COMPILER
@@ -100,10 +110,18 @@ struct dense_vector_operations<IndexTy,ValueTy,true> {
 	return __sec_reduce_add( esqd( a[0:length], b[0:length] ) );
     }
 
+    static value_type
+    square_norm( value_type const *a, index_type length ) {
+	return __sec_reduce_add( esqn( a[0:length] ) );
+    }
+
 private:
     static value_type esqd( value_type a, value_type b ) {
 	value_type diff = a - b;
 	return diff * diff;
+    }
+    static value_type esqn( value_type a ) {
+	return a * a;
     }
 };
 #endif

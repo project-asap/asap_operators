@@ -81,7 +81,7 @@ public:
     void update_sqnorm() {
 	// A more efficient solution is possible for sparse vectors,
 	// making use of the fact that the arguments to sq_dist() are the same.
-	m_sqnorm = vector_type::sq_dist( *this );
+	m_sqnorm = vector_type::sq_norm();
     }
     value_type get_sqnorm() const { return m_sqnorm; }
 

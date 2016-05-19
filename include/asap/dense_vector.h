@@ -160,6 +160,11 @@ public:
 	return vector_ops::square_euclidean_distance( m_value, m_length, p.get_value() );
     }
     
+    // Square of Euclidean norm
+    value_type sq_norm() const {
+	return vector_ops::square_norm( m_value, m_length );
+    }
+    
     // For reduction of centre computations
     template<typename OtherVectorTy>
     const typename std::enable_if<is_dense_vector<OtherVectorTy>::value, dense_vector>::type &
