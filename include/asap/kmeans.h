@@ -243,6 +243,7 @@ private:
 	    for(size_t j = 0; j < m_num_clusters; j++) {
 		// assign point to cluster with smallest total squared distance
 		value_type distance = II->sq_dist( m_centres[j] );
+		assert( distance >= 0 );
 		if( distance < smallest_distance ) {
 		    smallest_distance = distance;
 		    new_cluster_id = j;
@@ -266,6 +267,7 @@ private:
 
 	new_centres->swap( m_centres );
 	m_sse = sse.get_value();
+	assert( m_sse >= 0 );
 	normalize();
 	return modified;
     }
