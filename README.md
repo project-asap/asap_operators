@@ -6,7 +6,6 @@ The repository contains:
 * Implementations of the Swan operators defined within the workflows.  These include:
 -	TF-IDF
 -	k-means
--	word2vec
 
 Compiler
 --------------
@@ -41,3 +40,28 @@ To build and run tests for all the compiler and operators,  from this directory 
     make -C kmeans test
     make -C tfidf test
     make -C src test
+
+
+Direct invocation and argument options
+--------------------------------------
+
+kmeans
+------
+Arguments can be supplied to a direct invocation of kmeans.  An example of a direct invocation command line is:
+    ./kmeans_arff -c 2 -i test.arff -o kmeans_results.txt
+
+And the possible arguments are:
+ - d \- to force a (slower) dense computation
+ - m \- to set maximum iterations for the algorithm
+ - c \- to set the number of clusters to kmeans
+ - i \- to specify the input file
+ - o \- to speccify the output file
+ 
+tfidf
+-----
+Arguments can be supplied to a direct invocation of tfidf.  An example of a direct invocation command line is:
+    ./tfidf_std -d test -o tfidf_results.txt
+
+And the possible arguments are:
+ - d \- to specify the input file
+ - o \- to speccify the output file

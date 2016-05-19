@@ -64,28 +64,32 @@ tfidf_mix_prealloc.o: tfidf_mix.cpp $(INCLUDE)
 test: $(targets) $(tests) FORCE
 
 test_tfidf_list_umap: tfidf_list_umap FORCE
-	./$< -i testdir -o tfidf_results.txt -s
+	./$< -i testdir -o $@.txt -s
+	@if cmp $@.txt $@.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 
-test_tfidf_list_inplace: tfidf_list_inplace FORCE
-	./$< -i testdir -o tfidf_results.txt
+# test_tfidf_list_inplace: tfidf_list_inplace FORCE
+	# ./$< -i testdir -o $@.txt
+	# @if cmp $@.txt $@.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 
 test_wc: wc FORCE
-	./wc -i testdir -o wc_results.txt
-	@if cmp wc_results.txt testdir_wc.txt ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
+	./wc -i testdir/file3 -o $@.txt
+	@if cmp $@.txt $@.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 
 test_kmeans: kmeans FORCE
-	@ ./$< -i test.arff -o kmeans_results.txt
+	@ ./$< -i test.arff -o $@.txt
+	@if cmp $@.txt $@.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 
 test_tfidf_kmeans: tfidf_kmeans FORCE
-	@ ./$< -i testdir -o kmeans_results.txt
+	@ ./$< -i testdir -o $@.txt
+	@if cmp $@.txt $@.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 
 test_%: % FORCE
-	./$< -i testdir -o tfidf_results.txt
-	@if cmp tfidf_results.txt testdir_tfidf.txt ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
+	./$< -i testdir -o $@.txt
+	@if cmp $@.txt $@.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 
 FORCE:
 
 .PHONY: clean
 clean:
-	rm -f $(targets) $(OBJ) wc_results.txt kmeans_results.txt tfidf_results.txt
+	rm -f $(targets) $(OBJ) test_*.txt
 

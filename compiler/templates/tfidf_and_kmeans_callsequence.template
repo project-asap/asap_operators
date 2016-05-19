@@ -74,7 +74,7 @@
 
     data_set_type data_set
         = asap::tfidf<vector_type>(
-            catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr );
+            catalog.cbegin(), catalog.cend(), allwords_ptr, *allwords_ptr, dir_list_ptr , do_sort, true);
     get_time( end );
     print_time("TF/IDF", begin, end);
     std::cerr << "TF/IDF number of words: " << data_set.get_dimensions()
