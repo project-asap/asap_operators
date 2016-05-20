@@ -3,7 +3,7 @@
 		"id": "i0",
 		"name": "textDirectoryDataset",
 		"type": "input",
-		"filename": "all"
+		"filename": "tfidf_input"
 	},
 	{
 		"id": "op0",
@@ -20,6 +20,6 @@
 		"id": "o0",
 		"name": "arffDataset",
 		"type": "output",
-		"filename": "mytest.arff"
+		"filename": "tfidf_output.arff"
 	}]
 }

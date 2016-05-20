@@ -533,7 +533,8 @@ word_catalog( const std::string & filename,
 			    builder.get_buffer_end()-builder.get_buffer(),
 			    builder.get_word_list(), chunk_size );
 
-    internal::move_word_container( word_container, intl_container );
+    internal::move_word_container( word_container, std::move(intl_container) );
+    intl_container.mark_clear();
 
     return nwords;
 }

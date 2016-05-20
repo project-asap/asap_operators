@@ -15,7 +15,7 @@
 		    "type": "directory"
 		},
 		"Execution": {
-		    "path": "/var/shared/projects/asap/inputs/operators/tfidf_input/"
+		    "path": "./"
 		},
 		"input": []
 	},
@@ -36,7 +36,7 @@
                     "type": "file"
                 },
                 "Execution": {
-                    "path": "/var/shared/projects/asap/inputs/operators/kmeans_input/"
+                    "path": "./"
                 },
 		"input": []
 	},
@@ -57,7 +57,7 @@
                     "type": "file"
                 },
                 "Execution": {
-                    "path": "/var/shared/projects/asap/inputs/operators/kmeans_output/"
+                    "path": "./"
                 },
 		"input": []
 	},
@@ -281,12 +281,12 @@
 		"type": "arg_declaration",
 		"algorithm.names": ["tfidf_and_kmeans"],
                 "argTemplates": [{"max_iters": "const int VARIN = VAROUT;", "num_clusters": "const int VARIN = VAROUT;", "force_dense": "const bool VARIN = VAROUT;", "by_words": "const bool VARIN = VAROUT;", "do_sort": "const bool VARIN = VAROUT;", "rnd_init": "unsigned int VARIN = VAROUT;"}],
-                "argDefaults": [{"max_iters": "0", "num_clusters": "8", "force_dense": "false", "by_words": "false", "do_sort": "false", "rnd_init": "1"}]
+                "argDefaults": [{"max_iters": "0", "num_clusters": "2", "force_dense": "false", "by_words": "false", "do_sort": "false", "rnd_init": "1"}]
         },
 	{
 		"type": "arg_declaration",
 		"algorithm.names": ["kmeans"],
                 "argTemplates": [{"max_iters": "const int VARIN = VAROUT;", "num_clusters": "const int VARIN = VAROUT;", "force_dense": "const bool VARIN = VAROUT;", "is_sparse": "const bool VARIN = VAROUT;"}],
-                "argDefaults": [{"max_iters": "0", "num_clusters": "8", "force_dense": "false", "by_words": "false", "do_sort": "false", "rnd_init": "1", "is_sparse": "false"}]
+                "argDefaults": [{"max_iters": "0", "num_clusters": "2", "force_dense": "false", "by_words": "false", "do_sort": "false", "rnd_init": "1", "is_sparse": "false"}]
         }]
 }

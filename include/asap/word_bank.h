@@ -88,7 +88,10 @@ public:
 	m_store.swap( wb.m_store );
     }
 
+    void clear( const char * ) { }
     void clear() {
+	// if( m_store.size() > 0 )
+	    // std::cerr << "Unlinking " << m_store.size() << " chunks of text\n";
 	// Delete chunks of data held in word_bank
 	m_store.clear();
     }
@@ -100,12 +103,14 @@ public:
 			rhs.m_store.cbegin(), rhs.m_store.cend() );
     }
 
-    void copy( word_bank_base && rhs ) {
+    void copy( word_bank_base && rhs ) { // unued?
 	// This creates shared_ptr<>'s pointing to the same blocks
 	// as the rhs container
-	m_store.insert( m_store.end(),
-			std::make_move_iterator(rhs.m_store.begin()),
-			std::make_move_iterator(rhs.m_store.end()) );
+	m_store.splice( m_store.end(), std::move(rhs.m_store) );
+    }
+
+    void move( word_bank_base & rhs ) {
+	m_store.splice( m_store.end(), rhs.m_store );
     }
 
     void reduce( word_bank_base & rhs ) {
@@ -114,8 +119,8 @@ public:
 	m_store.splice( m_store.end(), rhs.m_store );
     }
 
-    void enregister( std::shared_ptr<char> && buf ) {
-	m_store.push_back( std::move(buf) );
+    void enregister( std::shared_ptr<char> & buf ) {
+	m_store.push_back( buf );
     }
 
 protected:
@@ -133,6 +138,7 @@ protected:
 class word_bank_managed : public word_bank_base {
 public:
     static const bool is_managed = true;
+    static const bool is_allocated = false;
     
 private:
     const size_t	  m_chunk;
@@ -162,6 +168,7 @@ public:
     }
     ~word_bank_managed() { clear(); }
 
+    void clear( const char * ) { }
     void clear() {
 	word_bank_base::clear();
 	m_avail = 0;
@@ -223,11 +230,56 @@ private:
     }
 };
 
+class word_bank_malloc : public word_bank_base {
+public:
+    static const bool is_managed = true;
+    static const bool is_allocated = true;
+    
+    word_bank_malloc() { }
+    word_bank_malloc( const word_bank_malloc & wb ) { }
+    word_bank_malloc( word_bank_malloc && wb ) { }
+    word_bank_malloc & operator = ( const word_bank_malloc & wb ) {
+	return *this;
+    }
+    word_bank_malloc & operator = ( word_bank_malloc && wb ) {
+	return *this;
+    }
+    ~word_bank_malloc() { }
+
+    void clear( const char * p ) {
+	// std::cerr << "clear " << (void*)p << ": -" << p << "-\n";
+	delete[] p;
+    }
+    void clear() { }
+
+    // Push len characters starting at p and '\0' delimit it
+    const char * store( const char * p, size_t len ) {
+	char * s = new char[len+1];
+	strncpy( s, p, len );
+	s[len] = '\0';
+	// std::cerr << "store " << (void*)s << ": -" << s << "-\n";
+	return s;
+    }
+
+    // Build up a string
+    const char * append( const char * start, const char * str, size_t len ) {
+	assert( 0 );
+	return 0;
+    }
+
+    // Note: this is dangerous to use...
+    void erase( const char * w ) {
+	// std::cerr << "erase " << (void*)w << ": -" << w << "-\n";
+	delete[] w;
+    }
+};
+
 // A word bank with all words taken from a pre-defined block of text.
 // The block of text is modified with '\0' to indicate end of string.
 class word_bank_pre_alloc : public word_bank_base {
 public:
     static const bool is_managed = false;
+    static const bool is_allocated = false;
     
 public:
     word_bank_pre_alloc( char * store = 0 ) {
@@ -245,6 +297,7 @@ public:
     word_bank_pre_alloc & operator = ( word_bank_pre_alloc && ) = delete;
     ~word_bank_pre_alloc() { clear(); }
 
+    void clear( const char * ) { }
     void clear() {
 	// Parent class has ownership over m_store chunk
 	word_bank_base::clear();
@@ -285,23 +338,24 @@ public:
     word_container( word_container && wc )
 	: m_words( std::move(wc.m_words) ),
 	  m_storage( std::move(wc.m_storage) ) { }
+    ~word_container() { clear(); }
 
     // template<typename... Args>
     // word_container( Args... args ) : m_storage( args... ) { }
 
     const word_bank_type & storage() const { return m_storage; }
+    word_bank_type & storage() { return m_storage; }
 
     size_t size() const		{ return m_words.size(); }
     bool empty() const		{ return m_words.empty(); }
-
-    void clear()		{ m_words.clear(); m_storage.clear(); } 
+    void clear()		{ m_storage.clear(); m_words.clear(); } 
     void swap( word_container & wb ) {
 	m_words.swap( wb.m_words );
 	m_storage.swap( wb.m_storage );
     }
 
-    void enregister( std::shared_ptr<char> && buf ) {
-	m_storage.enregister( std::move(buf) );
+    void enregister( std::shared_ptr<char> & buf ) {
+	m_storage.enregister( buf );
     }
 
     // Build up a string
@@ -327,6 +381,13 @@ template<> struct value_cmp<const char *> {
 };
 
 // TODO: make parameter for word_list/merge/reduce operator
+template<typename ValueTyL, typename ValueTyR>
+struct word_cmp {
+    bool operator () ( const ValueTyL & v1, const ValueTyR & v2 ) const {
+	return value_cmp( v1, v2 );
+    }
+};
+
 template<typename ValueTyL, typename ValueTyR>
 struct pair_cmp {
     bool operator () ( const ValueTyL & v1, const ValueTyR & v2 ) const {
@@ -364,6 +425,7 @@ public:
     typedef typename index_type::iterator	iterator;
 
     static const bool is_managed = word_bank_type::is_managed;
+    static const bool is_allocated = word_bank_type::is_allocated;
 
 private:
     template<typename OtherIndexTy>
@@ -381,6 +443,22 @@ public:
     word_list() { }
     template<typename... Args>
     word_list( Args... args ) : base_type( args... ) { }
+    ~word_list() { clear(); }
+
+    void clear() {
+	// std::cerr << "clearing word_container...\n";
+	if( is_allocated ) {
+	    for( typename index_type::const_iterator
+		     I=this->m_words.cbegin(), E=this->m_words.cend();
+		 I != E; ++I ) {
+		this->m_storage.clear( *I );
+	    }
+	}
+	word_container<index_type, word_bank_type>::clear();
+    }
+    void mark_clear() {
+	this->m_words.clear();
+    }
 
     // Memorize the word, but do not store it in the word list
     const char * memorize( char * p, size_t len ) {
@@ -448,6 +526,7 @@ public:
 	std::for_each( I, E, [&]( typename index_type::value_type & val ) { this->m_words.push_back( val ); } );
 	// this->m_words.insert( I, E );
 	this->m_storage.copy( wb );
+	wc.mark_clear();
     }
     template<typename OtherIndexTy, typename OtherWordBankTy>
     typename
@@ -455,6 +534,7 @@ public:
     insert( const word_map<OtherIndexTy,OtherWordBankTy> & wc ) {
 	this->m_words.insert( this->m_words.end(), wc.cbegin(), wc.cend() );
 	this->m_storage.copy( wc.storage() );
+	wc.mark_clear();
     }
     template<typename OtherIndexTy, typename OtherWordBankTy>
     typename
@@ -464,9 +544,9 @@ public:
 			      std::make_move_iterator(wc.begin()),
 			      std::make_move_iterator(wc.end()) );
 	this->m_storage.copy( std::move(wc.storage()) );
-	wc.clear();
+	wc.mark_clear();
     }
-#endif
+#endif // 0
 
     // Add in all contents from rhs into lhs (*this) and clear rhs
     // Assumes both *this and rhs are sorted by key (whatever sorting function
@@ -475,23 +555,17 @@ public:
 	// TODO: consider parallel merge (std::experimental::parallel_merge)
 	// TODO: Better with move iterators?
 	core_reduce( rhs.begin(), rhs.end(), rhs.size(), rhs.storage(),
-		     pair_cmp<value_type,value_type>(),
-		     pair_add_reducer<value_type,value_type>() );
+		     word_cmp<value_type,value_type>() );
 	rhs.clear();
     }
 
 private:
-    template<class InputIt, class Compare, class Reduce>
+    template<class InputIt, class Compare>
     void core_reduce(InputIt first2, InputIt last2, size_t size2,
 		     const word_bank_base & storage,
-		     Compare cmp, Reduce reduce) {
-	index_type joint;
-	joint.reserve( this->size() + size2 ); // worst case
-	core_merge( this->begin(), this->end(), 
-		    first2, last2, std::back_inserter(joint),
-		    pair_cmp<value_type,value_type>(),
-		    pair_add_reducer<value_type,value_type>() );
-	this->m_words.swap( joint );
+		     Compare cmp) {
+	this->m_words.reserve( this->m_words.size() + size2 );
+	std::copy( first2, last2, this->m_words.end() );
 	this->m_storage.copy( std::move(storage) );
     }
     template<class InputIt, class OutputIt, class Compare, class Reduce>
@@ -560,6 +634,7 @@ public:
     typedef typename index_type::iterator	iterator;
 
     static const bool is_managed = word_bank_type::is_managed;
+    static const bool is_allocated = word_bank_type::is_allocated;
     static const bool can_sort = true;
     static const bool always_sorted = false;
 
@@ -577,6 +652,23 @@ public:
     kv_list() { }
     template<typename... Args>
     kv_list( Args... args ) : base_type( args... ) { }
+    ~kv_list() { clear(); }
+
+    void clear() {
+	// std::cerr << "clearing word_container...\n";
+	if( is_allocated ) {
+	    for( typename index_type::const_iterator
+		     I=this->m_words.cbegin(), E=this->m_words.cend();
+		 I != E; ++I ) {
+		this->m_storage.clear( I->first );
+	    }
+	}
+	word_container<index_type, word_bank_type>::clear();
+    }
+    void mark_clear() {
+	this->m_words.clear();
+    }
+
 
     // Memorize the word, but do not store it in the word list
     const char * memorize( char * p, size_t len ) {
@@ -635,21 +727,26 @@ public:
     // + Ideally want to translate all strings into existing word bank
     // At the moment, this is used only with *this initially empty, so this
     // is ok.
+#if 0 // to find out where called from, if at all
     template<typename InputIterator>
     void insert( InputIterator I, InputIterator E, const word_bank_base & wb ) {
 	assert( this->m_words.empty() );
 	std::for_each( I, E, [&]( typename index_type::value_type & val ) { this->m_words.push_back( val ); } );
 	// this->m_words.insert( I, E );
 	this->m_storage.copy( wb );
+	wc.mark_clear();
     }
+#endif
     template<typename OtherIndexTy, typename OtherWordBankTy>
     typename
     std::enable_if<is_compatible<OtherIndexTy>::value>::type
-    insert( const word_map<OtherIndexTy,OtherWordBankTy> & wc ) {
+    insert( word_map<OtherIndexTy,OtherWordBankTy> && wc ) {
 	assert( this->m_words.empty() );
 	this->m_words.insert( this->m_words.end(), wc.cbegin(), wc.cend() );
-	this->m_storage.copy( wc.storage() );
+	this->m_storage.move( wc.storage() );
+	wc.mark_clear();
     }
+/*
     template<typename OtherIndexTy, typename OtherWordBankTy>
     typename
     std::enable_if<is_compatible<OtherIndexTy>::value>::type
@@ -663,6 +760,7 @@ public:
 	this->m_storage.copy( std::move(wc.storage()) );
 	wc.clear();
     }
+*/
 
     template<typename OtherIndexTy, typename OtherWordBankTy>
     void count_presence( const word_map<OtherIndexTy,OtherWordBankTy> & rhs ) {
@@ -671,7 +769,8 @@ public:
 	core_reduce( rhs.cbegin(), rhs.cend(), rhs.size(),
 		     pair_cmp<value_type,value_type>(),
 		     pair_nonzero_reducer<value_type,other_value_type>() );
-	this->m_storage.copy( rhs.storage() );
+	if( !is_managed )
+	    this->m_storage.copy( rhs.storage() );
     }
 
     template<typename OtherIndexTy, typename OtherWordBankTy>
@@ -681,7 +780,8 @@ public:
 	core_reduce( rhs.cbegin(), rhs.cend(), rhs.size(),
 		     pair_cmp<value_type,value_type>(),
 		     pair_nonzero_reducer<value_type,other_value_type>() );
-	this->m_storage.copy( rhs.storage() );
+	if( !is_managed )
+	    this->m_storage.copy( rhs.storage() );
     }
 
 
@@ -694,7 +794,7 @@ public:
 	core_reduce( rhs.begin(), rhs.end(), rhs.size(),
 		     pair_cmp<value_type,value_type>(),
 		     pair_add_reducer<value_type,value_type>() );
-	this->m_storage.copy( std::move(rhs.storage()) );
+	this->m_storage.move( rhs.storage() );
 	rhs.clear();
     }
 
@@ -724,8 +824,14 @@ private:
 		    reduce( val, *first2 );
 		    *d_first = val;
 		    ++first1;
-		} else {
-		    *d_first = *first2;
+		} else { // take element from first2, need to duplicate string
+		    if( word_bank_type::is_managed ) { // record new copy
+			size_t len = strlen( first2->first );
+			key_type w = memorize( (char*)first2->first, len );
+			*d_first = value_type( w, first2->second );
+		    } else {
+			*d_first = *first2;
+		    }
 		}
 		++first2;
 	    } else {
@@ -733,7 +839,17 @@ private:
 		++first1;
 	    }
 	}
-	return std::copy(first2, last2, d_first);
+	// take elements from first2, need to duplicate strings
+	for( ; first2 != last2; ++first2, ++d_first ) {
+	    if( word_bank_type::is_managed ) { // record new copy
+		size_t len = strlen( first2->first );
+		key_type w = memorize( (char*)first2->first, len );
+		*d_first = value_type( w, first2->second );
+	    } else {
+		*d_first = *first2;
+	    }
+	}
+	return d_first;
     }
 
     // iterator is a RandomAccess iterator
@@ -757,7 +873,7 @@ private:
 	else // val == *M
 	    return std::make_pair( M, true );
     }
-};
+}; // class kv_list
 
 
 template<typename ValueTyL, typename ValueTyR>
@@ -793,6 +909,7 @@ public:
     typedef typename index_type::iterator	iterator;
 
     static const bool is_managed = word_bank_type::is_managed;
+    static const bool is_allocated = word_bank_type::is_allocated;
     static const bool can_sort = false;
     static const bool always_sorted
 	= is_specialization_of<std::map, index_type>::value;
@@ -826,6 +943,23 @@ public:
     word_map( word_map && wm ) : base_type( std::move(wm) ) { }
     // template<typename... Args>
     // word_map( Args... args ) : base_type( args... ) { }
+    ~word_map() { clear(); }
+
+    void clear() {
+	// std::cerr << "clearing word_container...\n";
+	if( is_allocated ) {
+	    for( typename index_type::const_iterator
+		     I=this->m_words.cbegin(), E=this->m_words.cend();
+		 I != E; ++I ) {
+		this->m_storage.clear( I->first );
+	    }
+	}
+	word_container<index_type,word_bank_type>::clear();
+    }
+    void mark_clear() {
+	this->m_words.clear();
+    }
+
 
     // Memorize the word, but do not store it in the word list
     const char * memorize( char * p, size_t len ) {
@@ -835,7 +969,13 @@ public:
     // Memorize the word and store it in the word list as well
     const char * index( char * p, size_t len ) {
 	const char * w = this->m_storage.store( p, len );
-	++ (this->m_words[w]);
+	iterator found = this->m_words.find( w );
+	if( found != this->m_words.end() ) {
+	    ++found->second;
+	    this->m_storage.erase( w );
+	} else {
+	    ++ (this->m_words[w]);
+	}
 	return w;
     }
 
@@ -879,6 +1019,8 @@ public:
 	    other_mapped_type;
 	core_reduce( rhs.cbegin(), rhs.cend(), rhs.storage(),
 		     mapped_nonzero_reducer<mapped_type,other_mapped_type>() );
+	if( !is_managed )
+	    this->m_storage.copy( rhs.storage() );
     }
 
     template<typename OtherIndexTy, typename OtherWordBankTy>
@@ -887,15 +1029,19 @@ public:
 	    ::second_type other_mapped_type;
 	core_reduce( rhs.cbegin(), rhs.cend(), rhs.storage(),
 		     mapped_nonzero_reducer<mapped_type,other_mapped_type>() );
+	if( !is_managed )
+	    this->m_storage.copy( rhs.storage() );
     }
 
     template<typename OtherIndexTy, typename OtherWordBankTy>
     typename
     std::enable_if<is_compatible<OtherIndexTy>::value>::type
-    insert( const word_map<OtherIndexTy,OtherWordBankTy> & wc ) {
+    insert( word_map<OtherIndexTy,OtherWordBankTy> && wc ) {
 	this->m_words.insert( wc.cbegin(), wc.cend() );
-	this->m_storage.copy( wc.storage() );
+	this->m_storage.move( wc.storage() );
+	wc.mark_clear();
     }
+/*
     template<typename OtherIndexTy, typename OtherWordBankTy>
     typename
     std::enable_if<is_compatible<OtherIndexTy>::value>::type
@@ -906,32 +1052,36 @@ public:
 	this->m_storage.copy( std::move(wc.storage()) );
 	wc.clear();
     }
+*/
 
+/*
     template<typename OtherIndexTy, typename OtherWordBankTy>
     typename
     std::enable_if<is_compatible_kv<OtherIndexTy>::value>::type
     insert( const kv_list<OtherIndexTy,OtherWordBankTy> & wc ) {
 	this->m_words.insert( wc.cbegin(), wc.cend() );
-	this->m_storage.copy( wc.storage() );
+	this->m_storage.move( wc.storage() );
+	wc.mark_clear();
     }
+*/
     template<typename OtherIndexTy, typename OtherWordBankTy>
     typename
     std::enable_if<is_compatible_kv<OtherIndexTy>::value>::type
     insert( kv_list<OtherIndexTy,OtherWordBankTy> && wc ) {
 	this->m_words.insert( wc.begin(), wc.end() );
-	this->m_storage.copy( std::move(wc.storage()) );
-	wc.clear();
+	this->m_storage.move( wc.storage() );
+	wc.mark_clear();
     }
 
 
     // Add in all contents from rhs into lhs and clear rhs
-    void reduce( word_map & rhs ) {
-	// Assumes Reducer is commutative
-	if( this->size() < rhs.size() )
-	    this->swap( rhs );
+    void reduce( word_map<index_type, word_bank_type> & rhs ) {
+	// Assumes Reducer is commutative -- results in errors. Why?
+	// if( this->size() < rhs.size() )
+	    // this->swap( rhs );
 	core_reduce( rhs.cbegin(), rhs.cend(), rhs.storage(),
 		     mapped_add_reducer<mapped_type,mapped_type>() );
-	rhs.clear();
+	rhs.mark_clear();
     }
 private:
     // Copy in all contents from rhs into *this.
@@ -1164,7 +1314,7 @@ private:
 	std::shared_ptr<char> sp( buf, std::default_delete<char[]>() );
 	m_buf = sp;
 	if( !word_container_type::is_managed )
-	    m_container.enregister( std::move(sp) );
+	    m_container.enregister( sp );
     }
 };
 

@@ -92,6 +92,12 @@ struct is_asap_class_with_any_tags<T,Tag,Tags...>
     : std::integral_constant<bool, is_asap_class_with_tag<T,Tag>::value
 			     || is_asap_class_with_any_tags<T,Tags...>::value> { };
 
+template<typename T>
+struct strip {
+    typedef typename std::remove_cv<
+	typename std::remove_reference<T>::type>::type type;
+};
+
 }
 
 // These types represent properties of data structures. They are used
@@ -104,34 +110,39 @@ struct tag_add_counter { };
 
 // Check if type T represents a vector
 template<typename T>
-struct is_vector : internal::is_asap_class_with_tag<T, tag_vector> { };
+struct is_vector : internal::is_asap_class_with_tag<
+    typename internal::strip<T>::type, tag_vector> { };
 
 // Check if type T represents a dense vector
 template<typename T>
 struct is_dense_vector
-    : internal::is_asap_class_with_all_tags<T, tag_dense, tag_vector> { };
+    : internal::is_asap_class_with_all_tags<
+    typename internal::strip<T>::type, tag_dense, tag_vector> { };
 
 // Check if type T represents a sparse vector
 template<typename T>
 struct is_sparse_vector
-    : internal::is_asap_class_with_all_tags<T, tag_sparse, tag_vector> { };
+    : internal::is_asap_class_with_all_tags<
+    typename internal::strip<T>::type, tag_sparse, tag_vector> { };
 
 // Check if type T represents a vector extended with an additive counter
 template<typename T>
 struct is_vector_with_add_counter
-    : internal::is_asap_class_with_tag<T, tag_add_counter> { };
+    : internal::is_asap_class_with_tag<
+    typename internal::strip<T>::type, tag_add_counter> { };
 
 // Check if type T represents a vector extended with a cache holding the
 // square of its (Euclidean) norm.
 template<typename T>
 struct is_vector_with_sqnorm_cache
-    : internal::is_asap_class_with_tag<T, tag_sqnorm_cache> { };
+    : internal::is_asap_class_with_tag<
+    typename internal::strip<T>::type, tag_sqnorm_cache> { };
 
 // Check if type T has any attributes
 template<typename T>
 struct has_attributes
-    : internal::is_asap_class_with_any_tags<T, tag_sqnorm_cache,
-					    tag_add_counter> { };
+    : internal::is_asap_class_with_any_tags<
+    typename internal::strip<T>::type, tag_sqnorm_cache, tag_add_counter> { };
 
 namespace internal {
 

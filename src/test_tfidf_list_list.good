@@ -1,15 +1,15 @@
 @relation tfidf
 	@attribute A numeric % value={appear=2, id=0}
-	@attribute AM numeric % value={appear=1, id=0}
-	@attribute DOG numeric % value={appear=2, id=0}
-	@attribute DUMMY numeric % value={appear=1, id=21}
-	@attribute I numeric % value={appear=1, id=0}
-	@attribute IS numeric % value={appear=2, id=0}
-	@attribute PRETTY numeric % value={appear=1, id=0}
-	@attribute TEST numeric % value={appear=1, id=21}
-	@attribute THIS numeric % value={appear=2, id=0}
+	@attribute AM numeric % value={appear=1, id=1}
+	@attribute DOG numeric % value={appear=2, id=2}
+	@attribute DUMMY numeric % value={appear=1, id=3}
+	@attribute I numeric % value={appear=1, id=4}
+	@attribute IS numeric % value={appear=2, id=5}
+	@attribute PRETTY numeric % value={appear=1, id=6}
+	@attribute TEST numeric % value={appear=1, id=7}
+	@attribute THIS numeric % value={appear=2, id=8}
 
 @data
-	{0 0.30103, 0 0.249877, 0 0.30103} % testdir/file2
-	{0 0.124939, 0 0.124939, 0 0.124939, 0 0.30103, 0 0.124939} % testdir/file1
-	{0 0.124939, 21 0.30103, 0 0.124939, 21 0.30103, 0 0.124939} % testdir/file3
+	{1 0.30103, 2 0.249877, 4 0.30103} % testdir/file2
+	{0 0.124939, 2 0.124939, 5 0.124939, 6 0.30103, 8 0.124939} % testdir/file1
+	{0 0.124939, 3 0.30103, 5 0.124939, 7 0.30103, 8 0.124939} % testdir/file3
