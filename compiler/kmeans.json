@@ -19,7 +19,7 @@
                         "operator": {
                                 "constraints": {
                                         "input": "1",
-                                        "input0": "test.arff",
+                                        "input0": "kmeans_input.arff",
                                         "output": "1",
                                         "output0": "kmeans_output.txt",
                                         "opSpecification": {

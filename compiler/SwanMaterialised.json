@@ -15,7 +15,7 @@
 		    "type": "directory"
 		},
 		"Execution": {
-		    "path": "/var/shared/projects/asap/inputs/operators/tfidf_input/"
+		    "path": "./"
 		},
 		"input": []
 	},
@@ -36,7 +36,7 @@
                     "type": "file"
                 },
                 "Execution": {
-                    "path": "/var/shared/projects/asap/inputs/operators/kmeans_input/"
+                    "path": "./"
                 },
 		"input": []
 	},
@@ -57,7 +57,7 @@
                     "type": "file"
                 },
                 "Execution": {
-                    "path": "/var/shared/projects/asap/inputs/operators/kmeans_output/"
+                    "path": "./"
                 },
 		"input": []
 	},

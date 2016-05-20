@@ -1,7 +1,9 @@
+    // Output
+    get_time (begin);
+    fprintf( stdout, "iterations: %d\n", kmeans_op.num_iterations() );
 
-    get_time( begin );
-    if( FILE_PARAM1 )
-	asap::arff_write( FILE_PARAM1, data_set );
-    get_time( end );
-    print_time("output", begin, end);
+    fprintf( stdout, "within cluster SSE: %11.4lf\n", kmeans_op.within_sse() );
 
+    std::ofstream of( FILE_PARAM1, std::ios_base::out );
+    kmeans_op.output( of );
+    of.close();

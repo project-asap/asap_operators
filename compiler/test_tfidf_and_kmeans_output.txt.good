@@ -1,0 +1,15 @@
+@relation tfidf
+	@attribute TEST numeric % value={appear=1, id=0}
+	@attribute A numeric % value={appear=2, id=1}
+	@attribute DUMMY numeric % value={appear=1, id=2}
+	@attribute I numeric % value={appear=1, id=3}
+	@attribute DOG numeric % value={appear=2, id=4}
+	@attribute AM numeric % value={appear=1, id=5}
+	@attribute IS numeric % value={appear=2, id=6}
+	@attribute PRETTY numeric % value={appear=1, id=7}
+	@attribute THIS numeric % value={appear=2, id=8}
+
+@data
+	{5 0.30103, 4 0.249877, 3 0.30103} % tfidf_input/file2
+	{1 0.124939, 4 0.124939, 6 0.124939, 7 0.30103, 8 0.124939} % tfidf_input/file1
+	{1 0.124939, 2 0.30103, 6 0.124939, 0 0.30103, 8 0.124939} % tfidf_input/file3

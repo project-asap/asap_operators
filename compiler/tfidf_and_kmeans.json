@@ -21,7 +21,7 @@
                                         "input": "1",
                                         "input0": "tfidf_input",
                                         "output": "1",
-                                        "output0": "kmeans_output.arff",
+                                        "output0": "kmeans_output.txt",
                                         "opSpecification": {
                                                 "algorithm": "tfidf_list",
                                                 "args": {"num_clusters": "4",
