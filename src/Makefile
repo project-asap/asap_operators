@@ -64,23 +64,19 @@ tfidf_mix_prealloc.o: tfidf_mix.cpp $(INCLUDE)
 test: $(targets) $(tests) FORCE
 
 test_tfidf_list_umap: tfidf_list_umap FORCE
-	./$< -i testdir -o $@.txt -s
+	./$< -i testdir -o $@.txt
 	@if cmp $@.txt $@.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
-
-# test_tfidf_list_inplace: tfidf_list_inplace FORCE
-	# ./$< -i testdir -o $@.txt
-	# @if cmp $@.txt $@.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 
 test_wc: wc FORCE
 	./wc -i testdir/file3 -o $@.txt
 	@if cmp $@.txt $@.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 
 test_kmeans: kmeans FORCE
-	@ ./$< -i test.arff -o $@.txt
+	@ ./$< -c 2 -i test.arff -o $@.txt
 	@if cmp $@.txt $@.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 
 test_tfidf_kmeans: tfidf_kmeans FORCE
-	@ ./$< -i testdir -o $@.txt
+	@ ./$< -c 2 -i testdir -o $@.txt
 	@if cmp $@.txt $@.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 
 test_%: % FORCE
