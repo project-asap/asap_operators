@@ -66,6 +66,8 @@ to ensure there has been no regression bugs introduced in later versions of the 
    - cd src
    - make test
 
+### Descriptions and examples of individual Unit Tests
+
 Below is descriptions for 7 key unit tests and how to run them:
 
 1. Unit test for  "tfidf -> Compiler -> execution"
