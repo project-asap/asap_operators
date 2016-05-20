@@ -24,7 +24,7 @@
                                         "output0": "kmeans_output.txt",
                                         "opSpecification": {
                                                 "algorithm": "tfidf_list",
-                                                "args": {"num_clusters": "4",
+                                                "args": {"num_clusters": "2",
                                                          "max_iters": "5",
                                                          "force_dense": "true"}
 

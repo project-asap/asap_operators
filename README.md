@@ -41,6 +41,27 @@ To build and run tests for all the compiler and operators,  from this directory 
     make -C tfidf test
     make -C src test
 
+Unit Tests
+----------
+
+Makefile targets contain operations which perform regression testing for operators.  When a test is executed, a comparison is made between the output generated a 'good' version of the output currently stored.
+For example, executing:
+    cd src
+    make test_tfidf_list_umap
+
+will result in the following output file which contains the output from running tfidf_list_map:
+    test_tfidf_list_umap.txt
+
+and the Makefile compares this file against:
+    test_tfidf_list_umap.good 
+
+to ensure there has been no regression bugs introduced in later versions of the source codes.
+   
+Running make with any of the test targets will trigger unit tests. For example:
+
+   cd src
+   make test
+
 
 Direct invocation and argument options
 --------------------------------------
