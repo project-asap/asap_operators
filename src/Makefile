@@ -73,10 +73,11 @@ test_wc: wc FORCE
 
 test_kmeans: kmeans FORCE
 	@ ./$< -c 2 -i test.arff -o $@.txt
-	@if cmp $@.txt $@.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
+	@if [[ `../utils/checkSimilar.py -i $@.txt -j $@.good` -eq 0 ]] ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 
 test_tfidf_kmeans: tfidf_kmeans FORCE
 	@ ./$< -c 2 -i testdir -o $@.txt
+	@if [[ `../utils/checkSimilar.py -i $@.txt -j $@.good` -eq 0 ]] ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 	@if cmp $@.txt $@.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 
 test_%: % FORCE

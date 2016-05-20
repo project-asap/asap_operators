@@ -14,7 +14,7 @@ kmeans_arff: kmeans_arff.cpp
 
 test: kmeans_arff FORCE
 	./kmeans_arff -c 2 -i test.arff -o kmeans_results.txt
-	@if cmp kmeans_results.txt kmeans_results.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
+	@if [[ `../utils/checkSimilar.py -i kmeans_results.txt -j kmeans_results.good` -eq 0 ]] ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 
 FORCE:
 

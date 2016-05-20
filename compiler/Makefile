@@ -29,12 +29,12 @@ test_tfidf: test_%: tfidf.dir
 test_kmeans: test_%: kmeans.dir
 	@ echo " #####   Executing Workflow $*   #####"
 	@ $*.dir/$*
-	@if cmp kmeans_output.txt kmeans_output.txt.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
+	@if [[ `../utils/checkSimilar.py -i kmeans_output.txt -j kmeans_output.txt.good` -eq 0 ]] ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 
 test_tfidf_and_kmeans: test_%: tfidf_and_kmeans.dir
 	@ echo " #####   Executing Workflow $*   #####"
 	@ $*.dir/$*
-	@if cmp kmeans_output.txt tfidf_and_kmeans_output.txt.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
+	@if [[ `../utils/checkSimilar.py -i kmeans_output.txt -j tfidf_and_kmeans_output.txt.good` -eq 0 ]] ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 
 test_tfidf_then_kmeans: test_%: tfidf_then_kmeans.dir
 	if [ -a $*.dir/tfidf_kmeans ] ; \
@@ -47,7 +47,7 @@ test_tfidf_then_kmeans: test_%: tfidf_then_kmeans.dir
 		$*.dir/kmeans ; \
 	fi;
 	@ echo " #####   Execution of Workflow $* complete  #####"
-	@if cmp kmeans_output.txt tfidf_then_kmeans_output.txt.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
+	@if [[ `../utils/checkSimilar.py -i kmeans_output.txt -j tfidf_then_kmeans_output.txt.good` -eq 0 ]] ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 ##
 ## Swan/C++ compilation Rules
 ##
