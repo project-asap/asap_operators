@@ -63,6 +63,8 @@ tfidf_kmeans_dbg: tfidf.cpp
 
 test: tfidf_std FORCE
 	./tfidf_std -d test -o tfidf_results.txt
+	@if cmp tfidf_results.txt tfidf_results.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
+
 
 FORCE:
 
