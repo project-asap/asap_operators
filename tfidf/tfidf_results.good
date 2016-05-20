@@ -1,0 +1,18 @@
+@relation tfidf
+@attribute @@class@@ {text}
+	@attribute TEST numeric
+	@attribute A numeric
+	@attribute DUMMY numeric
+	@attribute I numeric
+	@attribute AM numeric
+	@attribute DOG numeric
+	@attribute IS numeric
+	@attribute PRETTY numeric
+	@attribute THIS numeric
+
+
+@data
+
+	{4 0.30103,5 0.30103,6 0.249877,}
+	{2 0.124939,6 0.124939,7 0.124939,8 0.30103,9 0.124939,}
+	{1 0.30103,2 0.124939,3 0.30103,7 0.124939,9 0.124939,}
