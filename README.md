@@ -62,7 +62,7 @@ Running make with any of the test targets will trigger unit tests. For example:
    cd src
    make test
 
-In particular 5 key unit tests are described in more detail here:
+Below is descriptions for 7 key unit tests and how to run them:
 
 1) Unit test for  "tfidf -> Compiler -> execution"
 Command: cd $INSTALL_DIR/compiler ; make test_tfidf
