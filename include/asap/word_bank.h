@@ -384,7 +384,7 @@ template<> struct value_cmp<const char *> {
 template<typename ValueTyL, typename ValueTyR>
 struct word_cmp {
     bool operator () ( const ValueTyL & v1, const ValueTyR & v2 ) const {
-	return value_cmp( v1, v2 );
+	return value_cmp<ValueTyL>( v1, v2 );
     }
 };
 
