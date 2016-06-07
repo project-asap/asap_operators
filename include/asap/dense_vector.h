@@ -1,5 +1,21 @@
 /* -*-C++-*-
  */
+/*
+ * Copyright 2016 EU Project ASAP 619706.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+*/
+
 
 #ifndef INCLUDED_ASAP_DENSE_VECTOR_H
 #define INCLUDED_ASAP_DENSE_VECTOR_H
@@ -142,6 +158,11 @@ public:
     typename std::enable_if<is_dense_vector<OtherVectorTy>::value, value_type>::type
     sq_dist(OtherVectorTy const& p) const {
 	return vector_ops::square_euclidean_distance( m_value, m_length, p.get_value() );
+    }
+    
+    // Square of Euclidean norm
+    value_type sq_norm() const {
+	return vector_ops::square_norm( m_value, m_length );
     }
     
     // For reduction of centre computations
@@ -324,7 +345,7 @@ operator << ( std::ostream & os, const VectorTy & sv ) {
 	typename VectorTy::value_type v;
 	typename VectorTy::index_type c;
 	sv.get( i, v, c );
-	os << c << ": " << v;
+	os << c << " " << v;
 	if( i+1 < e )
 	    os << ", ";
     }

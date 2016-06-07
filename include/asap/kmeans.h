@@ -1,5 +1,20 @@
 /* -*-C++-*-
  */
+/*
+ * Copyright 2016 EU Project ASAP 619706.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+*/
 
 #ifndef INCLUDED_ASAP_KMEANS_H
 #define INCLUDED_ASAP_KMEANS_H
@@ -228,6 +243,7 @@ private:
 	    for(size_t j = 0; j < m_num_clusters; j++) {
 		// assign point to cluster with smallest total squared distance
 		value_type distance = II->sq_dist( m_centres[j] );
+		assert( distance >= 0 );
 		if( distance < smallest_distance ) {
 		    smallest_distance = distance;
 		    new_cluster_id = j;
@@ -251,6 +267,7 @@ private:
 
 	new_centres->swap( m_centres );
 	m_sse = sse.get_value();
+	assert( m_sse >= 0 );
 	normalize();
 	return modified;
     }

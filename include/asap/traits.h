@@ -1,5 +1,21 @@
 /* -*-C++-*-
  */
+/*
+ * Copyright 2016 EU Project ASAP 619706.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+*/
+
 
 #ifndef INCLUDED_ASAP_TRAITS_H
 #define INCLUDED_ASAP_TRAITS_H
@@ -8,13 +24,11 @@
 
 namespace asap {
 
-/* -- unused
 template<template<typename...> class Template, typename T>
 struct is_specialization_of : std::false_type { };
 
 template<template<typename...> class Template, typename... Params>
 struct is_specialization_of<Template, Template<Params...>> : std::true_type { };
-*/
 
 namespace internal {
 
@@ -78,6 +92,12 @@ struct is_asap_class_with_any_tags<T,Tag,Tags...>
     : std::integral_constant<bool, is_asap_class_with_tag<T,Tag>::value
 			     || is_asap_class_with_any_tags<T,Tags...>::value> { };
 
+template<typename T>
+struct strip {
+    typedef typename std::remove_cv<
+	typename std::remove_reference<T>::type>::type type;
+};
+
 }
 
 // These types represent properties of data structures. They are used
@@ -90,34 +110,39 @@ struct tag_add_counter { };
 
 // Check if type T represents a vector
 template<typename T>
-struct is_vector : internal::is_asap_class_with_tag<T, tag_vector> { };
+struct is_vector : internal::is_asap_class_with_tag<
+    typename internal::strip<T>::type, tag_vector> { };
 
 // Check if type T represents a dense vector
 template<typename T>
 struct is_dense_vector
-    : internal::is_asap_class_with_all_tags<T, tag_dense, tag_vector> { };
+    : internal::is_asap_class_with_all_tags<
+    typename internal::strip<T>::type, tag_dense, tag_vector> { };
 
 // Check if type T represents a sparse vector
 template<typename T>
 struct is_sparse_vector
-    : internal::is_asap_class_with_all_tags<T, tag_sparse, tag_vector> { };
+    : internal::is_asap_class_with_all_tags<
+    typename internal::strip<T>::type, tag_sparse, tag_vector> { };
 
 // Check if type T represents a vector extended with an additive counter
 template<typename T>
 struct is_vector_with_add_counter
-    : internal::is_asap_class_with_tag<T, tag_add_counter> { };
+    : internal::is_asap_class_with_tag<
+    typename internal::strip<T>::type, tag_add_counter> { };
 
 // Check if type T represents a vector extended with a cache holding the
 // square of its (Euclidean) norm.
 template<typename T>
 struct is_vector_with_sqnorm_cache
-    : internal::is_asap_class_with_tag<T, tag_sqnorm_cache> { };
+    : internal::is_asap_class_with_tag<
+    typename internal::strip<T>::type, tag_sqnorm_cache> { };
 
 // Check if type T has any attributes
 template<typename T>
 struct has_attributes
-    : internal::is_asap_class_with_any_tags<T, tag_sqnorm_cache,
-					    tag_add_counter> { };
+    : internal::is_asap_class_with_any_tags<
+    typename internal::strip<T>::type, tag_sqnorm_cache, tag_add_counter> { };
 
 namespace internal {
 

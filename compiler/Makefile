@@ -21,19 +21,33 @@ OPLIB=SwanMaterialised.json
 	@ make `ls -1 $*.dir/*.cpp | sed -e 's/.cpp//'`
 
 ## Test Rules
-
-test_%: %.dir
+test_tfidf: test_%: tfidf.dir
 	@ echo " #####   Executing Workflow $*   #####"
 	@ $*.dir/$*
+	@if cmp tfidf_output.arff tfidf_output.arff.good ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
+
+test_kmeans: test_%: kmeans.dir
+	@ echo " #####   Executing Workflow $*   #####"
+	@ $*.dir/$*
+	@if [[ `../utils/checkSimilar.py -i kmeans_output.txt -j kmeans_output.txt.good` -eq 0 ]] ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
+
+test_tfidf_and_kmeans: test_%: tfidf_and_kmeans.dir
+	@ echo " #####   Executing Workflow $*   #####"
+	@ $*.dir/$*
+	@if [[ `../utils/checkSimilar.py -i kmeans_output.txt -j tfidf_and_kmeans_output.txt.good` -eq 0 ]] ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 
 test_tfidf_then_kmeans: test_%: tfidf_then_kmeans.dir
-	@ echo " #####   Executing Workflow $*   #####"
-	@ $*.dir/tfidf
-	@ $*.dir/kmeans
+	if [ -a $*.dir/tfidf_kmeans ] ; \
+	then \
+		echo " #####   Executing Optimised Version of Workflow tfidf_kmeans   #####" ; \
+		$*.dir/tfidf_kmeans ; \
+	else \
+		echo " #####   Executing Workflow $* #####" ; \
+		$*.dir/tfidf ; \
+		$*.dir/kmeans ; \
+	fi;
 	@ echo " #####   Execution of Workflow $* complete  #####"
-
-
-
+	@if [[ `../utils/checkSimilar.py -i kmeans_output.txt -j tfidf_then_kmeans_output.txt.good` -eq 0 ]] ; then echo "SUCCESS -- Output compared successfully" ; else echo "FAILURE -- Output deviates from reference" ; fi
 ##
 ## Swan/C++ compilation Rules
 ##
@@ -55,11 +69,9 @@ LDFLAGS+=-g -std=c++11 -lrt $(OPT)
 
 %: %.o
 
-
 .PHONY: clean
 clean:
 	rm -fr $(patsubst %,%.dir,$(exes))
-
 
 test:
 	@ echo "_________________________________________________________________________________"
@@ -75,4 +87,3 @@ test:
 	@ make tfidf_then_kmeans.dir
 	@ make test_tfidf_then_kmeans
 	@ echo "_________________________________________________________________________________"
-

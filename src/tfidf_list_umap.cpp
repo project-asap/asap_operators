@@ -1,3 +1,21 @@
+/* -*-C++-*-
+*/
+/*
+ * Copyright 2016 EU Project ASAP 619706.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+*/
+
 #include <unistd.h>
 
 #include <iostream>
@@ -16,9 +34,9 @@
 #include "asap/word_count.h"
 #include "asap/normalize.h"
 #include "asap/io.h"
+#include "asap/hashtable.h"
 
 #include <stddefines.h>
-#include <container.h>
 
 #define DEF_NUM_MEANS 8
 
@@ -29,7 +47,7 @@ bool do_sort = false;
 bool intm_map = false;
 
 static void help(char *progname) {
-    std::cout << "Usage: " << progname << " -i <indir> -o <outfile> [-w] [-s]\n";
+    std::cout << "Usage: " << progname << " -i <indir> -o <outfile> [-w] [-s] [-m]\n";
 }
 
 static void parse_args(int argc, char **argv) {
@@ -125,6 +143,8 @@ data_set_type tfidf_driver( directory_listing_type & dir_list ) {
 	= std::make_shared<directory_listing_type>();
     dir_list_ptr->swap( dir_list );
 
+    asap::internal::assign_ids( allwords_ptr->begin(), allwords_ptr->end() );
+
     data_set_type tfidf;
     if( by_words ) {
 	tfidf = asap::tfidf_by_words<typename data_set_type::vector_type>(
@@ -133,7 +153,7 @@ data_set_type tfidf_driver( directory_listing_type & dir_list ) {
     } else {
 	tfidf = asap::tfidf<typename data_set_type::vector_type>(
 	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr,
-	    do_sort ); // whether catalogs are sorted
+	    false, true ); // whether catalogs are sorted
     }
     get_time(tfidf_end);
 
@@ -146,6 +166,7 @@ data_set_type tfidf_driver( directory_listing_type & dir_list ) {
     return tfidf;
 }
 
+#if 0
 // a single null-terminated word
 struct wc_word {
     const char* data;
@@ -179,7 +200,7 @@ struct wc_word_hash
         return v;
     }
 };
-
+#endif
 
 int main(int argc, char **argv) {
     struct timespec begin, end;
@@ -229,13 +250,13 @@ int main(int argc, char **argv) {
 			   asap::text::charp_hash, asap::text::charp_eql>,
 	word_bank_type> aggregate_map_type;
 */
-    typedef hash_table<wc_word, size_t, wc_word_hash> wc_unordered_map;
-    typedef hash_table<wc_word,
+    typedef asap::hash_table<const char *, size_t, asap::text::charp_hash, asap::text::charp_eql> wc_unordered_map;
+    typedef asap::hash_table<const char *,
 		       asap::appear_count<size_t, index_type>,
-		       wc_word_hash> dc_unordered_map;
+		       asap::text::charp_hash, asap::text::charp_eql> dc_unordered_map;
 
     typedef asap::word_map<wc_unordered_map, word_bank_type> internal_map_type;
-    typedef asap::kv_list<std::vector<std::pair<wc_word, size_t>>,
+    typedef asap::kv_list<std::vector<std::pair<const char*, size_t>>,
 			  word_bank_type> intermediate_map_type;
     typedef asap::word_map<dc_unordered_map, word_bank_type> aggregate_map_type;
 

@@ -1,5 +1,21 @@
 /* -*-C++-*-
  */
+/*
+ * Copyright 2016 EU Project ASAP 619706.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+*/
+
 
 #ifndef INCLUDED_ASAP_VECTOR_OPS_H
 #define INCLUDED_ASAP_VECTOR_OPS_H
@@ -46,6 +62,16 @@ struct dense_vector_operations {
 	}
 	return sq_dist;
     }
+
+    static value_type
+    square_norm( value_type const *a, index_type length ) {
+	value_type sq_norm = 0;
+	for( value_type const *IA=a, *EA=a+length; IA != EA; ++IA ) {
+	    value_type val = *IA;
+	    sq_norm += val * val;
+	}
+	return sq_norm;
+    }
 };
 
 #ifdef __INTEL_COMPILER
@@ -84,10 +110,18 @@ struct dense_vector_operations<IndexTy,ValueTy,true> {
 	return __sec_reduce_add( esqd( a[0:length], b[0:length] ) );
     }
 
+    static value_type
+    square_norm( value_type const *a, index_type length ) {
+	return __sec_reduce_add( esqn( a[0:length] ) );
+    }
+
 private:
     static value_type esqd( value_type a, value_type b ) {
 	value_type diff = a - b;
 	return diff * diff;
+    }
+    static value_type esqn( value_type a ) {
+	return a * a;
     }
 };
 #endif

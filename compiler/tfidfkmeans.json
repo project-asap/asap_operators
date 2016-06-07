@@ -3,7 +3,7 @@
 		"id": "i0",
 		"name": "textDirectoryDataset",
 		"type": "input",
-		"filename": "all"
+		"filename": "tfidf_input"
 	},
 	{
 		"id": "op0",
@@ -21,6 +21,6 @@
 		"id": "o0",
 		"name": "textDataset",
 		"type": "output",
-		"filename": "compilertest.txt"
+		"filename": "kmeans_output.txt"
 	}]
 }

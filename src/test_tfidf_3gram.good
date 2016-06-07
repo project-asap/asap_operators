@@ -1,0 +1,13 @@
+@relation tfidf
+	@attribute I#AM#DOG numeric % value={appear=1, id=0}
+	@attribute IS#A#PRETTY numeric % value={appear=1, id=1}
+	@attribute AM#DOG#DOG numeric % value={appear=1, id=2}
+	@attribute IS#A#DUMMY numeric % value={appear=1, id=3}
+	@attribute THIS#IS#A numeric % value={appear=2, id=4}
+	@attribute A#PRETTY#DOG numeric % value={appear=1, id=5}
+	@attribute A#DUMMY#TEST numeric % value={appear=1, id=6}
+
+@data
+	{0 0.30103, 2 0.30103} % testdir/file2
+	{1 0.30103, 4 0.124939, 5 0.30103} % testdir/file1
+	{3 0.30103, 4 0.124939, 6 0.30103} % testdir/file3

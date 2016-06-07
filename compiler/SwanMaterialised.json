@@ -1,6 +1,6 @@
 {
 	"operators": [{
-		"name": "textDirectoryDataset",
+		"name": "textDirectory",
 		"cost": "0.00",
 		"status": "stopped",
 		"type": "dataset",
@@ -15,16 +15,16 @@
 		    "type": "directory"
 		},
 		"Execution": {
-		    "path": "/var/shared/projects/asap/inputs/operators/tfidf_input/"
+		    "path": "./"
 		},
 		"input": []
 	},
 	{
-		"name": "arffDataset",
+		"name": "arff",
 		"cost": "0.00",
 		"status": "stopped",
 		"type": "dataset",
-		"description": "arffDataset",
+		"description": "arffFileDataset",
 
                 "Constraints": {
                     "DataInfo": {
@@ -36,16 +36,16 @@
                     "type": "file"
                 },
                 "Execution": {
-                    "path": "/var/shared/projects/asap/inputs/operators/kmeans_input/"
+                    "path": "./"
                 },
 		"input": []
 	},
         {
-		"name": "textDataset",
+		"name": "textFile",
 		"cost": "0.00",
 		"status": "stopped",
 		"type": "dataset",
-		"description": "textDataset",
+		"description": "textFileDataset",
 
                 "Constraints": {
                     "DataInfo": {
@@ -57,7 +57,7 @@
                     "type": "file"
                 },
                 "Execution": {
-                    "path": "/var/shared/projects/asap/inputs/operators/kmeans_output/"
+                    "path": "./"
                 },
 		"input": []
 	},
@@ -78,18 +78,22 @@
 				"dstruct_type": "word_map_type"
 			},
                 	"Input" : {
-                		"Engine": {
-					"FS": "standard"
-				},
 				"number": "1",
-                		"type": "textDirectoryDataset"
+				"Input0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "textDirectory"
+				}
 			},
 			"Output" : {
-                		"Engine": {
-					"FS": "standard"
-				},
 				"number": "1",
-                		"type": "arffDataset"
+				"Output0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "arff"
+				}
 			}
 		}
 	},	
@@ -110,18 +114,22 @@
 				"dstruct_type": "word_list_type"
 			},
                 	"Input" : {
-                		"Engine": {
-					"FS": "standard"
-				},
 				"number": "1",
-                		"type": "textDirectoryDataset"
+				"Input0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "textDirectory"
+				}
 			},
 			"Output" : {
-                		"Engine": {
-					"FS": "standard"
-				},
 				"number": "1",
-                		"type": "arffDataset"
+				"Output0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "arff"
+				}
 			}
 		}
 	},
@@ -142,18 +150,22 @@
 				"dstruct_type": "word_list_type"
 			},
                 	"Input" : {
-                		"Engine": {
-					"FS": "standard"
-				},
 				"number": "1",
-                		"type": "textDirectoryDataset"
+				"Input0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "textDirectory"
+				}
 			},
 			"Output" : {
-                		"Engine": {
-					"FS": "standard"
-				},
 				"number": "1",
-                		"type": "textDataset"
+				"Output0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "text"
+				}
 			}
 		}
         },
@@ -177,18 +189,22 @@
 				"dstruct_type": "word_list_type"
 			},
                 	"Input" : {
-                		"Engine": {
-					"FS": "standard"
-				},
 				"number": "1",
-                		"type": "arffDataset"
+				"Input0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "arff"
+				}
 			},
 			"Output" : {
-                		"Engine": {
-					"FS": "standard"
-				},
 				"number": "1",
-                		"type": "textDataset"
+				"Output0": {
+                			"Engine": {
+						"FS": "standard"
+					},
+                			"type": "text"
+				}
 			}
    		}
 	},
@@ -257,20 +273,20 @@
         },
 	{
 		"type": "inout_declaration",
-		"algorithm.names": ["tfidf", "kmeans", "tfidf_and_kmeans"],
-		"input0": "char const * VARIN = VAROUT;", 
-                "output0": "char const * VARIN = VAROUT;"
+		"dataset.names": ["textDirectory", "textFile", "arff"],
+		"input": "char const * VARIN = VAROUT;",
+                "output": "char const * VARIN = VAROUT;"
 	},
 	{
 		"type": "arg_declaration",
 		"algorithm.names": ["tfidf_and_kmeans"],
                 "argTemplates": [{"max_iters": "const int VARIN = VAROUT;", "num_clusters": "const int VARIN = VAROUT;", "force_dense": "const bool VARIN = VAROUT;", "by_words": "const bool VARIN = VAROUT;", "do_sort": "const bool VARIN = VAROUT;", "rnd_init": "unsigned int VARIN = VAROUT;"}],
-                "argDefaults": [{"max_iters": "0", "num_clusters": "8", "force_dense": "false", "by_words": "false", "do_sort": "false", "rnd_init": "1"}]
+                "argDefaults": [{"max_iters": "0", "num_clusters": "2", "force_dense": "false", "by_words": "false", "do_sort": "false", "rnd_init": "1"}]
         },
 	{
 		"type": "arg_declaration",
-		"algorithm.names": ["kmeans", "tfidf"],
-                "argTemplates": [{"max_iters": "const int VARIN = VAROUT;", "num_clusters": "const int VARIN = VAROUT;", "force_dense": "const bool VARIN = VAROUT;"}],
-                "argDefaults": [{"max_iters": "0", "num_clusters": "8", "force_dense": "false", "by_words": "false", "do_sort": "false", "rnd_init": "1"}]
+		"algorithm.names": ["kmeans"],
+                "argTemplates": [{"max_iters": "const int VARIN = VAROUT;", "num_clusters": "const int VARIN = VAROUT;", "force_dense": "const bool VARIN = VAROUT;", "is_sparse": "const bool VARIN = VAROUT;"}],
+                "argDefaults": [{"max_iters": "0", "num_clusters": "2", "force_dense": "false", "by_words": "false", "do_sort": "false", "rnd_init": "1", "is_sparse": "false"}]
         }]
 }
