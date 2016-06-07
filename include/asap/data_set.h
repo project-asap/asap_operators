@@ -94,9 +94,9 @@ public:
     data_set( data_set && ds ) 
 	: m_relation( ds.m_relation ),
 	  m_idx_names( std::move( ds.m_idx_names ) ),
-	  m_vec_names( std::move( ds.m_vec_names ) ),
+	  // m_vec_names( std::move( ds.m_vec_names ) ),
 	  m_vectors( std::move( ds.m_vectors ) ) {
-	check();
+	this->check();
     }
 
     ~data_set() { }
@@ -188,7 +188,7 @@ public:
 	      bool transpose = false )
 	: m_relation( relation ), m_transpose( transpose ),
 	  m_idx_names( idx_names ), m_vectors( vectors ) {
-	check();
+	this->check();
     }
     data_set( const char * relation,
 	      const std::shared_ptr<index_list_type> & idx_names,
@@ -198,7 +198,7 @@ public:
 	: m_relation( relation ), m_transpose( transpose ),
 	  m_idx_names( idx_names ), m_idx_names2( idx_names2 ),
 	  m_vectors( vectors ) {
-	check();
+	this->check();
     }
     data_set( const char * relation,
 	      std::shared_ptr<index_list_type> && idx_names,
@@ -208,7 +208,7 @@ public:
 	  m_transpose( transpose ),
 	  m_idx_names( std::move( idx_names ) ),
 	  m_vectors( std::move( vectors ) ) {
-	check();
+	this->check();
     }
     data_set( const char * relation,
 	      std::shared_ptr<index_list_type> && idx_names,
@@ -220,7 +220,7 @@ public:
 	  m_idx_names( std::move( idx_names ) ),
 	  m_idx_names2( std::move( idx_names2 ) ),
 	  m_vectors( std::move( vectors ) ) {
-	check();
+	this->check();
     }
     data_set( const data_set & ds ) = delete;
     data_set( data_set && ds ) 
@@ -229,7 +229,7 @@ public:
 	  m_idx_names( std::move( ds.m_idx_names ) ),
 	  m_idx_names2( std::move( ds.m_idx_names2 ) ),
 	  m_vectors( std::move( ds.m_vectors ) ) {
-	check();
+	this->check();
     }
 
     ~data_set() { }
