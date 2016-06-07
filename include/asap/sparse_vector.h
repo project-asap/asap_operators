@@ -318,7 +318,8 @@ public:
 		   &m_alloc_i[0] );
     }
     sparse_vector_set(sparse_vector_set && dvs)
-	: m_vectors(dvs.m_vectors), m_alloc(dvs.m_alloc),
+	: m_vectors(dvs.m_vectors),
+	  m_alloc_v(dvs.m_alloc_v), m_alloc_i(dvs.m_alloc_i),
 	  m_number(dvs.m_number), m_capacity(dvs.m_capacity),
 	  m_length(dvs.m_length), m_total_length(dvs.m_total_length) {
 	std::cerr << "SVS move construct\n";

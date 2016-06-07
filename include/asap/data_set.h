@@ -94,7 +94,6 @@ public:
     data_set( data_set && ds ) 
 	: m_relation( ds.m_relation ),
 	  m_idx_names( std::move( ds.m_idx_names ) ),
-	  // m_vec_names( std::move( ds.m_vec_names ) ),
 	  m_vectors( std::move( ds.m_vectors ) ) {
 	this->check();
     }

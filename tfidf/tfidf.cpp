@@ -1142,10 +1142,10 @@ int main(int argc, char *argv[])
 
     getdir(fname,files);
     nfiles = files.size();
-    printf("number of files: %d\n", nfiles);
+    printf("number of files: %ld\n", nfiles);
 
     wc_dictionary_pair_reducer total_dict_red; // (1<<16);
-    wc_unordered_map file_dict[nfiles];
+    std::vector<wc_unordered_map> file_dict(nfiles);
 
     char * fdata[files.size()];
 #ifndef NO_MMAP
@@ -1254,7 +1254,7 @@ int main(int argc, char *argv[])
     total_dict_red.swap( total_dict );
 
     get_time (end);
-    printf("total file size: %d\n", total_bytes.get_value());
+    printf("total file size: %ld\n", total_bytes.get_value());
     print_time("input (work)", time_read.get_value());
     print_time("wc (work)", time_wc.get_value());
     print_time("input+wc (elapsed)", begin, end);
