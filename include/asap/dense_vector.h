@@ -16,7 +16,6 @@
  * limitations under the License.
 */
 
-
 #ifndef INCLUDED_ASAP_DENSE_VECTOR_H
 #define INCLUDED_ASAP_DENSE_VECTOR_H
 
@@ -68,7 +67,7 @@ public:
 private:
     /** Pointer to a dense array of values */
     value_type *m_value;
-    /** THe length of the vector */
+    /** The length of the vector */
     index_type m_length;
 
 private:
