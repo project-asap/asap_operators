@@ -11,3 +11,7 @@ clean:
 	make -C kmeans clean
 	make -C tfidf clean
 	make -C src clean
+
+.PHONY: doc
+doc:
+	doxygen
