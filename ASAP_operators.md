@@ -1,6 +1,9 @@
-This document describes the ASAP library of data analytics operators and the Swan parallel programming language on which it is built.
+ASAP Operators          {#mainpage}
+==============
 
-# The Swan Parallel Programming Language
+This document describes the ASAP library of data analytics operators and the Swan parallel programming language on which it is built. The library defines data types, classes and methods that are helpful in data analytics. The code is written using the Swan language to indicate opportunities for parallelisation.
+
+# Swan: An Extension of the Cilk Parallel Programming Language
 
 Swan is an extension to the Cilk parallel programming language,
 which was originally designed at the Supercomputing Technologies group at MIT,
@@ -375,22 +378,196 @@ They can be invoked as follows:
 
 # The ASAP operator library for text analytics
 
+The operator library provides basic data structures and algorithms
+and is primarily focused on text analytics. These operators should be
+considered examples of how to use the underlying data structures,
+how to optimize memory usage and
+how to use the Swan language to implement analytics.
+The following discussion describes the main organization of the library
+and links to per-class and per-method documentation for details on
+the API and arguments.
+
 ## Data types
 
 ### Vector types
 
-### Data set types
+The basic data collection of homogeneous elements
+is a vector. It is indexed by an integer type
+starting with index zero and running up to the length of the vector.
+There are two vector types:
+dense vectors (\ref asap::dense_vector) provide a storage location for
+every element in the range 0...length;
+sparse vectors (\ref asap::sparse_vector) provide storage locations
+only for those elements set explicitly. Missing values are treated as zero.
+
+Vectors may have ownership over their storage, in which case the memory
+policy template type is \ref asap::mm_ownership_policy .
+When vectors have ownership over the storage, then they allocate and
+deallocate the storage themselves.
+Alternatively, vectors may not have ownership
+(memory policy \ref asap::mm_no_ownership_policy). In this case, the
+storage is managed externally, e.g., by a vector set. It is much more
+efficient to manage the storage of large data sets centrally, in one go,
+as this reduces memory allocation overhead and improves memory layout.
+
+Various vector operations are accelerated using vector instructions
+(SIMD - Single Instruction Multiple Data).
+
+### Extended vector types
+
+Sparse and dense vectors can be extended to store additional information.
+This can be handy to cache information, or to store information associated
+to vectors more compactly.
+The type \ref asap::vector_with_add_counter extends
+a \ref asap::dense_vector or \ref asap::sparse_vector type with a counter.
+The \ref asap::vector_with_sqnorm_cache caches the square of the norm
+of the vector (the Euclidean distance between the vector and itself).
+The cached value is not automatically updated when the vector is changed, but
+needs to be explicitly recalculated.
+
+### Vector set type
+
+A vector set is a list of vectors.
+As with vectors, we distinguish
+dense vector sets (\ref asap::dense_vector_set) and
+sparse vector sets (\ref asap::sparse_vector_set).
 
 ### Word banks
+
+Text analytics often require to store a large set of individual
+text fragments. These are accelerated using three data types that
+use different memory allocation policies.
+
+The \ref asap::word_bank_malloc class stores a large number of text fragments
+and makes individual memory allocations and deallocations for every text
+fragment in the set.
+
+The \ref asap::word_bank_pre_alloc class references text fragments
+within a pre-allocated chunk of text, i.e., it can reference words
+in a text document that is read into memory as single string.
+E.g., mapping the file into memory using the mmap system call is very
+efficient in terms of I/O. The \ref asap::word_bank_pre_alloc 
+class stores pointers into the mmap'ed memory region.
+
+The \ref asap::word_bank_managed uses region-based memory management.
+Regions are large chunks of pre-allocated storage where bump-pointer
+allocation is used to efficiently add strings to the word bank.
+It is typically much more
+memory-efficient compared to \ref asap::word_bank_pre_alloc .
+
+### Word containers
+
+Where a word bank simply enumerates a set of words or text fragments,
+a word container
+provides additional functionality by means of an index into the words,
+or by associating values to the words.
+
+The class \ref asap::word_list simply allows to construct a list
+or enumeration of words. While there may be repetition of words in the
+list, the word bank can ensure each word is stored only once.
+The \ref asap::word_list dictates the sequence in which words occur.
+
+A \ref asap::word_map associates additional information to each unique word.
+This information could be, e.g., the frequency of the word in a file.
+
+An \ref asap::kv_list is a key-value abstraction over words.
+Like the \ref asap::word_map it associates values to words. However,
+where the \ref asap::word_map may use a map (e.g., std::map) or
+the optimized \ref asap::hash_table to record the associated values, the
+\ref asap::kv_list records the associated values as a list of key-value pairs.
+
+All word containers inherit from the class \ref asap::word_container.
+
+Similarly to words, the classes
+\ref asap::ngram_map and \ref asap::ngram_kv_list provide associate storage
+for n-grams. They inherit from the base class \ref asap::ngram_container.
+
+### Data set type
+
+Data sets are described by the \ref asap::data_set type.
+In essence, a \ref asap::data_set is a combination of a vector set
+(either sparse or dense), and two elements of type \ref asap::word_container
+that describe the labels for rows and columns on the data set.
+The data set also has a label to identify it or describe its contents.
+
+### Auxiliary
+
+The \ref asap::hash_table class is designed as an efficient associative
+data structure, using a low-overhead hash table.
+It is much faster than std::unordered_map.
 
 ## Input/output formats
 
 ### WEKA file format
 
+We provide routines to read and write data sets in the
+(WEKA file format)[http://www.cs.waikato.ac.nz/ml/weka/arff.html].
+See methods \ref asap::arff_read and \ref asap::arff_write .
+
 ## Analytics Operators
 
 ### Term frequency
 
+The ASAP operators library
+provides the method \ref asap::word_catalog
+for computing the term frequency of a document.
+It takes a filename as argument and stores
+the words and their frequency using one of the \ref asap::word_container types.
+The method internally parallelizes scanning over the file contents.
+
+The method \ref asap::ngram_catalog similarly calculates the frequency
+of occurence of n-grams. The number of terms in the 'n'-gram is specified
+in the \ref asap::ngram_container type that is used with this method.
+
+Both implementations internally use parallel execution. They use the
+word bank types and word/ngram container types for efficient memory
+management.
+
 ### TF-IDF
 
+The Term Frequency-Inverse Document Frequency (TF-IDF) operator
+(\ref asap::tfidf)
+takes as input a list of \ref asap::word_catalog objects, each one
+corresponding to a distinct file. It also requires a pre-computed
+\ref asap::word_catalog object that lists the number of files each word
+occurs in. The method performs a processing step on these
+objects to calculate the TF-IDF score. It produces a data set using sparse
+vectors that compactly stores the TF-IDF scores.
+Example usage of the \ref asap::tfidf, in conjunction with
+\ref asap::word_catalog is provided in \ref tfidf_mix.cpp.
+
+The \ref asap::tfidf_by_words method is similar to \ref asap:tfidf.
+The distinction between these methods is that \ref asap::tfidf produces
+one vector of TF-IDF scores per input file, whereas \ref asap::tfidf_by_words
+produces one vector per word.
+The difference in processing time is minimal. It is much faster to
+select the method that generates data in the appropriate format compared
+to transposing the data set.
+
 ### K-Means clustering
+
+The K-means clustering operator is implemented through
+the \ref asap::kmeans_operator class that encapsulates the state and methods
+related to K-means clustering.
+It stores the data in a
+\ref asap::kmeans_data_set, a special type of \ref asap::data_set,
+that stores additional data relevant to K-Means clustering, such as the
+cluster centers and the Sum of Squared Errors (SSE) score for the clusering.
+Typcially, the input points are sparse vectors while cluster centers are
+dense vectors. The operator further normalizes the coordinates
+in order to improve convergence.
+
+The K-Means clustering operator uses the
+extended vector types to store additional information on the cluster
+centers. In particular, it uses
+\ref asap::vector_with_add_counter
+to count the number of points mapped to a cluster and it uses
+\ref asap::vector_with_sqnorm_cache
+to speedup the calculation of the Euclidean distance between a point
+and a cluster center.
+The latter optimization allows to compute the Euclidean distance
+between a dense vector and a sparse vector by considering that
+each coordinate of the sparse vector corresponds to a
+deviation to the norm of the dense vector. The time complexity of this
+operation is proportional to the number of non-zeroes in the sparse vector,
+which is typically much less than the length of the vector.
