@@ -137,7 +137,7 @@ public:
     typedef dense_vector_set<centre_vector_type> kmeans_dense_vector_set;
 
 private:
-    class dense_vector_set_monoid : cilk::monoid_base<kmeans_dense_vector_set>
+    class dense_vector_set_monoid : public cilk::monoid_base<kmeans_dense_vector_set>
     {
 	typedef centre_vector_type vector_type;
 	typedef kmeans_dense_vector_set vector_set_type;
