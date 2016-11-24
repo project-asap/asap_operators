@@ -163,8 +163,9 @@ std::vector<std::pair<typename DataSet::value_type,
 
     // Scale data
     internal::Scale<vector_type> scale( mm );
+    typename DataSet::vector_iterator E=data.vector_end();
     cilk_for( typename DataSet::vector_iterator
-	     I=data.vector_begin(), E=data.vector_end(); I != E; ++I ) {
+	      I=data.vector_begin(); I != E; ++I ) {
 	I->map( scale );
     }
 
@@ -181,8 +182,9 @@ void denormalize( const std::vector<std::pair<typename DataSet::value_type,
 
     // Unscale data
     internal::Unscale<vector_type> unscale( extrema );
+    typename DataSet::vector_iterator E=data.vector_end();
     cilk_for( typename DataSet::vector_iterator
-	     I=data.vector_begin(), E=data.vector_end(); I != E; ++I ) {
+	     I=data.vector_begin(); I != E; ++I ) {
 	I->map( unscale );
     }
 }

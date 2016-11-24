@@ -436,6 +436,7 @@ arff_read( const std::string & filename, bool &is_stored_sparse ) {
     char * p = idx_builder.get_buffer();
     char * end = idx_builder.get_buffer_end();
 #define ADVANCE(pp) do { if( *(pp) == '\0' ) goto END_OF_FILE; ++pp; } while( 0 )
+    size_t num_points;
     do {
 	arff::skip_blank_lines( p, end );
 	while( *p != '@' )
@@ -477,7 +478,7 @@ arff_read( const std::string & filename, bool &is_stored_sparse ) {
 		if( !max_points )
 		    goto END_OF_FILE;
 
-		size_t num_points = 0;
+		num_points = 0;
 
 		do {
 		    is_sparse |= *p == '{';

@@ -669,7 +669,6 @@ public:
 	this->m_words.clear();
     }
 
-
     // Memorize the word, but do not store it in the word list
     const char * memorize( char * p, size_t len ) {
 	return this->m_storage.store( p, len );

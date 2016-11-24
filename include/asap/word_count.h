@@ -793,15 +793,15 @@ tfidf_map_catalog( ValueTy *v, IndexTy *c,
 		   size_t num_points, bool is_sorted ) {
     typedef ValueTy value_type;
 
-    if( std::distance( MI, ME ) > 1000 ) {
-	cilk_for( InputIterator MI=I, ME=E; MI != ME; ++MI ) {
+    if( std::distance( I, E ) > 1000 ) {
+	cilk_for( InputIterator MI=I; MI != E; ++MI ) {
 	    size_t f = std::distance( I, MI ); // O(1) for random access iterator
 	    tfidf_map_word<WordContSameAsLookup>( &v[f], &c[f], MI, joint_word_map,
 						  num_points, is_sorted );
 	}
     } else {
 	size_t f = 0;
-	for( InputIterator MI=I, ME=E; MI != ME; ++MI ) {
+	for( InputIterator MI=I; MI != E; ++MI ) {
 	    tfidf_map_word<WordContSameAsLookup>( &v[f], &c[f], MI, joint_word_map,
 						  num_points, is_sorted );
 	    ++f;
