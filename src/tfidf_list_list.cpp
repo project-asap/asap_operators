@@ -174,7 +174,7 @@ int main(int argc, char **argv) {
     // TODO: construct aggregate word_list_type2 during wc loop above
     std::shared_ptr<word_list_type2> allwords_ptr
 	= std::make_shared<word_list_type2>();
-    allwords_ptr->insert( allwords.get_value() );
+    allwords_ptr->insert( std::move(allwords.get_value()) );
 
     std::shared_ptr<directory_listing_type> dir_list_ptr
 	= std::make_shared<directory_listing_type>();
@@ -185,14 +185,14 @@ int main(int argc, char **argv) {
 
     get_time( begin );
     asap::internal::assign_ids( allwords_ptr->begin(), allwords_ptr->end() );
-    data_set_type tfidf;
-    if( by_words ) {
-	tfidf = asap::tfidf_by_words<vector_type>(
-	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr );
-    } else {
-	tfidf = asap::tfidf<vector_type>(
-	    catalog.cbegin(), catalog.cend(), allwords_ptr, *allwords_ptr, dir_list_ptr , true, true);
-    }
+    data_set_type tfidf(
+	by_words
+	? asap::tfidf_by_words<vector_type>(
+	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr )
+	: asap::tfidf<vector_type>(
+	    catalog.cbegin(), catalog.cend(), allwords_ptr, *allwords_ptr,
+	    dir_list_ptr , true, true)
+	);
     get_time (end);
     print_time("TF/IDF", begin, end);
 

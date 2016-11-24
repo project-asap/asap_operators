@@ -145,16 +145,15 @@ data_set_type tfidf_driver( directory_listing_type & dir_list ) {
 
     asap::internal::assign_ids( allwords_ptr->begin(), allwords_ptr->end() );
 
-    data_set_type tfidf;
-    if( by_words ) {
-	tfidf = asap::tfidf_by_words<typename data_set_type::vector_type>(
+    data_set_type tfidf(
+	by_words
+	? asap::tfidf_by_words<typename data_set_type::vector_type>(
 	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr,
-	    do_sort ); // whether catalogs are sorted
-    } else {
-	tfidf = asap::tfidf<typename data_set_type::vector_type>(
+	    do_sort ) // whether catalogs are sorted
+	: asap::tfidf<typename data_set_type::vector_type>(
 	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr,
-	    false, true ); // whether catalogs are sorted
-    }
+	    false, true ) // whether catalogs are sorted
+	);
     get_time(tfidf_end);
 
     print_time("word count", tfidf_begin, wc_end);
@@ -263,15 +262,15 @@ int main(int argc, char **argv) {
     typedef asap::data_set<vector_type, aggregate_map_type,
 			   directory_listing_type> data_set_type;
 
-    data_set_type tfidf;
-    if( intm_map )
-	tfidf = tfidf_driver<directory_listing_type, internal_map_type,
-			     internal_map_type, aggregate_map_type,
-			     data_set_type, false>( dir_list );
-    else
-	tfidf = tfidf_driver<directory_listing_type, internal_map_type,
-			     intermediate_map_type, aggregate_map_type,
-			     data_set_type, true>( dir_list );
+    data_set_type tfidf(
+	intm_map
+	? tfidf_driver<directory_listing_type, internal_map_type,
+	internal_map_type, aggregate_map_type,
+	data_set_type, false>( dir_list )
+	: tfidf_driver<directory_listing_type, internal_map_type,
+	intermediate_map_type, aggregate_map_type,
+	data_set_type, true>( dir_list )
+	);
 
     get_time( begin );
     if( outfile )

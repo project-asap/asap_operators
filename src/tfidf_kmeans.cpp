@@ -207,15 +207,15 @@ int main(int argc, char **argv) {
 
     asap::internal::assign_ids( allwords_ptr->begin(), allwords_ptr->end() );
 
-    data_set_type data_set;
-    if( by_words ) {
-	data_set = asap::tfidf_by_words<vector_type>(
+    data_set_type data_set(
+	by_words
+	? asap::tfidf_by_words<vector_type>(
 	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr,
-	    do_sort ); // whether catalogs are sorted
-    } else {
-	data_set = asap::tfidf<vector_type>(
-	    catalog.cbegin(), catalog.cend(), allwords_ptr, *allwords_ptr, dir_list_ptr , true, true);
-    }
+	    do_sort ) // whether catalogs are sorted
+	: asap::tfidf<vector_type>(
+	    catalog.cbegin(), catalog.cend(), allwords_ptr, *allwords_ptr,
+	    dir_list_ptr , true, true)
+	);
     get_time( end );
     print_time("TF/IDF", begin, end);
     std::cerr << "TF/IDF number of words: " << data_set.get_dimensions()
