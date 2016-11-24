@@ -308,7 +308,7 @@ public:
     const_iterator slice_end( size_t nth, size_t nslices ) const {
 	size_t slice_len = msize / nslices;
 	size_t pos = (nth+1) * slice_len;
-	return const_iterator( *this, std::min( pos, msize ) );
+	return const_iterator( *this, std::min( pos, (size_t)msize ) );
     }
 };
 
