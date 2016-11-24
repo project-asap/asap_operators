@@ -26,7 +26,7 @@
 #include <cilk/cilk.h>
 #include <cilk/reducer.h>
 #include <cilk/cilk_api.h>
-#include "cilkpub/sort.h"
+//#include "cilkpub/sort.h"
 
 #include "asap/utils.h"
 #include "asap/arff.h"
@@ -124,14 +124,14 @@ static void parse_args(int argc, char **argv) {
 template<typename map_type>
 typename std::enable_if<map_type::can_sort>::type
 kv_sort( map_type & m ) {
+/*
     cilkpub::cilk_sort( m.begin(), m.end(),
 			asap::pair_cmp<typename map_type::value_type,
 			typename map_type::value_type>() );
-/*
+*/
     std::sort( m.begin(), m.end(),
 	       asap::pair_cmp<typename map_type::value_type,
 	       typename map_type::value_type>() );
-*/
 }
 
 template<typename map_type>
@@ -336,8 +336,8 @@ data_set_type tfidf_driver( directory_listing_type & dir_list ) {
      * 1 vs 2 may depend on rate of pruning, but likely biased towards 1.
      */
 
-    data_set_type tfidf;
 /*
+    data_set_type tfidf;
     if( by_words ) {
 	std::shared_ptr<agg3_map_type> allwords_ptr
 	    = std::make_shared<agg3_map_type>();
@@ -346,7 +346,8 @@ data_set_type tfidf_driver( directory_listing_type & dir_list ) {
 	tfidf = asap::tfidf_by_words<typename data_set_type::vector_type>(
 	    catalog.cbegin(), catalog.cend(), allwords_ptr, dir_list_ptr,
 	    is_sorted ); // whether catalogs are sorted
-	    } else */ {
+	    } else {*/
+    data_set_type 
 	tfidf = tfidf_call<std::shared_ptr<directory_listing_type>,
 			   decltype(catalog.cbegin()),
 			   agg2_map_type,
@@ -357,7 +358,7 @@ data_set_type tfidf_driver( directory_listing_type & dir_list ) {
 			       allwords3, dir_list_ptr,
 			       is_sorted, // whether joint_word_map is sorted
 			       iterate_ascending );  // whether catalogs are sorted
-    }
+    //}
     get_time(tfidf_end);
 
     print_time("word count", tfidf_begin, wc_end);
