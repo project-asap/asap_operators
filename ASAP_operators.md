@@ -544,6 +544,12 @@ The difference in processing time is minimal. It is much faster to
 select the method that generates data in the appropriate format compared
 to transposing the data set.
 
+The program \ref tfidf_mix.cpp implements multiple variants, using different
+data structures in different steps.
+The best options to use are '-c HLHHH' when the output should not be sorted
+by words, and '-c HLHLI -s' when the words should be sorted alphabetically in the output.
+
+
 ### K-Means clustering
 
 The K-means clustering operator is implemented through
