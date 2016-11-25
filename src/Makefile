@@ -1,4 +1,4 @@
-targets=kmeans tfidf_list tfidf_map tfidf_list_inplace tfidf_list_list tfidf_list_umap tfidf_kmeans wc tfidf_1gram tfidf_2gram tfidf_3gram
+targets=kmeans tfidf_list tfidf_map tfidf_list_inplace tfidf_list_list tfidf_list_umap tfidf_kmeans wc tfidf_1gram tfidf_2gram tfidf_3gram tfidf_best
 tfidf_tests=tfidf_list tfidf_map tfidf_list_inplace tfidf_list_list tfidf_list_umap tfidf_kmeans wc tfidf_mix_malloc tfidf_mix_prealloc tfidf_mix_managed
 tests=$(patsubst %, test_%, $(targets))
 
@@ -16,16 +16,19 @@ OPT +=
 SWAN_PATH ?= $(HOME)/research/asap
 SWAN_RT ?= $(SWAN_PATH)/intel-cilk-runtime-hpdc02
 SWAN_LLVM ?= $(SWAN_PATH)/swan-cilkplus-llvm/build_hpdc02/Debug+Asserts/bin
-CXX=$(SWAN_LLVM)/clang++
-CC=$(SWAN_LLVM)/clang
+#CXX=$(SWAN_LLVM)/clang++
+#CC=$(SWAN_LLVM)/clang
+CXX=g++-mp-7
+CC=gcc-mp-7
 CXXFLAGS += -fcilkplus
-CXXFLAGS += -I$(SWAN_RT)/include
-CXXFLAGS += -L$(SWAN_RT)/.libs
-LDFLAGS += -lnuma -ldl
+#CXXFLAGS += -I$(SWAN_RT)/include
+#CXXFLAGS += -L$(SWAN_RT)/.libs
+#LDFLAGS += -lnuma -ldl -lrt
 
 CXXFLAGS+=-O3 $(OPT) -g -std=c++11 -I. -I.. -DTIMING
 CXXFLAGS += -I../cilkpub_v105/include -I../include
-LDFLAGS+=-g -std=c++11 -lrt $(OPT)
+LDFLAGS+=-g -std=c++11 $(OPT)
+LDFLAGS+=-fcilkplus
 
 all: $(targets)
 
