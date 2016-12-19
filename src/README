@@ -15,3 +15,8 @@ To run all others
 	make test_<TARGET>
 
 	for example, "make test_tfidf_list", "make test_kmeans"
+
+
+NOTE:
+
+To run K-means version which reads in Wind CDR data set -DIMR in the C++ Makefile Flags
