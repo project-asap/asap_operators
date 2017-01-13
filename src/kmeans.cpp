@@ -20,6 +20,7 @@
 #include <sstream>
 #include <fstream>
 #include <unistd.h>
+#include <climits>
 
 #include <cilk/cilk.h>
 #include <cilk/reducer.h>
@@ -39,8 +40,10 @@
 #include <stddefines.h>
 
 #define DEF_NUM_MEANS 8
+#define DEF_NUM_RUNS 1
 
 size_t num_clusters;
+size_t num_runs;
 size_t max_iters;
 bool force_dense;
 char const * infile = nullptr;
@@ -57,38 +60,54 @@ static void parse_args(int argc, char **argv) {
     extern char *optarg;
     
     num_clusters = DEF_NUM_MEANS;
+    num_runs = DEF_NUM_RUNS;
     max_iters = 0;
-    
-    while ((c = getopt(argc, argv, "c:i:o:m:d")) != EOF) {
-        switch (c) {
-	case 'd':
-	    force_dense = true;
-	    break;
-	case 'm':
-	    max_iters = atoi(optarg);
-	    break;
-	case 'c':
-	    num_clusters = atoi(optarg);
-	    break;
-	case 'i':
-	    infile = optarg;
-	    break;
-	case 'o':
-	    outfile = optarg;
-	    break;
-	case '?':
-	    help(argv[0]);
-	    exit(1);
+   
+#ifndef NOFLAGS
+       while ((c = getopt(argc, argv, "c:i:o:m:r:d")) != EOF) {
+#else
+       while ((c = getopt(argc, argv, "c:m:r:d")) != EOF) {
+#endif
+         switch (c) {
+	        case 'd':
+                   force_dense = true;
+                   break;
+                case 'm':
+                   max_iters = atoi(optarg);
+	           break;
+                case 'c':
+                   num_clusters = atoi(optarg);
+                   break;
+                case 'r':
+                   num_runs = atoi(optarg);
+                   break;
+#ifndef NOFLAGS
+        case 'i':
+            infile = optarg;
+            break;
+        case 'o':
+            outfile = optarg;
+            break;
+#endif
+        case '?':
+            help(argv[0]);
+            exit(1);
         }
-    }
-    
+		         }
+
+
     if( num_clusters <= 0 )
-	fatal( "Number of clusters must be larger than 0." );
+        fatal( "Number of clusters must be larger than 0." );
+#ifndef NOFLAGS
     if( !infile )
-	fatal( "Input file must be supplied." );
+	        fatal( "Input file must be supplied." );
     if( !outfile )
-	fatal( "Output file must be supplied." );
-    
+	        fatal( "Output file must be supplied." );
+#else
+    infile = argv[1];
+    outfile = argv[2];
+#endif
+
     std::cerr << "Number of clusters = " << num_clusters << '\n';
     std::cerr << "Input file = " << infile << '\n';
     std::cerr << "Output file = " << outfile << '\n';
@@ -160,11 +179,35 @@ int main(int argc, char **argv) {
     }
 */
 
-    // K-means
+#ifndef IMR
+   // K-means
     get_time (begin);
     auto kmeans_op = asap::kmeans( data_set, num_clusters, max_iters );
-    get_time (end);        
+    get_time (end);
     print_time("kmeans", begin, end);
+#else
+   // K-means
+    get_time (begin);
+    typedef decltype(asap::kmeans( data_set, num_clusters, max_iters )) dset_type;
+    dset_type* kmeans_op = nullptr;
+    get_time (end);
+    int stored_sse=INT_MAX;        
+    for (int j = 0 ; j < num_runs ; ++j) {
+        dset_type *kmeans_op_j = new dset_type(std::move(asap::kmeans( data_set, num_clusters, max_iters )));
+        if (j == 0) { 
+            stored_sse = kmeans_op_j->within_sse();
+            kmeans_op = kmeans_op_j;
+        } else {
+            if (kmeans_op_j->within_sse() < stored_sse)  {
+               kmeans_op = kmeans_op_j; 
+               stored_sse = kmeans_op_j->within_sse();
+            } else {
+              delete kmeans_op_j;
+            }
+        }
+    }
+    print_time("kmeans", begin, end);
+#endif
 
     // Unscale data
     get_time (begin);
