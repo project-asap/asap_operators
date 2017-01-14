@@ -199,6 +199,7 @@ int main(int argc, char **argv) {
             kmeans_op = kmeans_op_j;
         } else {
             if (kmeans_op_j->within_sse() < stored_sse)  {
+	       delete kmeans_op;
                kmeans_op = kmeans_op_j; 
                stored_sse = kmeans_op_j->within_sse();
             } else {
@@ -219,9 +220,9 @@ int main(int argc, char **argv) {
     get_time (begin);
     fprintf( stdout, "sparse? %s\n",
 	     ( is_sparse && !force_dense ) ? "yes" : "no" );
-    fprintf( stdout, "iterations: %d\n", kmeans_op.num_iterations() );
+    fprintf( stdout, "iterations: %d\n", kmeans_op->num_iterations() );
 
-    fprintf( stdout, "within cluster SSE: %11.4lf\n", kmeans_op.within_sse() );
+    fprintf( stdout, "within cluster SSE: %11.4lf\n", kmeans_op->within_sse() );
 
     std::ofstream of( outfile, std::ios_base::out );
 #ifndef IMR
@@ -267,7 +268,7 @@ int main(int argc, char **argv) {
     std::vector<int>::iterator itid ;
     std::vector<std::string>::iterator itname = cats.begin();
     int ct=0;
-    centres_vector_type cvt(24);
+    centres_vector_type cvt(17);
     for(itid = ids.begin(); itid != ids.end(); ++itid, ++itname, ++ct) {
         float * fPtr = modelFloats[ct];
 
@@ -277,14 +278,14 @@ int main(int argc, char **argv) {
     }
 
     // For each test cluster, find the minimum euclidean distance of the provided training clusters
-    auto I = kmeans_op.centres().cbegin(); 
-    auto E = kmeans_op.centres().cend(); 
+    auto I = kmeans_op->centres().cbegin(); 
+    auto E = kmeans_op->centres().cend(); 
     for( auto II=I; II != E; ++II ) {
 
         float lowestDistance = 99.99;
         std::vector<archetipiRecord>::iterator targetCategory;
         for(std::vector<archetipiRecord>::iterator it = archetipi.begin(); it != archetipi.end(); ++it) {
-	    real distance = sq_dist((*II).get_value(), &(*it).centres[0], 24 );
+	    real distance = sq_dist((*II).get_value(), &(*it).centres[0], 17 );
  	    if (distance < lowestDistance) { 
 		lowestDistance = distance; 
 		targetCategory = it; 

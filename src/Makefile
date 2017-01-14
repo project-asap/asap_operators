@@ -9,8 +9,8 @@ OBJ=$(patsubst %, %.o, $(targets))
 
 OPT += 
 
-#CXX=icpc
-#CC=icpc
+CXX=icpc
+CC=icpc
 # The following block of defines is concerned with setting up the swan compiler.
 # Define SWAN_PATH SWAN_RT and SWAN_LLVM on the command line to customize
 SWAN_PATH ?= $(HOME)/research/asap
@@ -18,12 +18,15 @@ SWAN_RT ?= $(SWAN_PATH)/intel-cilk-runtime-hpdc02
 SWAN_LLVM ?= $(SWAN_PATH)/swan-cilkplus-llvm/build_hpdc02/Debug+Asserts/bin
 #CXX=$(SWAN_LLVM)/clang++
 #CC=$(SWAN_LLVM)/clang
-CXX=g++-mp-7
-CC=gcc-mp-7
-CXXFLAGS += -fcilkplus
+# CXX=g++-mp-7
+# CC=gcc-mp-7
+# Note: add this -fcilkplus for gcc5+ 
+#CXXFLAGS += -fcilkplus 
+# Note: add -DIMR for processing Wind CDR 
+CXXFLAGS += -DIMR
 #CXXFLAGS += -I$(SWAN_RT)/include
 #CXXFLAGS += -L$(SWAN_RT)/.libs
-#LDFLAGS += -lnuma -ldl -lrt
+LDFLAGS += -lnuma -ldl -lrt
 
 CXXFLAGS+=-O3 $(OPT) -g -std=c++11 -I. -I.. -DTIMING
 CXXFLAGS += -I../cilkpub_v105/include -I../include
