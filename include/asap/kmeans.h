@@ -175,18 +175,13 @@ public:
     // The InputIterator must be a RandomAccessIterator
     template<typename InputIterator>
     size_t cluster(InputIterator I, InputIterator E, size_t max_iters = 0) {
-std::cout << "0" << std::endl;
 	size_t num_points = std::distance(I, E);
-std::cout << "1" << std::endl;
-std::cout << "1.5 : " << num_points << std::endl;
 
 	// size_t cluster_asgn[num_points];
 	size_t * cluster_asgn = new size_t[num_points];
-std::cout << "2" << std::endl;
 
 	// Set all centres and their associated counters to 0.
 	m_centres.clear();
-std::cout << "4" << std::endl;
 	// Initialize centres by mapping inputs randomly to centres
 	size_t pt=0;
 	for( InputIterator II=I; II != E; ++II, ++pt ) {
@@ -195,18 +190,14 @@ std::cout << "4" << std::endl;
 	    m_centres[c] += *II;
 	    m_centres[c].inc_count();
 	}
-std::cout << "5" << std::endl;
 	normalize();
-std::cout << "6" << std::endl;
 
 	// Iterate K-Means loop up to max_iters times
 	size_t num_iters = 1;
 	while( kmeans_iterate( I, E, cluster_asgn ) )
 	    if( ++num_iters >= max_iters && max_iters > 0 )
 		break;
-std::cout << "7" << std::endl;
-        delete [] cluster_asgn;
-std::cout << "8" << std::endl;
+        delete[] cluster_asgn;
 
 	return m_num_iters = num_iters;
     }
@@ -327,9 +318,7 @@ kmeans( const DataSetTy & data_set, size_t num_clusters,
     typedef typename kmeans_type::kmeans_dense_vector_set kmeans_vector_set;
 
     kmeans_type op( num_clusters, data_set.get_dimensions() );
-    std::cout << "Calling op.cluster" << std::endl;
     op.cluster( data_set.vector_cbegin(), data_set.vector_cend(), max_iters );
-    std::cout << "After op.cluster" << std::endl;
 
     typedef typename kmeans_data_set_type_creator<DataSetTy>::data_set_type
 	data_set_type;
@@ -338,7 +327,6 @@ kmeans( const DataSetTy & data_set, size_t num_clusters,
 
     std::shared_ptr<kmeans_vector_set> centres
 	= std::make_shared<kmeans_vector_set>( std::move(op.centres()) );
-    std::cout << "After making shared" << std::endl;
 
     return data_set_type( op.within_sse(), op.num_iterations(), "kmeans",
 			  data_set.get_index_ptr(), centres );

@@ -1,4 +1,4 @@
-targets=kmeans tfidf_list tfidf_map tfidf_list_inplace tfidf_list_list tfidf_list_umap tfidf_kmeans wc tfidf_1gram tfidf_2gram tfidf_3gram tfidf_best
+targets=kmeans wind_kmeans tfidf_list tfidf_map tfidf_list_inplace tfidf_list_list tfidf_list_umap tfidf_kmeans wc tfidf_1gram tfidf_2gram tfidf_3gram tfidf_best
 tfidf_tests=tfidf_list tfidf_map tfidf_list_inplace tfidf_list_list tfidf_list_umap tfidf_kmeans wc tfidf_mix_malloc tfidf_mix_prealloc tfidf_mix_managed
 tests=$(patsubst %, test_%, $(targets))
 
@@ -22,8 +22,6 @@ SWAN_LLVM ?= $(SWAN_PATH)/swan-cilkplus-llvm/build_hpdc02/Debug+Asserts/bin
 # CC=gcc-mp-7
 # Note: add this -fcilkplus for gcc5+ 
 #CXXFLAGS += -fcilkplus 
-# Note: add -DIMR for processing Wind CDR 
-CXXFLAGS += -DIMR
 #CXXFLAGS += -I$(SWAN_RT)/include
 #CXXFLAGS += -L$(SWAN_RT)/.libs
 LDFLAGS += -lnuma -ldl -lrt
@@ -31,7 +29,7 @@ LDFLAGS += -lnuma -ldl -lrt
 CXXFLAGS+=-O3 $(OPT) -g -std=c++11 -I. -I.. -DTIMING
 CXXFLAGS += -I../cilkpub_v105/include -I../include
 LDFLAGS+=-g -std=c++11 $(OPT)
-LDFLAGS+=-fcilkplus
+# LDFLAGS+=-fcilkplus
 
 all: $(targets)
 
