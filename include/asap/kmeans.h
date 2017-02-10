@@ -169,6 +169,52 @@ public:
 	  m_num_iters( 0 ), m_sse( 0 ) { }
     ~kmeans_operator() { }
 
+private:
+    template<typename InputIterator>
+    void kmeansPP_init(InputIterator I, InputIterator E) {
+	size_t num_points = std::distance(I, E);
+	size_t c = 0;
+	{ // First point
+	    size_t pt = rand() % num_points;
+	    cluster_asgn[pt] = c;
+	    InputIterator II = I;
+	    std::forward( II, pt );
+	    m_centres[c] += II;
+	    m_centres[c].inc_count();
+	    c++;
+	}
+	
+	value_type * D = new value_type[num_points](); // zero-init
+	
+	while( c < num_clusters ) {
+	    cilk::reducer< cilk::op_add<value_type> > sum = 0;
+	    cilk_for( InputIterator II=I; II != E; ++II ) {
+		size_t pos = std::distance(I, II);
+		value_type distance = II->sq_dist( m_centres[c-1] );
+		if( distance < D[pos] )
+		    D[pos] = distance;
+		*sum += D[pos];
+	    }
+
+	    double r = (double)rand() / (double)RAND_MAX;
+	    double cum = 0;
+	    r *= sum.get_value();
+	    size_t pt = 0;
+	    for( InputIterator II=I; II != E; ++II, ++pt ) {
+		cum += D[pt];
+		if( cum >= r ) {
+		    m_centres[c] += II;
+		    m_centres[c].inc_count();
+		    c++;
+		    break;
+		}
+	    }
+	}
+
+	delete[] D;
+    }
+    
+public:
     // A range of vectors representing points to cluster. The vectors
     // must be compatible with the IndexTy and ValueTy provided to the
     // class template.
@@ -183,6 +229,8 @@ public:
 	// Set all centres and their associated counters to 0.
 	m_centres.clear();
 	// Initialize centres by mapping inputs randomly to centres
+	kmeansPP_init(I, E);
+/*
 	size_t pt=0;
 	for( InputIterator II=I; II != E; ++II, ++pt ) {
 	    size_t c = rand() % m_num_clusters;
@@ -190,6 +238,7 @@ public:
 	    m_centres[c] += *II;
 	    m_centres[c].inc_count();
 	}
+*/
 	normalize();
 
 	// Iterate K-Means loop up to max_iters times
