@@ -170,6 +170,9 @@ read_sparse_vector( char *& pref, char * end, vector_type & vector ) {
 
     char * p = pref;
 
+    while( *p != '[' )
+        ++p;
+ 
     assert( *p == '[' );
     ++p;
     while( std::isspace( *p ) )
@@ -208,9 +211,9 @@ read_sparse_vector( char *& pref, char * end, vector_type & vector ) {
 
 template<typename vector_type>
 bool read_vector( char *& p, char * end, vector_type & vector ) {
-    // if( *p == '(' ) 
-	// return read_sparse_vector( p, end, vector );
-    // else
+    if( *p == '{' ) 
+	return read_sparse_vector( p, end, vector );
+    else
 	return read_dense_vector( p, end, vector );
 }
 
@@ -295,7 +298,7 @@ size_t count_nonzeros( const char * p, const char * end ) {
     ++p; // skip opening {
     const char * prevp = p;
     while( (p = std::find_if( p, end, NZDelim() )) != end ) {
-	if( *p == ')' )
+	if( *p == ']' )
 	    break;
 	++p;
 	++nvalues;
@@ -315,7 +318,7 @@ std::pair<size_t,size_t> count_values( const char * p, const char * end ) {
 	if( *p == ',' ) {
 	    ++nvalues;
 	}
-	else if( *p == ')' ) {
+	else if( *p == ']' ) {
 	    ++npoints;
 	    if( std::find_if( prevp, p, IsAlnum() ) != p )
 		++nvalues;
@@ -412,7 +415,7 @@ array_read( const std::string & filename, bool &is_stored_sparse ) {
 	    array::skip_blank_lines( p, end );
 
 	    do {
-		// is_sparse |= *p == '[';
+		is_sparse |= *p == '{';
 		// Create vector speculatively...
 		create_vector<vector_type>( vec, p, end, ndim );
 		if( !array::read_vector( p, end, vec.back() ) ) {
@@ -426,6 +429,10 @@ array_read( const std::string & filename, bool &is_stored_sparse ) {
 #undef ADVANCE
 
 END_OF_FILE:
+
+    is_stored_sparse = is_sparse;
+    return data_set_type( relation, idx, vec_ptr );
+
 
     is_stored_sparse = is_sparse;
     return data_set_type( relation, idx, vec_ptr );

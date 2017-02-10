@@ -21,6 +21,7 @@
 #include <fstream>
 #include <unistd.h>
 #include <climits>
+#include <limits>
 
 #include <cilk/cilk.h>
 #include <cilk/reducer.h>
@@ -137,8 +138,13 @@ int main(int argc, char **argv) {
 
     std::cerr << "Available threads: " << __cilkrts_get_nworkers() << "\n";
 
+#if 1
     typedef asap::dense_vector<size_t, float, true, asap::mm_ownership_policy>
 	vector_type;
+#else
+    typedef asap::sparse_vector<size_t, float, true, asap::mm_ownership_policy>
+	vector_type;
+#endif
     typedef asap::word_list<std::vector<const char *>, asap::word_bank_pre_alloc> word_list;
     typedef asap::data_set<vector_type,word_list> data_set_type;
 
@@ -150,8 +156,8 @@ int main(int argc, char **argv) {
     std::cout << "Points: " << data_set.get_num_points() << std::endl;
 
     // Normalize data for improved clustering results
-    std::vector<std::pair<float, float>> extrema
- 	= asap::normalize( data_set );
+    // std::vector<std::pair<float, float>> extrema
+ 	// = asap::normalize( data_set );
 
     get_time (end);
     print_time("input", begin, end);
@@ -187,11 +193,12 @@ int main(int argc, char **argv) {
             }
         }
     }
+    // std::cout << "Stored_sse after clustering is " << stored_sse << std::endl;
     print_time("kmeans", begin, end);
 
     // Unscale data
     get_time (begin);
-    asap::denormalize( extrema, data_set );
+    // asap::denormalize( extrema, data_set );
     get_time (end);        
     print_time("denormalize", begin, end);
 
@@ -232,11 +239,13 @@ int main(int argc, char **argv) {
 
     // Struct to hold each training record together in a struct with dense vector for the centres
     struct archetipiRecord {
-        archetipiRecord(int i, std::string str, centres_vector_type cvt) 
+        // archetipiRecord(int i, std::string str, centres_vector_type cvt) 
+        archetipiRecord(int i, std::string str, float * cvt) 
               : id(i), name(str), centres(cvt) {}
         int id;
         std::string name;
-        centres_vector_type centres;
+        // centres_vector_type centres;
+        float * centres;
     };
 
     // Vector of training records
@@ -244,38 +253,84 @@ int main(int argc, char **argv) {
     std::vector<int>::iterator itid ;
     std::vector<std::string>::iterator itname = cats.begin();
     int ct=0;
-    centres_vector_type cvt(17);
+    // centres_vector_type cvt(17);
+    float* cvt;
     for(itid = ids.begin(); itid != ids.end(); ++itid, ++itname, ++ct) {
         float * fPtr = modelFloats[ct];
 
-        cvt[ct] = *modelFloats[ct];
-        archetipiRecord rec(*itid, *itname, cvt);
+        // cvt[ct] = modelFloats[ct];
+        // archetipiRecord rec(*itid, *itname, cvt);
+        archetipiRecord rec(*itid, *itname, modelFloats[ct]);
         archetipi.push_back( rec );
     }
 
+#if 1
     // For each test cluster, find the minimum euclidean distance of the provided training clusters
     auto I = kmeans_op->centres().cbegin(); 
     auto E = kmeans_op->centres().cend(); 
+    int cnt=0;
     for( auto II=I; II != E; ++II ) {
 
-        float lowestDistance = 99.99;
+        float lowestDistance = std::numeric_limits<float>::max();
         std::vector<archetipiRecord>::iterator targetCategory;
+	// std::cout << "Classifications from Centres number " << cnt << ":" << std::endl;
         for(std::vector<archetipiRecord>::iterator it = archetipi.begin(); it != archetipi.end(); ++it) {
-	    real distance = sq_dist((*II).get_value(), &(*it).centres[0], 17 );
+            // std::cout << "[ centres- " << (*II).get_value()<< std::endl;
+            // std::cout << "[ archi- " << (*it).centres << std::endl;
+
+	    real distance = sq_dist((*II).get_value(), (*it).centres, 17 );
+            // std::cout << "II : " << *II << std::endl << "it: " << (*it).centres << std::endl;
+            // std::cout << "Category : " << (*it).name << "Distance: " << distance << std::endl;
  	    if (distance < lowestDistance) { 
 		lowestDistance = distance; 
 		targetCategory = it; 
-                // printf("We have reached here\n");
 	    }
         }
 
+	std::ostringstream os;
+	os << "('" << (*targetCategory).name << "', "  << *II << ")" << std::endl;
+  	std::string s = os.str();
+        std::replace( s.begin(), s.end(), '{', '[');
+        std::replace( s.begin(), s.end(), '}', ']');
+  	of << s ;// << std::endl;
+
+    }
+#endif
+
+// Check that classifies datapoints directly with training data:
+#if 0
+    auto Idata = data_set.vector_cbegin();
+    auto Edata = data_set.vector_cend();
+
+    for( auto II=Idata; II != Edata; ++II ) {
+
+        float lowestDistance = std::numeric_limits<float>::max();
+        std::vector<archetipiRecord>::iterator targetCategory;
+	std::cout << "Classifications from Data point" << ":" << std::endl;
+        for(std::vector<archetipiRecord>::iterator it = archetipi.begin(); it != archetipi.end(); ++it) {
+	    real distance = sq_dist((*II).get_value(), &(*it).centres[0], 24 );
+            std::cout << "II : " << *II << std::endl << "it: " << (*it).centres << std::endl;
+            std::cout << "Category : " << (*it).name << "  Distance: " << distance << std::endl;
+ 	    if (distance < lowestDistance) { 
+		lowestDistance = distance; 
+		targetCategory = it; 
+	    }
+        }
+
+	// os << std::endl << "Classifications from Data Points" << std::endl;
 	std::ostringstream os;
 	os << "('" << (*targetCategory).name << "', "  << *II << ")";
   	std::string s = os.str();
         std::replace( s.begin(), s.end(), '{', '[');
         std::replace( s.begin(), s.end(), '}', ']');
   	of << s << std::endl;
+
+
+        // *II == or within mcentres[?] 
+      
     }
+
+#endif
 
     of.close();
     get_time (end);
