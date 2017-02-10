@@ -438,6 +438,7 @@ END_OF_FILE:
     return data_set_type( relation, idx, vec_ptr );
 }
 
+#ifndef IMR
 // Specialization for dense vectors without ownership. Ownership of the
 // vector contents are referred to the data_set for efficiency reasons.
 template<typename DataSetTy>
@@ -532,6 +533,7 @@ END_OF_FILE:
     is_stored_sparse = is_sparse;
     return data_set_type( relation, idx, std::make_shared<vector_set_type>( 0, 0 ) );
 }
+#endif
 
 // Version for IMR input format to k-means, basic array format
 // Specialization for dense vectors without ownership. Ownership of the
