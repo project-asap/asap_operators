@@ -111,19 +111,21 @@ template<typename vector_type>
 class record_value<vector_type,
 		   typename std::enable_if<is_sparse_vector<vector_type>::value>::type> {
     vector_type & vector;
-    typename vector_type::index_type pos;
+    typename vector_type::index_type pos, idx;
 public:
-    record_value( vector_type & vector_ ) : vector( vector_ ), pos( 0 ) { }
+    record_value( vector_type & vector_ ) : vector( vector_ ), pos( 0 ), idx( 0 ) { }
 
     void operator () ( typename vector_type::value_type v ) {
 	assert( pos < vector.length() ); // throw
-	vector.set( pos, v, pos );
-	++pos;
+	if( v > 0 )
+	    vector.set( pos++, v, idx );
+	++idx;
     }
     void operator () ( typename vector_type::index_type i,
 		       typename vector_type::value_type v ) {
 	assert( 0 <= i && i < vector.length() ); // throw
-	vector.set( pos++, v, i );
+	if( v > 0 )
+	    vector.set( pos++, v, i );
     }
 };
 
@@ -309,6 +311,36 @@ size_t count_nonzeros( const char * p, const char * end ) {
     return nvalues;
 }
 
+size_t count_nonzeros_filtered( char * p, char * end ) {
+    size_t nvalues = 0;
+
+    while( *p != '[' )
+        ++p;
+ 
+    assert( *p == '[' );
+    ++p;
+    while( std::isspace( *p ) )
+	++p;
+    do {
+	if( *p == ']' )
+	    break;
+#if REAL_IS_INT
+	if( std::strtoul( p, &p, 10 ) )
+	    ++nvalues;
+#else
+	if( std::strtod( p, &p ) )
+	    ++nvalues;
+#endif
+	if( *p == ')' )
+	    break;
+	++p;
+	while( std::isspace( *p ) )
+	    ++p;
+    } while( *p != ')' ); // && *p != '\n' );
+    return nvalues;
+}
+
+
 std::pair<size_t,size_t> count_values( const char * p, const char * end ) {
     size_t npoints = 0;
     size_t nvalues = 0;
@@ -341,7 +373,7 @@ template<typename VectorTy, typename Container>
 typename std::enable_if<is_sparse_vector<VectorTy>::value>::type
 create_vector( Container & container, const char * p, const char * end,
 	       size_t ndim ) {
-    container.emplace_back( ndim, count_nonzeros( p, end ) );
+    container.emplace_back( ndim, count_nonzeros_filtered( (char *)p, (char *)end ) );
 }
 
 template<typename VectorTy, typename Container>
@@ -354,7 +386,7 @@ template<typename VectorTy, typename Container>
 typename std::enable_if<is_sparse_vector<VectorTy>::value>::type
 init_vector( Container & container, const char * p, const char * end,
 	     size_t ndim ) {
-    container.emplace_back( ndim, count_nonzeros( p, end ) );
+    container.emplace_back( ndim, count_nonzeros_filtered( (char *)p, (char *)end ) );
 }
 
 
