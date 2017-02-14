@@ -241,6 +241,10 @@ public:
 	    d = mix_vector_ops::square_euclidean_distance(
 		m_value, m_coord, m_nonzeros, p.get_value(), p.length() );
 	return d;
+/*
+	return mix_vector_ops::square_euclidean_distance(
+	    m_value, m_coord, m_nonzeros, p.get_value(), p.length() );
+*/
     }
 };
 

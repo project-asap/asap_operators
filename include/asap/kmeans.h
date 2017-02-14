@@ -270,7 +270,7 @@ public:
 	    m_centres[c].inc_count();
 	}
 */
-	normalize();
+	normalize( m_centres );
 
 	// Iterate K-Means loop up to max_iters times
 	size_t num_iters = 1;
@@ -355,20 +355,36 @@ private:
 	    *sse += smallest_distance; // add up squared distances
 	}
 
+	normalize( *new_centres );
+
+	// Alternative way of assessing convergence
+	if( std::is_floating_point<value_type>::value && modified ) {
+	    value_type epsilon = 1e-4;
+	    modified = false;
+	    // Note: we have a sqnorm cache on m_centres, not on new_centres
+	    for( int i=0; i < m_num_clusters; ++i ) {
+		value_type d = (*new_centres)[i].sq_dist( m_centres[i] );
+		std::cerr << "centre " << i << " moves over " << d << "\n"; 
+		if( d >= epsilon*epsilon ) {
+		    modified = true;
+		    break;
+		}
+	    }
+	}
+
 	new_centres->swap( m_centres );
 	m_sse = sse.get_value();
 	assert( m_sse >= 0 );
-	normalize();
 	return modified;
     }
-    void normalize() {
+    void normalize( kmeans_dense_vector_set & centres ) {;
 	// TODO: cilk_for. if range large enough... How much is large enough?
 	//       depends on #length (#clusters very small)
 	/*cilk_*/
 	for( size_t c=0; c < m_num_clusters; ++c ) {
-	    size_t cnt = m_centres[c].get_count();
+	    size_t cnt = centres[c].get_count();
 	    if( cnt > 0 ) // cluster must be non-empty to scale
-		m_centres[c].scale( value_type(1)/value_type(cnt) );
+		centres[c].scale( value_type(1)/value_type(cnt) );
 	    else
 		std::cerr << "WARN: cluster " << c << " is empty\n";
 	}

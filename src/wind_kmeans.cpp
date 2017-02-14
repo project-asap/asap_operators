@@ -110,7 +110,7 @@ static void parse_args(int argc, char **argv) {
     std::cerr << "Output file = " << outfile << '\n';
 }
 
-typedef float real;
+typedef double real;
 
 #if !VECTORIZED
     // real sq_dist(point const& p) const {
@@ -139,10 +139,10 @@ int main(int argc, char **argv) {
     std::cerr << "Available threads: " << __cilkrts_get_nworkers() << "\n";
 
 #if 0
-    typedef asap::dense_vector<size_t, float, true, asap::mm_ownership_policy>
+    typedef asap::dense_vector<size_t, real, true, asap::mm_ownership_policy>
 	vector_type;
 #else
-    typedef asap::sparse_vector<size_t, float, true, asap::mm_ownership_policy>
+    typedef asap::sparse_vector<size_t, real, true, asap::mm_ownership_policy>
 	vector_type;
 #endif
     typedef asap::word_list<std::vector<const char *>, asap::word_bank_pre_alloc> word_list;
@@ -156,7 +156,7 @@ int main(int argc, char **argv) {
     std::cout << "Points: " << data_set.get_num_points() << std::endl;
 
     // Normalize data for improved clustering results
-    // std::vector<std::pair<float, float>> extrema
+    // std::vector<std::pair<real, real>> extrema
  	// = asap::normalize( data_set );
 
     get_time (end);
@@ -213,12 +213,12 @@ int main(int argc, char **argv) {
     std::ofstream of( outfile, std::ios_base::out );
 
     // Setup datastructure to hold the training/model data
-    typedef asap::dense_vector<size_t, float, true, asap::mm_ownership_policy> centres_vector_type;
+    typedef asap::dense_vector<size_t, real, true, asap::mm_ownership_policy> centres_vector_type;
     std::vector<int> ids = {0,1,2,3,4,5,5,6,7,8,9,10,11,12,13,14,15};
     std::vector<std::string> cats = {"resident","resident","resident","dynamic_resident",
 		"dynamic_resident","dynamic_resident","commuter","commuter","commuter","visitor",
 		"visitor","visitor","resident","resident","visitor","visitor","visitor"};
-    float modelFloats[17][24] = {
+    real modelFloats[17][24] = {
         {0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5},
 	{0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1},
 	{0.0,0.0,0.0,1.0,1.0,1.0,0.0,0.0,0.0,1.0,1.0,1.0,0.0,0.0,0.0,1.0,1.0,1.0,0.0,0.0,0.0,1.0,1.0,1.0},
@@ -240,12 +240,12 @@ int main(int argc, char **argv) {
     // Struct to hold each training record together in a struct with dense vector for the centres
     struct archetipiRecord {
         // archetipiRecord(int i, std::string str, centres_vector_type cvt) 
-        archetipiRecord(int i, std::string str, float * cvt) 
+        archetipiRecord(int i, std::string str, real * cvt) 
               : id(i), name(str), centres(cvt) {}
         int id;
         std::string name;
         // centres_vector_type centres;
-        float * centres;
+        real * centres;
     };
 
     // Vector of training records
@@ -254,9 +254,9 @@ int main(int argc, char **argv) {
     std::vector<std::string>::iterator itname = cats.begin();
     int ct=0;
     // centres_vector_type cvt(17);
-    float* cvt;
+    real* cvt;
     for(itid = ids.begin(); itid != ids.end(); ++itid, ++itname, ++ct) {
-        float * fPtr = modelFloats[ct];
+        real * fPtr = modelFloats[ct];
 
         // cvt[ct] = modelFloats[ct];
         // archetipiRecord rec(*itid, *itname, cvt);
@@ -271,7 +271,7 @@ int main(int argc, char **argv) {
     int cnt=0;
     for( auto II=I; II != E; ++II ) {
 
-        float lowestDistance = std::numeric_limits<float>::max();
+        real lowestDistance = std::numeric_limits<real>::max();
         std::vector<archetipiRecord>::iterator targetCategory;
 	// std::cout << "Classifications from Centres number " << cnt << ":" << std::endl;
         for(std::vector<archetipiRecord>::iterator it = archetipi.begin(); it != archetipi.end(); ++it) {
@@ -304,7 +304,7 @@ int main(int argc, char **argv) {
 
     for( auto II=Idata; II != Edata; ++II ) {
 
-        float lowestDistance = std::numeric_limits<float>::max();
+        real lowestDistance = std::numeric_limits<real>::max();
         std::vector<archetipiRecord>::iterator targetCategory;
 	std::cout << "Classifications from Data point" << ":" << std::endl;
         for(std::vector<archetipiRecord>::iterator it = archetipi.begin(); it != archetipi.end(); ++it) {
