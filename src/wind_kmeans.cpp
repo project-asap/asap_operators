@@ -138,7 +138,7 @@ int main(int argc, char **argv) {
 
     std::cerr << "Available threads: " << __cilkrts_get_nworkers() << "\n";
 
-#if 1
+#if 0
     typedef asap::dense_vector<size_t, float, true, asap::mm_ownership_policy>
 	vector_type;
 #else
