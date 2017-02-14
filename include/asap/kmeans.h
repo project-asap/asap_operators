@@ -174,41 +174,69 @@ private:
     void kmeansPP_init(InputIterator I, InputIterator E, size_t *cluster_asgn ) {
 	size_t num_points = std::distance(I, E);
 	size_t c = 0;
+	size_t pt;
 	{ // First point
-	    size_t pt = rand() % num_points;
+	    pt = rand() % num_points;
 	    cluster_asgn[pt] = c;
 	    InputIterator II = I;
 	    std::advance( II, pt );
 	    m_centres[c] += *II;
 	    m_centres[c].inc_count();
 	    c++;
+	    // std::cerr << "PP: pt " << c << " is " << pt << "\n";
 	}
 	
-	value_type * D = new value_type[num_points](); // zero-init
+	value_type * D = new value_type[num_points]; // zero-init
 	
-	while( c < m_num_clusters ) {
-	    cilk::reducer< cilk::op_add<value_type> > sum( 0 );
-	    cilk_for( InputIterator II=I; II != E; ++II ) {
-		size_t pos = std::distance(I, II);
-		value_type distance = II->sq_dist( m_centres[c-1] );
-		if( distance < D[pos] )
-		    D[pos] = distance;
-		*sum += D[pos];
-	    }
+	cilk::reducer< cilk::op_add<value_type> > sum( 0 );
+	cilk_for( InputIterator II=I; II != E; ++II ) {
+	    size_t pos = std::distance(I, II);
+	    value_type distance = II->sq_dist( m_centres[c-1] );
+	    D[pos] = distance;
+	    *sum += distance;
+	    // std::cerr << "sq distance " << distance << " / " << D[pos] << "\n";
+	}
+	D[pt] = 0; // zero probability
+	// std::cerr << "sum=" << sum.get_value() << "\n";
 
+	while( c < m_num_clusters ) {
 	    double r = (double)rand() / (double)RAND_MAX;
 	    double cum = 0;
 	    r *= sum.get_value();
 	    size_t pt = 0;
 	    for( InputIterator II=I; II != E; ++II, ++pt ) {
 		cum += D[pt];
+		// std::cerr << "r=" << r << " cum=" << cum << " at pt=" << pt << " D[pt]=" << D[pt] << "\n";
 		if( cum >= r ) {
 		    m_centres[c] += *II;
 		    m_centres[c].inc_count();
 		    c++;
+		    D[pt] = 0;
+		    // std::cerr << "PP: pt " << c << " is " << pt << "\n";
 		    break;
 		}
 	    }
+	    if( c >= m_num_clusters )
+		break;
+
+	    sum.set_value( 0 );
+	    cilk_for( InputIterator II=I; II != E; ++II ) {
+		size_t pos = std::distance(I, II);
+		value_type distance = II->sq_dist( m_centres[c-1] );
+		if( D[pos] > distance )
+		    D[pos] = distance;
+		// if( distance == 0 )
+		    // std::cerr << "set D[" << pos << "] to zero\n";
+		*sum += D[pos];
+	    }
+/*
+	    if( sum.get_value() == 0 ) {
+		std::cerr << "NO MORE DISTANCES!\n";
+		for( int i=0; i < num_points; ++i ) {
+		    std::cerr << "D[" << i << "]=" << D[i] << "\n";
+		}
+	    }
+*/
 	}
 
 	delete[] D;
@@ -332,6 +360,8 @@ private:
 	    size_t cnt = m_centres[c].get_count();
 	    if( cnt > 0 ) // cluster must be non-empty to scale
 		m_centres[c].scale( value_type(1)/value_type(cnt) );
+	    else
+		std::cerr << "WARN: cluster " << c << " is empty\n";
 	}
     }
 };
