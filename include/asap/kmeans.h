@@ -164,7 +164,7 @@ private:
 
 public:
     kmeans_operator(size_t num_clusters, size_t vector_length)
-	: m_centres( num_clusters, vector_length),
+	: m_centres( num_clusters, vector_length ),
 	  m_num_clusters( num_clusters ), m_vector_length( vector_length ),
 	  m_num_iters( 0 ), m_sse( 0 ) { }
     ~kmeans_operator() { }
@@ -251,7 +251,8 @@ public:
     // class template.
     // The InputIterator must be a RandomAccessIterator
     template<typename InputIterator>
-    size_t cluster(InputIterator I, InputIterator E, size_t max_iters = 0) {
+    size_t cluster(InputIterator I, InputIterator E,
+		   size_t max_iters = 0, value_type epsilon = 1e-4 ) {
 	size_t num_points = std::distance(I, E);
 
 	// size_t cluster_asgn[num_points];
@@ -274,9 +275,11 @@ public:
 
 	// Iterate K-Means loop up to max_iters times
 	size_t num_iters = 1;
-	while( kmeans_iterate( I, E, cluster_asgn ) )
-	    if( ++num_iters >= max_iters && max_iters > 0 )
+	while( kmeans_iterate( I, E, cluster_asgn, epsilon ) ) {
+	    if( num_iters >= max_iters && max_iters > 0 )
 		break;
+	    ++num_iters;
+	}
         delete[] cluster_asgn;
 
 	return m_num_iters = num_iters;
@@ -294,7 +297,7 @@ public:
 private:
     template<typename InputIterator>
     bool kmeans_iterate( InputIterator I, InputIterator E,
-			 size_t cluster_asgn[] ) {
+			 size_t cluster_asgn[], value_type epsilon ) {
 	bool modified = false;
 
 	std::cerr << "***** ITER ***** " << m_sse << "\n";
@@ -359,13 +362,12 @@ private:
 
 	// Alternative way of assessing convergence
 	if( std::is_floating_point<value_type>::value && modified ) {
-	    value_type epsilon = 1e-4;
 	    modified = false;
 	    // Note: we have a sqnorm cache on m_centres, not on new_centres
 	    for( int i=0; i < m_num_clusters; ++i ) {
 		value_type d = (*new_centres)[i].sq_dist( m_centres[i] );
 		std::cerr << "centre " << i << " moves over " << d << "\n"; 
-		if( d >= epsilon*epsilon ) {
+		if( d >= epsilon * epsilon ) {
 		    modified = true;
 		    break;
 		}
@@ -410,7 +412,8 @@ struct kmeans_data_set_type_creator {
 template<typename DataSetTy>
 typename kmeans_data_set_type_creator<DataSetTy>::data_set_type
 kmeans( const DataSetTy & data_set, size_t num_clusters,
-	size_t max_iters = 0 ) {
+	size_t max_iters = 0,
+	typename DataSetTy::value_type epsilon = 1e-4 ) {
     typedef typename DataSetTy::vector_type vector_type;
     typedef typename DataSetTy::value_type value_type;
     typedef typename DataSetTy::index_type index_type;
@@ -422,7 +425,8 @@ kmeans( const DataSetTy & data_set, size_t num_clusters,
     typedef typename kmeans_type::kmeans_dense_vector_set kmeans_vector_set;
 
     kmeans_type op( num_clusters, data_set.get_dimensions() );
-    op.cluster( data_set.vector_cbegin(), data_set.vector_cend(), max_iters );
+    op.cluster( data_set.vector_cbegin(), data_set.vector_cend(),
+		max_iters, epsilon );
 
     typedef typename kmeans_data_set_type_creator<DataSetTy>::data_set_type
 	data_set_type;

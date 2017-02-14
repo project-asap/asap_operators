@@ -179,7 +179,7 @@ int main(int argc, char **argv) {
     get_time (end);
     int stored_sse=INT_MAX;        
     for (int j = 0 ; j < num_runs ; ++j) {
-        dset_type *kmeans_op_j = new dset_type(std::move(asap::kmeans( data_set, num_clusters, max_iters )));
+        dset_type *kmeans_op_j = new dset_type(std::move(asap::kmeans( data_set, num_clusters, max_iters, 1e-4 )));
         if (j == 0) { 
             stored_sse = kmeans_op_j->within_sse();
             kmeans_op = kmeans_op_j;
