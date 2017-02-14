@@ -234,8 +234,13 @@ public:
     template<typename VectorTy>
     typename std::enable_if<is_dense_vector<VectorTy>::value && is_vector_with_sqnorm_cache<VectorTy>::value, value_type>::type
     sq_dist( VectorTy const &p ) const {
-	return mix_vector_ops::square_euclidean_distance(
+	value_type d = mix_vector_ops::square_euclidean_distance(
 	    m_value, m_coord, m_nonzeros, p.get_value(), p.length(), p.get_sqnorm() );
+	// Hedge against in-accuracy in the short-cut above
+	if( d < 0 )
+	    d = mix_vector_ops::square_euclidean_distance(
+		m_value, m_coord, m_nonzeros, p.get_value(), p.length() );
+	return d;
     }
 };
 
