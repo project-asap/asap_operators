@@ -181,7 +181,9 @@ private:
 	    InputIterator II = I;
 	    std::advance( II, pt );
 	    m_centres[c] += *II;
-	    m_centres[c].inc_count();
+	    m_centres[c].inc_count(); // will inc to 1 only
+	    if( is_sparse_vector<decltype(*I)>::value )
+		m_centres[c].update_sqnorm();
 	    c++;
 	    // std::cerr << "PP: pt " << c << " is " << pt << "\n";
 	}
@@ -195,6 +197,7 @@ private:
 	    D[pos] = distance;
 	    *sum += distance;
 	    // std::cerr << "sq distance " << distance << " / " << D[pos] << "\n";
+	    assert( distance >= 0 );
 	}
 	D[pt] = 0; // zero probability
 	// std::cerr << "sum=" << sum.get_value() << "\n";
@@ -209,7 +212,9 @@ private:
 		// std::cerr << "r=" << r << " cum=" << cum << " at pt=" << pt << " D[pt]=" << D[pt] << "\n";
 		if( cum >= r ) {
 		    m_centres[c] += *II;
-		    m_centres[c].inc_count();
+		    m_centres[c].inc_count(); // will inc to 1 only
+		    if( is_sparse_vector<decltype(*I)>::value )
+			m_centres[c].update_sqnorm();
 		    c++;
 		    D[pt] = 0;
 		    // std::cerr << "PP: pt " << c << " is " << pt << "\n";
@@ -225,16 +230,14 @@ private:
 		value_type distance = II->sq_dist( m_centres[c-1] );
 		if( D[pos] > distance )
 		    D[pos] = distance;
-		// if( distance == 0 )
-		    // std::cerr << "set D[" << pos << "] to zero\n";
+		// if( distance == 0 ) std::cerr << "set D[" << pos << "] to zero\n";
 		*sum += D[pos];
 	    }
 /*
 	    if( sum.get_value() == 0 ) {
 		std::cerr << "NO MORE DISTANCES!\n";
-		for( int i=0; i < num_points; ++i ) {
-		    std::cerr << "D[" << i << "]=" << D[i] << "\n";
-		}
+		// for( int i=0; i < num_points; ++i )
+		// std::cerr << "D[" << i << "]=" << D[i] << "\n";
 	    }
 */
 	}
@@ -294,6 +297,8 @@ private:
 			 size_t cluster_asgn[] ) {
 	bool modified = false;
 
+	std::cerr << "***** ITER ***** " << m_sse << "\n";
+
 	// Use a Cilk reducer to assign points to clusters
 	cilk::reducer<dense_vector_set_monoid>
 	    new_centres( m_num_clusters, m_vector_length );
@@ -324,6 +329,10 @@ private:
 	    for(size_t j = 0; j < m_num_clusters; j++) {
 		// assign point to cluster with smallest total squared distance
 		value_type distance = II->sq_dist( m_centres[j] );
+		if( !(distance >= 0) )
+		    std::cerr << "distance is " << distance << " for "
+			      << *II << " and " << m_centres[j] << " sqnorm "
+			      << m_centres[j].get_sqnorm() << "\n";
 		assert( distance >= 0 );
 		if( distance < smallest_distance ) {
 		    smallest_distance = distance;
