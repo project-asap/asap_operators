@@ -58,7 +58,7 @@ static void parse_args(int argc, char **argv) {
     
     num_clusters = DEF_NUM_MEANS;
     num_runs = DEF_NUM_RUNS;
-    max_iters = 0;
+    max_iters = 20; // default
    
 #ifndef NOFLAGS
        while ((c = getopt(argc, argv, "c:i:o:m:r:d")) != EOF) {
