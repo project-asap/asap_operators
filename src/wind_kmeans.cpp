@@ -163,7 +163,7 @@ int main(int argc, char **argv) {
     print_time("input", begin, end);
 
     // for reproducibility
-    srand(1);
+    // srand(1);
 
 /*
     for( auto I=data_set.vector_cbegin(), E=data_set.vector_cend();
