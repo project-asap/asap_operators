@@ -1,0 +1,21 @@
+#
+#Thu Jan 12 14:06:44 CET 2017
+Execution.Argument3=Input0.path
+Constraints.Input.number=1
+Execution.Argument2=4g
+Execution.Argument1=/home/asap/asap/spark-final
+Execution.Argument0=spark\://192.168.1.62\:7077
+Execution.command=./clustering.sh
+Execution.Output0.path=$AS_IShdfs\:///centroids
+Execution.memory=4096
+Constraints.Engine=Spark
+Constraints.Output.number=1
+Constraints.OpSpecification.Algorithm.name=kmeans
+Execution.cores=96
+Execution.Arguments.number=7
+Execution.Argument6=2016-03-31
+Execution.Argument5=2016-03-01
+Execution.Argument4=forth
+Optimization.execTime=5.0
+Optimization.model.execTime=gr.ntua.ece.cslab.panic.core.models.UserFunction
+Optimization.outputSpace.execTime=Double

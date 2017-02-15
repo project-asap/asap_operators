@@ -1,0 +1,18 @@
+
+
+log on to nephele1, change into "forth" directory.
+
+To run in distributed mode do:
+
+/local/kmurphy/spark-2.0.1/bin/spark-submit --master spark://192.168.160.98:7077 --executor-memory 4g clustering.py hdfs:///profiles forth 2016-03-01 2016-03-31
+
+To run in local mode do:
+
+/local/kmurphy/spark-2.0.1/bin/spark-submit --master local[*] --executor-memory 4g clustering.py hdfs:///profiles forth 2016-03-01 2016-03-31
+
+
+This assumes the data has been placed into hdfs://profiles/forth/...  and that the data file intended to be read falls within the date range given in the above argments.  Note, the input file itself postfix is the week number in the year.
+
+To collect the results after a run has been completed use "hdfs dfs -getmerge /centroids/forth/FILENAME LOCAL_FILENAME
+
+run count.sh to determine assigned classifications.
