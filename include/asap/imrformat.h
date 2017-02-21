@@ -297,7 +297,7 @@ size_t count_lines( const char * p ) {
 
 size_t count_nonzeros( const char * p, const char * end ) {
     size_t nvalues = 0;
-    ++p; // skip opening {
+    ++p; // skip opening curly brace
     const char * prevp = p;
     while( (p = std::find_if( p, end, NZDelim() )) != end ) {
 	if( *p == ']' )
@@ -477,7 +477,7 @@ template<typename DataSetTy>
 typename std::enable_if<
     std::is_same<typename DataSetTy::vector_type::memory_mgmt_type, mm_no_ownership_policy>::value,
     DataSetTy>::type
-arff_read( const std::string & filename, bool &is_stored_sparse ) {
+array_read( const std::string & filename, bool &is_stored_sparse ) {
     typedef DataSetTy data_set_type;
     typedef typename data_set_type::vector_type vector_type;
     typedef typename data_set_type::index_list_type index_list_type;
@@ -497,18 +497,18 @@ arff_read( const std::string & filename, bool &is_stored_sparse ) {
 #define ADVANCE(pp) do { if( *(pp) == '\0' ) goto END_OF_FILE; ++pp; } while( 0 )
     size_t num_points;
     do {
-	arff::skip_blank_lines( p, end );
+	array::skip_blank_lines( p, end );
 	while( *p != '@' )
 	    ADVANCE( p );
 	ADVANCE( p );
 	if( !strncasecmp( p, "relation ", 9 ) ) {
 	    p += 9;
-	    if( !(relation = arff::read_relation( p, idx_builder.get_word_list() )) )
+	    if( !(relation = array::read_relation( p, idx_builder.get_word_list() )) )
 		fatal( "Incomplete relation specifier in input file '",
 		       filename, "'" );
 	} else if( !strncasecmp( p, "attribute ", 10 ) ) {
 	    p += 10;
-	    if( !arff::read_attribute( p, idx_builder.get_word_list() ) )
+	    if( !array::read_attribute( p, idx_builder.get_word_list() ) )
 		fatal( "Incomplete attribute specifier in input file '",
 		       filename, "'" );
 	} else if( !strncasecmp( p, "data", 4 ) ) {
@@ -516,7 +516,7 @@ arff_read( const std::string & filename, bool &is_stored_sparse ) {
 	    int ndim = idx_builder.size();
 	    p += 4;
 
-	    arff::skip_blank_lines( p, end );
+	    array::skip_blank_lines( p, end );
 
 	    return [&]() -> data_set_type {
 		// Estimate upper bound on space needed to store all vectors.
@@ -544,12 +544,12 @@ arff_read( const std::string & filename, bool &is_stored_sparse ) {
 
 		    assert( num_points < max_points );
 		    init_vector<vector_type>( dvs, p, end, ndim );
-		    if( !arff::read_vector( p, end, dvs[num_points++] ) ) {
+		    if( !array::read_vector( p, end, dvs[num_points++] ) ) {
 			// Oops, no vector after all...
 			// This should happen at most once per file.
 			--num_points;
 		    }
-		    arff::skip_blank_lines( p, end );
+		    array::skip_blank_lines( p, end );
 		} while( *p != '\0' );
 	    END_OF_FILE:
 		dvs.trim_number( num_points );
@@ -650,7 +650,7 @@ END_OF_FILE:
     return data_set_type( relation, idx, std::make_shared<vector_set_type>( 0, 0 ) );
 }
 
-namespace arff {
+namespace array {
 
 template<typename Type>
 const char * as_word( const Type & val ) {
@@ -692,7 +692,7 @@ operator << ( std::ostream & os,
 
 
 template<typename VectorIter, typename ColNameIter, typename RowNameIter>
-void arff_write( std::ostream & of,
+void array_write( std::ostream & of,
 		 const char * const relation_name,
 		 VectorIter vI, VectorIter vE,
 		 ColNameIter cI, ColNameIter cE,
@@ -714,15 +714,15 @@ void arff_write( std::ostream & of,
 };
 
 template<typename DataSetTy>
-void arff_write( std::ostream & os,
+void array_write( std::ostream & os,
 		 const DataSetTy & data_set ) {
     if( data_set.transpose() ) {
-	arff::arff_write( os, data_set.get_relation(),
+	array::array_write( os, data_set.get_relation(),
 			  data_set.vector_cbegin(), data_set.vector_cend(), 
 			  data_set.index2_cbegin(), data_set.index2_cend(),
 			  data_set.index_cbegin(), data_set.index_cend() );
     } else {
-	arff::arff_write( os, data_set.get_relation(),
+	array::array_write( os, data_set.get_relation(),
 			  data_set.vector_cbegin(), data_set.vector_cend(), 
 			  data_set.index_cbegin(), data_set.index_cend(),
 			  data_set.index2_cbegin(), data_set.index2_cend() );
@@ -730,13 +730,13 @@ void arff_write( std::ostream & os,
 }
 
 template<typename DataSetTy>
-void arff_write( const std::string & filename,
+void array_write( const std::string & filename,
 		 const DataSetTy & data_set ) {
     if( !strcmp( filename.c_str(), "-" ) )
-	arff_write( std::cout, data_set );
+	array_write( std::cout, data_set );
     else {
 	std::ofstream of( filename, std::ios_base::out );
-	arff_write( of, data_set );
+	array_write( of, data_set );
 	of.close();
     }
 }

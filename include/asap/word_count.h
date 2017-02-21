@@ -358,7 +358,7 @@ template<typename MapTy>
 size_t word_catalog( char * data, size_t data_size,
 		   MapTy & catalog, size_t chunk_size ) {
     // Create a reducer hyperobject and prime it with the existing content
-    word_list_reducer<MapTy> reduce_catalog(1<<16);
+    word_list_reducer<MapTy> reduce_catalog; // (1<<16);
     cilk::reducer< cilk::op_add<size_t> > reduce_num_words(0);
     reduce_catalog.swap( catalog );
 
@@ -426,7 +426,7 @@ template<typename MapTy>
 size_t ngram_catalog( char * data, size_t data_size,
 		      MapTy & catalog, size_t chunk_size ) {
     // Create a reducer hyperobject and prime it with the existing content
-    ngram_list_reducer<MapTy> reduce_catalog(1<<16);
+    ngram_list_reducer<MapTy> reduce_catalog; // (1<<16);
     cilk::reducer< cilk::op_add<size_t> > reduce_num_ngrams(0);
     reduce_catalog.swap( catalog );
 
