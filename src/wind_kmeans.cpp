@@ -206,7 +206,7 @@ int main(int argc, char **argv) {
     get_time (begin);
     fprintf( stdout, "sparse? %s\n",
 	     ( is_sparse && !force_dense ) ? "yes" : "no" );
-    fprintf( stdout, "iterations: %d\n", kmeans_op->num_iterations() );
+    fprintf( stdout, "iterations: %lu\n", kmeans_op->num_iterations() );
 
     fprintf( stdout, "within cluster SSE: %11.4lf\n", kmeans_op->within_sse() );
 
